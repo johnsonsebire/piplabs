@@ -22,7 +22,8 @@ export interface UseDerivWsReturn {
   error: string | null;
 }
 
-const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+// Deriv API v2 public WebSocket — no authentication needed for market data.
+const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
 
 // Deriv supports these granularities (in seconds) for ticks_history.
 // Anything outside this set must be aggregated client-side or clamped.

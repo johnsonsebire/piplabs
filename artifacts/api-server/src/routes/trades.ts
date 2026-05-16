@@ -132,7 +132,7 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
         reqId,
       };
 
-      const outcome = await buyContract(user.derivApiToken, buyParams);
+      const outcome = await buyContract(user.derivApiToken, user.derivAccountId!, buyParams);
       invalidateBalanceCache(user.id);
 
       if (outcome.ok) {

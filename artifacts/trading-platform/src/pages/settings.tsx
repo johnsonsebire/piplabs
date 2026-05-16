@@ -100,6 +100,10 @@ export default function SettingsPage() {
                     <p className="font-mono font-bold">{derivStatus.accountId || '---'}</p>
                   </div>
                   <div className="space-y-1 border border-border p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Type</p>
+                    <p className="font-mono font-bold">{derivStatus.loginId?.startsWith('VRTC') || derivStatus.loginId?.startsWith('VRT') ? 'DEMO' : 'REAL'}</p>
+                  </div>
+                  <div className="space-y-1 border border-border p-3">
                     <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Currency</p>
                     <p className="font-mono font-bold">{derivStatus.currency || 'USD'}</p>
                   </div>
@@ -108,8 +112,8 @@ export default function SettingsPage() {
                     <p className="font-mono font-bold text-primary">${derivStatus.balance?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   onClick={handleDisconnectDeriv}
                   disabled={disconnectDeriv.isPending}
                   className="rounded-none font-mono uppercase font-bold tracking-wider"
@@ -118,29 +122,33 @@ export default function SettingsPage() {
                 </Button>
               </div>
             ) : (
-              <form onSubmit={handleConnectDeriv} className="space-y-4 max-w-md">
-                <p className="text-sm text-muted-foreground font-mono mb-4">Provide a Deriv API token with Read, Trade, and Admin scopes to enable live execution.</p>
+              <form onSubmit={handleConnectDeriv} className="space-y-5 max-w-lg">
+                {/* Setup guide */}
+                <div className="border border-primary/30 bg-primary/5 p-4 space-y-2">
+                  <p className="text-xs font-mono font-bold text-primary uppercase tracking-wider">Deriv API v2 — Setup Required</p>
+                  <ol className="text-[11px] font-mono text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Go to <span className="text-foreground">developers.deriv.com</span> → Dashboard → Register a new <span className="text-primary font-bold">PAT-type</span> app → copy your <span className="text-foreground">App ID</span>.</li>
+                    <li>In the same dashboard → API Tokens → create a token with <span className="text-primary font-bold">trade</span> + <span className="text-primary font-bold">account_manage</span> scopes → copy your <span className="text-foreground">PAT</span>.</li>
+                    <li>Set <span className="text-primary font-mono">DERIV_APP_ID</span> as an environment variable in this project with your App ID value.</li>
+                    <li>Paste your PAT below and click <span className="text-foreground">Establish Connection</span>.</li>
+                  </ol>
+                </div>
+
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">API Token</Label>
-                  <Input 
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Personal Access Token (PAT)</Label>
+                  <Input
                     type="password"
-                    required 
-                    value={apiToken} 
+                    required
+                    value={apiToken}
                     onChange={e => setApiToken(e.target.value)}
+                    placeholder="pat_••••••••••••••••••••••••"
                     className="rounded-none font-mono border-border bg-background"
                   />
+                  <p className="text-[10px] font-mono text-muted-foreground">Generated from your registered app at developers.deriv.com. Requires <code>trade</code> scope.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Account ID (Optional)</Label>
-                  <Input 
-                    value={accountId} 
-                    onChange={e => setAccountId(e.target.value)}
-                    placeholder="CR123456"
-                    className="rounded-none font-mono border-border bg-background uppercase"
-                  />
-                </div>
-                <Button 
-                  type="submit" 
+
+                <Button
+                  type="submit"
                   disabled={connectDeriv.isPending}
                   className="w-full rounded-none font-mono uppercase font-bold tracking-wider mt-2"
                 >

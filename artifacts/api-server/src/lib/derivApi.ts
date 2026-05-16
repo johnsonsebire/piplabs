@@ -1,7 +1,42 @@
 import WebSocket from "ws";
 
-const DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+const DERIV_REST_BASE = "https://api.derivws.com";
+const DERIV_PUBLIC_WS = "wss://api.derivws.com/trading/v1/options/ws/public";
 const TIMEOUT_MS = 15000;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getAppId(): string {
+  const id = process.env.DERIV_APP_ID;
+  if (!id) {
+    throw new Error(
+      "DERIV_APP_ID is not configured. " +
+      "Register a PAT-type app at developers.deriv.com → Dashboard, " +
+      "then set DERIV_APP_ID in your environment variables."
+    );
+  }
+  return id;
+}
+
+function derivRestHeaders(pat: string): Record<string, string> {
+  return {
+    "Authorization": `Bearer ${pat}`,
+    "Deriv-App-ID": getAppId(),
+    "Content-Type": "application/json",
+  };
+}
+
+function safeClose(ws: WebSocket): void {
+  try { ws.removeAllListeners(); } catch { /* noop */ }
+  try { ws.close(); } catch { /* noop */ }
+  try { ws.terminate(); } catch { /* noop */ }
+}
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
 
 export type DerivAccountInfo = {
   loginId: string;
@@ -39,80 +74,132 @@ export type DerivBuyOutcome =
   | { ok: false; uncertain: false; error: string }
   | { ok: false; uncertain: true; error: string; reqId: number };
 
-type DerivResponse = {
+// ---------------------------------------------------------------------------
+// Internal REST types (Deriv v2 response shapes)
+// ---------------------------------------------------------------------------
+
+type OptionsAccount = {
+  account_id: string;
+  balance: number;
+  currency: string;
+  account_type: "demo" | "real";
+  status: "active" | "inactive";
+  email?: string;
+  name?: string;
+};
+
+// ---------------------------------------------------------------------------
+// REST helpers
+// ---------------------------------------------------------------------------
+
+async function fetchAccounts(pat: string): Promise<OptionsAccount[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const resp = await fetch(`${DERIV_REST_BASE}/trading/v1/options/accounts`, {
+      headers: derivRestHeaders(pat),
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      throw new Error(`Deriv GET accounts failed (HTTP ${resp.status}): ${body.slice(0, 300)}`);
+    }
+    const json = await resp.json() as { data: OptionsAccount[] };
+    return Array.isArray(json.data) ? json.data : [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchOtpWsUrl(pat: string, accountId: string): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const resp = await fetch(
+      `${DERIV_REST_BASE}/trading/v1/options/accounts/${accountId}/otp`,
+      {
+        method: "POST",
+        headers: derivRestHeaders(pat),
+        signal: controller.signal,
+      }
+    );
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      throw new Error(`Deriv OTP request failed (HTTP ${resp.status}): ${body.slice(0, 300)}`);
+    }
+    const json = await resp.json() as { data: { url: string } };
+    if (!json?.data?.url) throw new Error("Deriv OTP response missing WebSocket URL");
+    return json.data.url;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API: getAccountInfo
+// Validates the PAT via REST and returns the best available account.
+// ---------------------------------------------------------------------------
+
+export async function getAccountInfo(pat: string): Promise<DerivAccountInfo> {
+  const accounts = await fetchAccounts(pat);
+
+  if (accounts.length === 0) {
+    throw new Error(
+      "No Options trading accounts found for this PAT. " +
+      "Log in to app.deriv.com, then go to Deriv API → Tokens, " +
+      "create a PAT with the 'trade' scope, and make sure you have an Options demo or real account."
+    );
+  }
+
+  // Prefer an active real account; fall back to demo.
+  const pick =
+    accounts.find(a => a.account_type === "real" && a.status === "active") ??
+    accounts.find(a => a.status === "active") ??
+    accounts[0];
+
+  return {
+    loginId: pick.account_id,
+    email: pick.email ?? null,
+    currency: pick.currency,
+    balance: Number(pick.balance) || 0,
+    isVirtual: pick.account_type === "demo",
+    fullname: pick.name ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public API: buyContract
+// Gets a short-lived OTP from REST, connects to the authenticated WS URL,
+// and sends a buy request. OTPs are single-use and must not be cached.
+// ---------------------------------------------------------------------------
+
+type DerivWsResponse = {
   error?: { code: string; message: string };
   msg_type?: string;
   req_id?: number;
   [k: string]: unknown;
 };
 
-function safeClose(ws: WebSocket): void {
-  try { ws.removeAllListeners(); } catch { /* noop */ }
-  try { ws.close(); } catch { /* noop */ }
-  try { ws.terminate(); } catch { /* noop */ }
-}
-
-export async function getAccountInfo(token: string): Promise<DerivAccountInfo> {
-  type AuthMsg = {
-    authorize: {
-      loginid: string;
-      email?: string;
-      currency: string;
-      balance: number;
-      is_virtual: 0 | 1;
-      fullname?: string;
+export async function buyContract(
+  pat: string,
+  accountId: string,
+  params: DerivBuyParams
+): Promise<DerivBuyOutcome> {
+  // Obtain a fresh OTP → authenticated WS URL for this operation.
+  let wsUrl: string;
+  try {
+    wsUrl = await fetchOtpWsUrl(pat, accountId);
+  } catch (err) {
+    return {
+      ok: false,
+      uncertain: false,
+      error: err instanceof Error ? err.message : "Failed to get Deriv OTP",
     };
-  };
+  }
 
-  return new Promise<DerivAccountInfo>((resolve, reject) => {
-    const ws = new WebSocket(DERIV_WS_URL);
-    let settled = false;
-    const settle = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      safeClose(ws);
-      fn();
-    };
-    const timeout = setTimeout(() => settle(() => reject(new Error("Deriv authorize timeout"))), TIMEOUT_MS);
-
-    ws.on("open", () => ws.send(JSON.stringify({ authorize: token })));
-    ws.on("message", (raw: Buffer) => {
-      if (settled) return;
-      let msg: DerivResponse;
-      try { msg = JSON.parse(raw.toString()); } catch { return; }
-      if (msg.error) {
-        settle(() => reject(new Error(`Deriv authorize failed: ${msg.error!.message}`)));
-        return;
-      }
-      if (msg.msg_type === "authorize") {
-        const a = (msg as unknown as AuthMsg).authorize;
-        settle(() => resolve({
-          loginId: a.loginid,
-          email: a.email ?? null,
-          currency: a.currency,
-          balance: Number(a.balance) || 0,
-          isVirtual: a.is_virtual === 1,
-          fullname: a.fullname ?? null,
-        }));
-      }
-    });
-    ws.on("error", (err: Error) => settle(() => reject(err)));
-    ws.on("close", () => settle(() => reject(new Error("Deriv WS closed unexpectedly"))));
-  });
-}
-
-/**
- * Place a buy order on Deriv. Returns an outcome:
- *  - { ok: true, result } — buy confirmed by Deriv
- *  - { ok: false, uncertain: false } — request never went out (network/auth failure)
- *  - { ok: false, uncertain: true, reqId } — buy may or may not have executed; reconcile by querying portfolio
- */
-export async function buyContract(token: string, params: DerivBuyParams): Promise<DerivBuyOutcome> {
   return new Promise<DerivBuyOutcome>((resolve) => {
-    const ws = new WebSocket(DERIV_WS_URL);
+    const ws = new WebSocket(wsUrl);
     let settled = false;
-    let authorized = false;
     let buySent = false;
 
     const settle = (outcome: DerivBuyOutcome) => {
@@ -122,54 +209,60 @@ export async function buyContract(token: string, params: DerivBuyParams): Promis
       safeClose(ws);
       resolve(outcome);
     };
+
     const timeout = setTimeout(() => {
-      // If the buy was already sent we don't know whether Deriv executed it
-      settle(buySent
-        ? { ok: false, uncertain: true, error: "Deriv buy timed out after send — execution status unknown", reqId: params.reqId }
-        : { ok: false, uncertain: false, error: "Deriv buy timed out before send" });
+      settle(
+        buySent
+          ? { ok: false, uncertain: true, error: "Deriv buy timed out after send — execution status unknown", reqId: params.reqId }
+          : { ok: false, uncertain: false, error: "Deriv buy timed out before send" }
+      );
     }, TIMEOUT_MS);
 
-    ws.on("open", () => ws.send(JSON.stringify({ authorize: token })));
+    ws.on("open", () => {
+      // The OTP URL is already authenticated — no authorize message needed.
+      const proposal: Record<string, unknown> = {
+        // v2 spec: buy must be string "1" for direct-buy-with-parameters
+        buy: "1",
+        price: params.amount,
+        req_id: params.reqId,
+        parameters: {
+          amount: params.amount,
+          basis: params.basis ?? "stake",
+          contract_type: params.contractType,
+          currency: params.currency,
+          duration: params.duration,
+          duration_unit: params.durationUnit,
+          symbol: params.symbol,
+        },
+      };
+      if (params.contractType === "MULTUP" || params.contractType === "MULTDOWN") {
+        const p = proposal.parameters as Record<string, unknown>;
+        delete p.duration;
+        delete p.duration_unit;
+        p.multiplier = params.multiplier ?? 10;
+      }
+      try {
+        ws.send(JSON.stringify(proposal));
+        buySent = true;
+      } catch (err) {
+        settle({ ok: false, uncertain: false, error: err instanceof Error ? err.message : "Failed to send buy" });
+      }
+    });
+
     ws.on("message", (raw: Buffer) => {
       if (settled) return;
-      let msg: DerivResponse;
+      let msg: DerivWsResponse;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
+
       if (msg.error) {
-        settle(buySent && msg.msg_type === "buy"
-          ? { ok: false, uncertain: false, error: `Deriv buy rejected: ${msg.error.message}` }
-          : { ok: false, uncertain: false, error: `Deriv error: ${msg.error.message}` });
+        settle(
+          buySent && msg.msg_type === "buy"
+            ? { ok: false, uncertain: false, error: `Deriv buy rejected: ${msg.error.message}` }
+            : { ok: false, uncertain: false, error: `Deriv error: ${msg.error.message}` }
+        );
         return;
       }
-      if (!authorized && msg.msg_type === "authorize") {
-        authorized = true;
-        const proposal: Record<string, unknown> = {
-          buy: 1,
-          price: params.amount,
-          req_id: params.reqId,
-          parameters: {
-            amount: params.amount,
-            basis: params.basis ?? "stake",
-            contract_type: params.contractType,
-            currency: params.currency,
-            duration: params.duration,
-            duration_unit: params.durationUnit,
-            symbol: params.symbol,
-          },
-        };
-        if (params.contractType === "MULTUP" || params.contractType === "MULTDOWN") {
-          const p = proposal.parameters as Record<string, unknown>;
-          delete p.duration;
-          delete p.duration_unit;
-          p.multiplier = params.multiplier ?? 10;
-        }
-        try {
-          ws.send(JSON.stringify(proposal));
-          buySent = true;
-        } catch (err) {
-          settle({ ok: false, uncertain: false, error: err instanceof Error ? err.message : "Failed to send buy" });
-        }
-        return;
-      }
+
       if (msg.msg_type === "buy") {
         const b = (msg as any).buy as {
           contract_id: number; buy_price: number; payout: number;
@@ -189,20 +282,29 @@ export async function buyContract(token: string, params: DerivBuyParams): Promis
         });
       }
     });
+
     ws.on("error", (err: Error) => {
-      settle(buySent
-        ? { ok: false, uncertain: true, error: `Deriv WS error after buy sent: ${err.message}`, reqId: params.reqId }
-        : { ok: false, uncertain: false, error: `Deriv WS error: ${err.message}` });
+      settle(
+        buySent
+          ? { ok: false, uncertain: true, error: `Deriv WS error after buy sent: ${err.message}`, reqId: params.reqId }
+          : { ok: false, uncertain: false, error: `Deriv WS error: ${err.message}` }
+      );
     });
+
     ws.on("close", () => {
-      settle(buySent
-        ? { ok: false, uncertain: true, error: "Deriv WS closed after buy sent — execution status unknown", reqId: params.reqId }
-        : { ok: false, uncertain: false, error: "Deriv WS closed before buy" });
+      settle(
+        buySent
+          ? { ok: false, uncertain: true, error: "Deriv WS closed after buy sent — execution status unknown", reqId: params.reqId }
+          : { ok: false, uncertain: false, error: "Deriv WS closed before buy" }
+      );
     });
   });
 }
 
-// User-keyed balance cache (avoids retaining raw tokens in long-lived map keys).
+// ---------------------------------------------------------------------------
+// Balance cache (avoids hammering the REST API on every dashboard load)
+// ---------------------------------------------------------------------------
+
 type CacheEntry = { info: DerivAccountInfo; ts: number };
 const balanceCache = new Map<string, CacheEntry>();
 const inflightAccountInfo = new Map<string, Promise<DerivAccountInfo>>();
@@ -216,14 +318,14 @@ setInterval(() => {
   }
 }, CACHE_SWEEP_MS).unref?.();
 
-export async function getAccountInfoCached(userId: string, token: string): Promise<DerivAccountInfo> {
+export async function getAccountInfoCached(userId: string, pat: string): Promise<DerivAccountInfo> {
   const cached = balanceCache.get(userId);
   if (cached && Date.now() - cached.ts < BALANCE_TTL_MS) return cached.info;
 
   const existing = inflightAccountInfo.get(userId);
   if (existing) return existing;
 
-  const p = getAccountInfo(token)
+  const p = getAccountInfo(pat)
     .then((info) => {
       balanceCache.set(userId, { info, ts: Date.now() });
       return info;
@@ -245,3 +347,6 @@ export function nextReqId(): number {
   _reqIdCounter = (_reqIdCounter + 1) & 0x7fffffff;
   return _reqIdCounter;
 }
+
+// Exported so routes can reference the public WS URL without duplicating it.
+export { DERIV_PUBLIC_WS };
