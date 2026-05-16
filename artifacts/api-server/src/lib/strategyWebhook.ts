@@ -40,6 +40,7 @@ export type FireWebhookResult = {
 export function buildSignalPayload(args: {
   strategyName: string;
   symbol: string;
+  symbolDisplay?: string | null;
   direction: string;
   duration: number | null;
   durationUnit: string | null;
@@ -47,7 +48,10 @@ export function buildSignalPayload(args: {
 }): StrategySignalPayload {
   const strategy = `${args.strategyName},`;
   const direction = args.direction.toUpperCase();
-  const symbol = `${args.symbol},`;
+  const symbolText = args.symbolDisplay && args.symbolDisplay !== args.symbol
+    ? `${args.symbolDisplay} (${args.symbol})`
+    : args.symbol;
+  const symbol = `${symbolText},`;
   const duration = `${formatDuration(args.duration, args.durationUnit)},`;
   const analysis = `${args.condition},`;
   const time = new Date().toISOString();

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, or } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { strategiesTable, indicatorsTable, backtestsTable } from "@workspace/db";
+import { strategiesTable, indicatorsTable, backtestsTable, assetsTable } from "@workspace/db";
 import {
   ListStrategiesResponse,
   CreateStrategyBody,
@@ -101,9 +101,13 @@ router.post("/strategies/:id/webhook/test", requireAuth, async (req: Authenticat
     res.status(400).json({ ok: false, status: null, error: "No webhook URL configured for this strategy" });
     return;
   }
+  const testSymbol = "R_100";
+  const [asset] = await db.select({ displayName: assetsTable.displayName }).from(assetsTable)
+    .where(eq(assetsTable.symbol, testSymbol));
   const payload = buildSignalPayload({
     strategyName: strategy.name,
-    symbol: "R_100",
+    symbol: testSymbol,
+    symbolDisplay: asset?.displayName ?? null,
     direction: "CALL",
     duration: 5,
     durationUnit: "m",
