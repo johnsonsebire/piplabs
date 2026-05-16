@@ -828,8 +828,8 @@ export type NewsArticleSentiment = typeof NewsArticleSentiment[keyof typeof News
 
 
 export const NewsArticleSentiment = {
-  positive: 'positive',
-  negative: 'negative',
+  bullish: 'bullish',
+  bearish: 'bearish',
   neutral: 'neutral',
 } as const;
 

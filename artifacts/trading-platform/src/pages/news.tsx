@@ -48,7 +48,7 @@ export default function NewsPage() {
                     <span className="text-[10px] font-mono uppercase text-muted-foreground bg-muted px-2 py-0.5">{item.source}</span>
                     <div className="flex items-center gap-3 text-[10px] font-mono uppercase">
                       {item.sentiment && (
-                        <span className={`px-2 py-0.5 ${item.sentiment === 'positive' ? 'text-primary bg-primary/10' : item.sentiment === 'negative' ? 'text-destructive bg-destructive/10' : 'text-foreground bg-muted'}`}>
+                        <span className={`px-2 py-0.5 ${item.sentiment === 'bullish' ? 'text-primary bg-primary/10' : item.sentiment === 'bearish' ? 'text-destructive bg-destructive/10' : 'text-foreground bg-muted'}`}>
                           {item.sentiment}
                         </span>
                       )}

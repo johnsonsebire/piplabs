@@ -1146,7 +1146,7 @@ export const GetMarketNewsResponseItem = zod.object({
   "url": zod.string(),
   "source": zod.string(),
   "category": zod.string(),
-  "sentiment": zod.enum(['positive', 'negative', 'neutral']).nullish(),
+  "sentiment": zod.enum(['bullish', 'bearish', 'neutral']).nullish(),
   "publishedAt": zod.coerce.date(),
   "imageUrl": zod.string().nullish()
 })
