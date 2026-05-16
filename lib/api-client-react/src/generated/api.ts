@@ -58,6 +58,7 @@ import type {
   Strategy,
   StrategyInput,
   StrategyUpdate,
+  TestStrategyWebhook200,
   Trade,
   TradeComment,
   TradeCommentInput,
@@ -3324,6 +3325,76 @@ export const useRunBacktest = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRunBacktestMutationOptions(options));
+    }
+
+export const getTestStrategyWebhookUrl = (id: number,) => {
+
+
+
+
+  return `/api/strategies/${id}/webhook/test`
+}
+
+/**
+ * @summary Send a sample signal payload to the strategy webhook URL
+ */
+export const testStrategyWebhook = async (id: number, options?: RequestInit): Promise<TestStrategyWebhook200> => {
+
+  return customFetch<TestStrategyWebhook200>(getTestStrategyWebhookUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getTestStrategyWebhookMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testStrategyWebhook>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof testStrategyWebhook>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['testStrategyWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testStrategyWebhook>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  testStrategyWebhook(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TestStrategyWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof testStrategyWebhook>>>
+
+    export type TestStrategyWebhookMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send a sample signal payload to the strategy webhook URL
+ */
+export const useTestStrategyWebhook = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testStrategyWebhook>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof testStrategyWebhook>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getTestStrategyWebhookMutationOptions(options));
     }
 
 export const getGetBacktestUrl = (id: number,) => {

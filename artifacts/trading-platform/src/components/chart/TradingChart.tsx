@@ -14,9 +14,10 @@ interface TradingChartProps {
   symbol: string;
   height?: number;
   indicators?: ChartIndicatorInput[];
+  granularitySec?: number;
 }
 
-export function TradingChart({ symbol, height = 400, indicators = [] }: TradingChartProps) {
+export function TradingChart({ symbol, height = 400, indicators = [], granularitySec = 60 }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const oscContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -27,7 +28,7 @@ export function TradingChart({ symbol, height = 400, indicators = [] }: TradingC
   const [mainReady, setMainReady] = useState(0);
   const [oscReady, setOscReady] = useState(0);
 
-  const { candles, latestTick, isConnected } = useDerivWs(symbol);
+  const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
   const computed = useMemo<IndicatorSeries[]>(() => {
     if (candles.length === 0) return [];

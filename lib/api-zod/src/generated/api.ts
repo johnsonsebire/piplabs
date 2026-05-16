@@ -685,6 +685,7 @@ export const ListStrategiesResponseItem = zod.object({
   "isPublic": zod.boolean(),
   "winRate": zod.number().nullish(),
   "totalBacktests": zod.number(),
+  "webhookUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -700,7 +701,8 @@ export const CreateStrategyBody = zod.object({
   "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'universal']),
   "code": zod.string(),
   "parameters": zod.string().nullish(),
-  "isPublic": zod.boolean().optional()
+  "isPublic": zod.boolean().optional(),
+  "webhookUrl": zod.string().nullish()
 })
 
 
@@ -723,6 +725,7 @@ export const GetStrategyResponse = zod.object({
   "isPublic": zod.boolean(),
   "winRate": zod.number().nullish(),
   "totalBacktests": zod.number(),
+  "webhookUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -742,7 +745,8 @@ export const UpdateStrategyBody = zod.object({
   "code": zod.string().optional(),
   "parameters": zod.string().nullish(),
   "isActive": zod.boolean().optional(),
-  "isPublic": zod.boolean().optional()
+  "isPublic": zod.boolean().optional(),
+  "webhookUrl": zod.string().nullish()
 })
 
 export const UpdateStrategyResponse = zod.object({
@@ -757,6 +761,7 @@ export const UpdateStrategyResponse = zod.object({
   "isPublic": zod.boolean(),
   "winRate": zod.number().nullish(),
   "totalBacktests": zod.number(),
+  "webhookUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -891,8 +896,25 @@ export const RunBacktestBody = zod.object({
   "symbol": zod.string(),
   "fromDate": zod.coerce.date(),
   "toDate": zod.coerce.date(),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier']).optional(),
+  "duration": zod.number().nullish(),
+  "durationUnit": zod.union([zod.literal('t'),zod.literal('s'),zod.literal('m'),zod.literal('h'),zod.literal('d'),zod.literal(null)]).nullish(),
   "initialBalance": zod.number().nullish(),
   "stakePerTrade": zod.number().nullish()
+})
+
+
+/**
+ * @summary Send a sample signal payload to the strategy webhook URL
+ */
+export const TestStrategyWebhookParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const TestStrategyWebhookResponse = zod.object({
+  "ok": zod.boolean(),
+  "status": zod.number().nullish(),
+  "error": zod.string().nullish()
 })
 
 

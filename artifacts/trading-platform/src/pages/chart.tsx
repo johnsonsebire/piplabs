@@ -1,41 +1,49 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
-import { useDerivWs } from "@/hooks/use-deriv-ws";
+import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
 import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
 
+// Maps Deriv API durationUnit codes used by `buy` proposals
+const DURATION_UNITS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "m", label: "Minutes" },
+  { value: "t", label: "Ticks" },
+  { value: "s", label: "Seconds" },
+  { value: "h", label: "Hours" },
+  { value: "d", label: "Days" },
+];
+
 export default function ChartPage() {
   const [symbol, setSymbol] = useState("R_100");
-  const { latestTick, isConnected } = useDerivWs(symbol);
+  const [granularitySec, setGranularitySec] = useState<number>(60);
+  const { latestTick, isConnected } = useDerivWs(symbol, granularitySec);
   const { toast } = useToast();
-  
+
   const [contractType, setContractType] = useState<TradeInputType>(TradeInputType.vanilla_options);
   const [direction, setDirection] = useState<TradeInputDirection>(TradeInputDirection.call);
-  const [stake, setStake] = useState("10");
+  const [stake, setStake] = useState("1");
   const [duration, setDuration] = useState("5");
-  const [durationUnit, setDurationUnit] = useState("ticks");
+  const [durationUnit, setDurationUnit] = useState("m");
   const [takeProfit, setTakeProfit] = useState("");
   const [aiConfirmed, setAiConfirmed] = useState(false);
   const [tradeMode, setTradeMode] = useState<"demo" | "live">("demo");
 
-  // Search
   const [openSearch, setOpenSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  
+
   const { data: searchResults } = useSearchDerivSymbols(
     { q: debouncedSearchQuery },
     { query: { enabled: !!debouncedSearchQuery, queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
@@ -77,7 +85,6 @@ export default function ChartPage() {
   return (
     <AppLayout>
       <div className="flex flex-col md:flex-row h-[calc(100vh-3.5rem)] w-full">
-        {/* Main Chart Area */}
         <div className="flex-1 flex flex-col min-w-0 border-r border-border">
           <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
             <div className="flex items-center gap-4">
@@ -95,9 +102,9 @@ export default function ChartPage() {
                 </PopoverTrigger>
                 <PopoverContent className="w-[250px] p-0 rounded-none border-border">
                   <Command>
-                    <CommandInput 
-                      placeholder="Search active symbols..." 
-                      className="font-mono text-xs" 
+                    <CommandInput
+                      placeholder="Search active symbols..."
+                      className="font-mono text-xs"
                       value={searchQuery}
                       onValueChange={setSearchQuery}
                     />
@@ -114,12 +121,7 @@ export default function ChartPage() {
                             }}
                             className="font-mono text-xs cursor-pointer"
                           >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                symbol === item.symbol ? "opacity-100" : "opacity-0"
-                              )}
-                            />
+                            <Check className={cn("mr-2 h-4 w-4", symbol === item.symbol ? "opacity-100" : "opacity-0")} />
                             {item.displayName} ({item.symbol})
                           </CommandItem>
                         ))}
@@ -128,12 +130,26 @@ export default function ChartPage() {
                   </Command>
                 </PopoverContent>
               </Popover>
+
+              <Select value={String(granularitySec)} onValueChange={(v) => setGranularitySec(parseInt(v, 10))}>
+                <SelectTrigger className="w-[100px] h-8 rounded-none border-border bg-background font-mono text-xs" data-testid="select-timeframe">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-none border-border max-h-72">
+                  {TIMEFRAME_OPTIONS.map((tf) => (
+                    <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs">
+                      {tf.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <div className="flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-primary animate-pulse' : 'bg-destructive'}`}></div>
                 <span className="font-mono text-xs text-muted-foreground uppercase">{isConnected ? 'Live' : 'Disconnected'}</span>
               </div>
             </div>
-            
+
             <div className="flex flex-col items-end">
               <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Current Price</span>
               <span className={`font-mono font-bold text-lg ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -141,17 +157,17 @@ export default function ChartPage() {
               </span>
             </div>
           </div>
-          
+
           <div className="flex-1 relative">
             <TradingChart
               symbol={symbol}
+              granularitySec={granularitySec}
               height={typeof window !== 'undefined' ? window.innerHeight - 104 : 400}
               indicators={chartIndicators?.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) ?? []}
             />
           </div>
         </div>
 
-        {/* Order Entry Panel */}
         <div className="w-full md:w-80 bg-card shrink-0 flex flex-col h-full overflow-y-auto">
           <div className="p-4 border-b border-border flex items-center justify-between">
             <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">Order Entry</h2>
@@ -166,7 +182,7 @@ export default function ChartPage() {
               {tradeMode === "live" && <span className="flex h-2 w-2 rounded-full bg-destructive animate-pulse ml-1" title="Live Trading Active" />}
             </div>
           </div>
-          
+
           <div className="p-4 space-y-6">
             <div className="space-y-3">
               <Label className="text-xs uppercase font-mono text-muted-foreground">Contract Type</Label>
@@ -182,7 +198,7 @@ export default function ChartPage() {
             <div className="space-y-3">
               <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
               <div className="grid grid-cols-2 gap-2">
-                <Button 
+                <Button
                   type="button"
                   variant={direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? "default" : "outline"}
                   className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary'}`}
@@ -191,7 +207,7 @@ export default function ChartPage() {
                 >
                   {contractType === TradeInputType.multiplier ? 'Buy' : 'Call'}
                 </Button>
-                <Button 
+                <Button
                   type="button"
                   variant={direction === TradeInputDirection.put || direction === TradeInputDirection.sell ? "destructive" : "outline"}
                   className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.put || direction === TradeInputDirection.sell ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive'}`}
@@ -205,9 +221,10 @@ export default function ChartPage() {
 
             <div className="space-y-3">
               <Label className="text-xs uppercase font-mono text-muted-foreground">Stake (USD)</Label>
-              <Input 
-                type="number" 
-                value={stake} 
+              <Input
+                type="number"
+                step="0.01"
+                value={stake}
                 onChange={(e) => setStake(e.target.value)}
                 className="rounded-none font-mono text-lg h-10 border-border bg-background"
                 data-testid="input-stake"
@@ -218,21 +235,21 @@ export default function ChartPage() {
               <div className="space-y-3">
                 <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
                 <div className="flex gap-2">
-                  <Input 
-                    type="number" 
-                    value={duration} 
+                  <Input
+                    type="number"
+                    value={duration}
                     onChange={(e) => setDuration(e.target.value)}
                     className="rounded-none font-mono flex-1 h-10 border-border bg-background"
                     data-testid="input-duration"
                   />
                   <Select value={durationUnit} onValueChange={setDurationUnit}>
-                    <SelectTrigger className="w-[100px] h-10 rounded-none border-border bg-background font-mono">
+                    <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono" data-testid="select-duration-unit">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border">
-                      <SelectItem value="ticks" className="font-mono">Ticks</SelectItem>
-                      <SelectItem value="minutes" className="font-mono">Minutes</SelectItem>
-                      <SelectItem value="hours" className="font-mono">Hours</SelectItem>
+                      {DURATION_UNITS.map((u) => (
+                        <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -241,9 +258,9 @@ export default function ChartPage() {
 
             <div className="space-y-3">
               <Label className="text-xs uppercase font-mono text-muted-foreground">Take Profit (Optional)</Label>
-              <Input 
-                type="number" 
-                value={takeProfit} 
+              <Input
+                type="number"
+                value={takeProfit}
                 onChange={(e) => setTakeProfit(e.target.value)}
                 placeholder="0.00"
                 className="rounded-none font-mono h-10 border-border bg-background"
@@ -255,9 +272,9 @@ export default function ChartPage() {
               <Label className="text-xs uppercase font-mono text-muted-foreground cursor-pointer" htmlFor="ai-confirm">
                 Request AI Confirmation
               </Label>
-              <Switch 
-                id="ai-confirm" 
-                checked={aiConfirmed} 
+              <Switch
+                id="ai-confirm"
+                checked={aiConfirmed}
                 onCheckedChange={setAiConfirmed}
                 data-testid="switch-ai-confirm"
               />
@@ -265,7 +282,7 @@ export default function ChartPage() {
           </div>
 
           <div className="p-4 mt-auto border-t border-border">
-            <Button 
+            <Button
               className={`w-full rounded-none h-12 text-sm uppercase font-bold tracking-widest ${direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'}`}
               onClick={handleExecute}
               disabled={createTrade.isPending || !isConnected}

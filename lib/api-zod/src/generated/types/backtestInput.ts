@@ -5,12 +5,19 @@
  * Deriv Trading Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { BacktestInputDurationUnit } from './backtestInputDurationUnit';
+import type { BacktestInputTradeType } from './backtestInputTradeType';
 
 export interface BacktestInput {
   strategyId: number;
   symbol: string;
   fromDate: Date;
   toDate: Date;
+  tradeType?: BacktestInputTradeType;
+  /** @nullable */
+  duration?: number | null;
+  /** @nullable */
+  durationUnit?: BacktestInputDurationUnit;
   /** @nullable */
   initialBalance?: number | null;
   /** @nullable */

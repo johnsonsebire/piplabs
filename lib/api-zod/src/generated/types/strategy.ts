@@ -22,6 +22,8 @@ export interface Strategy {
   /** @nullable */
   winRate?: number | null;
   totalBacktests: number;
+  /** @nullable */
+  webhookUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -17,4 +17,6 @@ export interface StrategyUpdate {
   parameters?: string | null;
   isActive?: boolean;
   isPublic?: boolean;
+  /** @nullable */
+  webhookUrl?: string | null;
 }

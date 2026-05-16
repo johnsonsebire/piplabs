@@ -16,4 +16,6 @@ export interface StrategyInput {
   /** @nullable */
   parameters?: string | null;
   isPublic?: boolean;
+  /** @nullable */
+  webhookUrl?: string | null;
 }

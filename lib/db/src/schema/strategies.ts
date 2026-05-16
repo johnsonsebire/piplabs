@@ -16,6 +16,8 @@ export const strategiesTable = pgTable("strategies", {
   isPublic: boolean("is_public").notNull().default(false),
   winRate: real("win_rate"),
   totalBacktests: integer("total_backtests").notNull().default(0),
+  webhookUrl: text("webhook_url"),
+  webhookSecret: text("webhook_secret"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

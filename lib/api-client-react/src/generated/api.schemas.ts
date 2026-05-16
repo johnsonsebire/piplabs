@@ -415,6 +415,8 @@ export interface Strategy {
   /** @nullable */
   winRate?: number | null;
   totalBacktests: number;
+  /** @nullable */
+  webhookUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -438,6 +440,8 @@ export interface StrategyInput {
   /** @nullable */
   parameters?: string | null;
   isPublic?: boolean;
+  /** @nullable */
+  webhookUrl?: string | null;
 }
 
 export type StrategyUpdateType = typeof StrategyUpdateType[keyof typeof StrategyUpdateType];
@@ -460,6 +464,8 @@ export interface StrategyUpdate {
   parameters?: string | null;
   isActive?: boolean;
   isPublic?: boolean;
+  /** @nullable */
+  webhookUrl?: string | null;
 }
 
 export interface Indicator {
@@ -533,11 +539,39 @@ export interface Backtest {
   completedAt?: string | null;
 }
 
+export type BacktestInputTradeType = typeof BacktestInputTradeType[keyof typeof BacktestInputTradeType];
+
+
+export const BacktestInputTradeType = {
+  vanilla_options: 'vanilla_options',
+  forex: 'forex',
+  multiplier: 'multiplier',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BacktestInputDurationUnit = typeof BacktestInputDurationUnit[keyof typeof BacktestInputDurationUnit] | null;
+
+
+export const BacktestInputDurationUnit = {
+  t: 't',
+  s: 's',
+  m: 'm',
+  h: 'h',
+  d: 'd',
+} as const;
+
 export interface BacktestInput {
   strategyId: number;
   symbol: string;
   fromDate: string;
   toDate: string;
+  tradeType?: BacktestInputTradeType;
+  /** @nullable */
+  duration?: number | null;
+  /** @nullable */
+  durationUnit?: BacktestInputDurationUnit;
   /** @nullable */
   initialBalance?: number | null;
   /** @nullable */
@@ -948,6 +982,14 @@ export const GetTradeStatsPeriod = {
 
 export type ListBacktestsParams = {
 strategyId?: number;
+};
+
+export type TestStrategyWebhook200 = {
+  ok: boolean;
+  /** @nullable */
+  status?: number | null;
+  /** @nullable */
+  error?: string | null;
 };
 
 export type ListAIAnalysesParams = {

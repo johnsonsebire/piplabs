@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useListStrategies, useCreateStrategy, StrategyInputType } from "@workspace/api-client-react";
+import {
+  useListStrategies,
+  useCreateStrategy,
+  useUpdateStrategy,
+  useDeleteStrategy,
+  useTestStrategyWebhook,
+  StrategyInputType,
+  type Strategy,
+} from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +17,17 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Pencil, Trash2, Send } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Condition {
   id: string;
@@ -20,31 +38,90 @@ interface Condition {
 
 type Direction = "buy" | "sell";
 
+const DEFAULT_CONDITIONS: Condition[] = [
+  { id: "1", indicatorA: "EMA(7)", operator: "crosses above", indicatorB: "EMA(3)" },
+  { id: "2", indicatorA: "CCI", operator: ">", indicatorB: "0" },
+];
+
 export default function StrategiesPage() {
   const { data: strategies, isLoading } = useListStrategies({});
   const createStrategy = useCreateStrategy();
+  const updateStrategy = useUpdateStrategy();
+  const deleteStrategy = useDeleteStrategy();
+  const testWebhook = useTestStrategyWebhook();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<StrategyInputType>(StrategyInputType.vanilla_options);
   const [logicOp, setLogicOp] = useState<"AND" | "OR">("AND");
   const [direction, setDirection] = useState<Direction>("buy");
   const [exitDirection, setExitDirection] = useState<"opposite" | "manual" | "target">("opposite");
-
+  const [webhookUrl, setWebhookUrl] = useState("");
   const [conditions, setConditions] = useState<Condition[]>([]);
 
-  // Pre-load example
+  // Seed example when opening fresh (not editing)
   useEffect(() => {
-    if (showForm && conditions.length === 0 && !name) {
-      setConditions([
-        { id: "1", indicatorA: "EMA(7)", operator: "crosses above", indicatorB: "EMA(3)" },
-        { id: "2", indicatorA: "CCI", operator: ">", indicatorB: "0" }
-      ]);
+    if (showForm && editingId === null && conditions.length === 0 && !name) {
+      setConditions(DEFAULT_CONDITIONS);
     }
-  }, [showForm]);
+  }, [showForm, editingId, conditions.length, name]);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setName("");
+    setDescription("");
+    setType(StrategyInputType.vanilla_options);
+    setLogicOp("AND");
+    setDirection("buy");
+    setExitDirection("opposite");
+    setWebhookUrl("");
+    setConditions([]);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const openEdit = (s: Strategy) => {
+    setEditingId(s.id);
+    setName(s.name);
+    setDescription(s.description ?? "");
+    setType(s.type as StrategyInputType);
+    setWebhookUrl(s.webhookUrl ?? "");
+    try {
+      const parsed = JSON.parse(s.code);
+      setDirection((parsed.action ?? "buy") as Direction);
+      setExitDirection((parsed.exit ?? "opposite") as any);
+      setLogicOp((parsed.logic ?? "AND") as any);
+      setConditions(
+        Array.isArray(parsed.conditions) && parsed.conditions.length > 0
+          ? parsed.conditions.map((c: any, i: number) => ({
+              id: String(i + 1),
+              indicatorA: c.indicatorA ?? "",
+              operator: c.operator ?? "==",
+              indicatorB: c.indicatorB ?? "",
+            }))
+          : [...DEFAULT_CONDITIONS],
+      );
+    } catch {
+      setConditions([...DEFAULT_CONDITIONS]);
+      setDirection("buy");
+      setExitDirection("opposite");
+      setLogicOp("AND");
+    }
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    resetForm();
+    setShowForm(false);
+  };
 
   const addCondition = () => {
     setConditions([...conditions, { id: Math.random().toString(36).substring(7), indicatorA: "", operator: "==", indicatorB: "" }]);
@@ -60,46 +137,86 @@ export default function StrategiesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Construct JSON payload
+
     const payload = {
       action: direction,
       exit: exitDirection,
       logic: logicOp,
       conditions: conditions.map(({ indicatorA, operator, indicatorB }) => ({ indicatorA, operator, indicatorB }))
     };
+    const body = {
+      name,
+      description,
+      type,
+      code: JSON.stringify(payload),
+      parameters: "{}",
+      webhookUrl: webhookUrl.trim() || null,
+    };
 
-    createStrategy.mutate({
-      data: {
-        name,
-        description,
-        type,
-        code: JSON.stringify(payload),
-        parameters: "{}"
-      }
-    }, {
+    if (editingId === null) {
+      createStrategy.mutate({ data: body }, {
+        onSuccess: () => {
+          toast({ title: "Strategy created" });
+          closeForm();
+          queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
+        },
+        onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
+      });
+    } else {
+      updateStrategy.mutate({ id: editingId, data: body }, {
+        onSuccess: () => {
+          toast({ title: "Strategy updated" });
+          closeForm();
+          queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
+        },
+        onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
+      });
+    }
+  };
+
+  const handleDelete = (id: number) => {
+    deleteStrategy.mutate({ id }, {
       onSuccess: () => {
-        toast({ title: "Strategy created" });
-        setShowForm(false);
+        toast({ title: "Strategy deleted" });
+        setConfirmDeleteId(null);
+        if (editingId === id) closeForm();
         queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
       },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "Error", description: err?.message });
-      }
+      onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
+    });
+  };
+
+  const handleTestWebhook = () => {
+    if (editingId === null) {
+      toast({ variant: "destructive", title: "Save the strategy first to send a test signal" });
+      return;
+    }
+    if (!webhookUrl.trim()) {
+      toast({ variant: "destructive", title: "Add a webhook URL first" });
+      return;
+    }
+    testWebhook.mutate({ id: editingId }, {
+      onSuccess: (data: any) => {
+        if (data?.ok) toast({ title: "Webhook delivered", description: `HTTP ${data.status}` });
+        else toast({ variant: "destructive", title: "Webhook failed", description: data?.error ?? "Unknown error" });
+      },
+      onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
     });
   };
 
   const IND_OPTIONS = ["EMA(3)", "EMA(7)", "EMA(14)", "SMA(20)", "RSI", "MACD", "CCI", "BB_UPPER", "BB_LOWER", "PRICE"];
   const OP_OPTIONS = ["crosses above", "crosses below", "is above", "is below", "==", ">", "<", ">=", "<="];
 
+  const isSaving = createStrategy.isPending || updateStrategy.isPending;
+
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden p-6 gap-6 max-w-6xl mx-auto">
         <div className="flex justify-between items-center shrink-0">
           <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">Algorithmic Strategies</h1>
-          <Button 
+          <Button
             className="rounded-none font-bold uppercase tracking-wider font-mono"
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => (showForm ? closeForm() : openCreate())}
             data-testid="button-new-strategy"
           >
             {showForm ? "Cancel" : "New Strategy"}
@@ -117,13 +234,14 @@ export default function StrategiesPage() {
                   <th className="p-4 font-normal text-muted-foreground uppercase tracking-wider text-xs">Status</th>
                   <th className="p-4 font-normal text-muted-foreground uppercase tracking-wider text-xs">Win Rate</th>
                   <th className="p-4 font-normal text-muted-foreground uppercase tracking-wider text-xs">Updated</th>
+                  <th className="p-4 font-normal text-muted-foreground uppercase tracking-wider text-xs text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {isLoading ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-muted-foreground uppercase">Loading...</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-muted-foreground uppercase">Loading...</td></tr>
                 ) : strategies?.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-muted-foreground uppercase">No strategies found</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-muted-foreground uppercase">No strategies found</td></tr>
                 ) : (
                   strategies?.map(s => (
                     <tr key={s.id} className="hover:bg-muted/10 transition-colors">
@@ -136,6 +254,28 @@ export default function StrategiesPage() {
                       </td>
                       <td className="p-4 text-foreground">{s.winRate ? `${s.winRate.toFixed(1)}%` : '---'}</td>
                       <td className="p-4 text-muted-foreground text-xs">{format(new Date(s.updatedAt), "yyyy-MM-dd")}</td>
+                      <td className="p-4 text-right">
+                        <div className="inline-flex gap-1">
+                          <Button
+                            type="button" size="icon" variant="ghost"
+                            className="h-8 w-8 rounded-none hover:bg-primary/20 hover:text-primary"
+                            onClick={() => openEdit(s)}
+                            data-testid={`button-edit-strategy-${s.id}`}
+                            title="Edit / rename"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button" size="icon" variant="ghost"
+                            className="h-8 w-8 rounded-none hover:bg-destructive/20 hover:text-destructive"
+                            onClick={() => setConfirmDeleteId(s.id)}
+                            data-testid={`button-delete-strategy-${s.id}`}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -146,16 +286,28 @@ export default function StrategiesPage() {
           {/* Form Panel */}
           {showForm && (
             <div className="w-full md:w-[500px] border border-border bg-card shrink-0 flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-border bg-muted/20 shrink-0">
-                <h2 className="text-sm font-bold font-mono uppercase text-foreground">Visual Strategy Builder</h2>
+              <div className="p-4 border-b border-border bg-muted/20 shrink-0 flex items-center justify-between">
+                <h2 className="text-sm font-bold font-mono uppercase text-foreground">
+                  {editingId === null ? "Visual Strategy Builder" : `Edit Strategy #${editingId}`}
+                </h2>
               </div>
               <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-6">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Name</Label>
-                  <Input 
-                    required 
-                    value={name} 
+                  <Input
+                    required
+                    value={name}
                     onChange={e => setName(e.target.value)}
+                    className="rounded-none font-mono border-border bg-background"
+                    data-testid="input-strategy-name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Description</Label>
+                  <Input
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
                     className="rounded-none font-mono border-border bg-background"
                   />
                 </div>
@@ -187,7 +339,6 @@ export default function StrategiesPage() {
                           ? "border-primary bg-primary/20 text-primary font-bold"
                           : "border-border bg-background text-muted-foreground hover:border-primary/50"
                       }`}
-                      data-testid="button-direction-buy"
                     >
                       ▲ BUY / CALL
                     </button>
@@ -199,7 +350,6 @@ export default function StrategiesPage() {
                           ? "border-destructive bg-destructive/20 text-destructive font-bold"
                           : "border-border bg-background text-muted-foreground hover:border-destructive/50"
                       }`}
-                      data-testid="button-direction-sell"
                     >
                       ▼ SELL / PUT
                     </button>
@@ -223,8 +373,8 @@ export default function StrategiesPage() {
                     <Label className="text-xs uppercase font-mono text-primary font-bold">Entry Conditions</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono text-muted-foreground uppercase">ALL</span>
-                      <Switch 
-                        checked={logicOp === "OR"} 
+                      <Switch
+                        checked={logicOp === "OR"}
                         onCheckedChange={c => setLogicOp(c ? "OR" : "AND")}
                         className="data-[state=checked]:bg-muted-foreground data-[state=unchecked]:bg-primary"
                       />
@@ -240,23 +390,22 @@ export default function StrategiesPage() {
                             {logicOp}
                           </div>
                         )}
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          type="button" variant="ghost" size="icon"
                           className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={() => removeCondition(c.id)}
                         >
                           <X className="h-3 w-3" />
                         </Button>
-                        
                         <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                          <Input 
+                          <Input
                             value={c.indicatorA}
                             onChange={(e) => updateCondition(c.id, "indicatorA", e.target.value)}
                             placeholder="EMA(14) / RSI"
+                            list={`ind-${c.id}`}
                             className="rounded-none h-8 font-mono text-xs border-border"
                           />
+                          <datalist id={`ind-${c.id}`}>{IND_OPTIONS.map(o => <option key={o} value={o} />)}</datalist>
                           <Select value={c.operator} onValueChange={(v) => updateCondition(c.id, "operator", v)}>
                             <SelectTrigger className="w-[120px] h-8 rounded-none border-border bg-background font-mono text-[10px] uppercase">
                               <SelectValue />
@@ -267,7 +416,7 @@ export default function StrategiesPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                          <Input 
+                          <Input
                             value={c.indicatorB}
                             onChange={(e) => updateCondition(c.id, "indicatorB", e.target.value)}
                             placeholder="Value / Ind"
@@ -278,9 +427,8 @@ export default function StrategiesPage() {
                     ))}
                   </div>
 
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button" variant="outline"
                     className="w-full rounded-none border-dashed border-border text-muted-foreground uppercase text-[10px] font-mono hover:text-primary hover:border-primary"
                     onClick={addCondition}
                   >
@@ -288,9 +436,42 @@ export default function StrategiesPage() {
                   </Button>
                 </div>
 
-                <div className="pt-6 mt-auto border-t border-border flex justify-end">
-                  <Button type="submit" disabled={createStrategy.isPending || conditions.length === 0} className="w-full rounded-none font-bold uppercase font-mono tracking-wider h-10">
-                    {createStrategy.isPending ? "Deploying..." : "Deploy Strategy"}
+                {/* Webhook section */}
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Label className="text-xs uppercase font-mono text-primary font-bold">Signal Webhook (Optional)</Label>
+                  <p className="text-[10px] font-mono text-muted-foreground -mt-1">
+                    POST a JSON payload to this URL whenever this strategy triggers a signal.
+                  </p>
+                  <Input
+                    type="url"
+                    placeholder="https://example.com/hooks/derivterminal"
+                    value={webhookUrl}
+                    onChange={e => setWebhookUrl(e.target.value)}
+                    className="rounded-none font-mono text-xs border-border bg-background"
+                    data-testid="input-webhook-url"
+                  />
+                  <div className="text-[10px] font-mono text-muted-foreground bg-muted/20 p-2 border border-border">
+                    Payload: {`{ strategy, symbol, direction, duration, analysis, time }`}
+                  </div>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={handleTestWebhook}
+                    disabled={testWebhook.isPending || editingId === null || !webhookUrl.trim()}
+                    className="w-full rounded-none uppercase text-[10px] font-mono"
+                    data-testid="button-test-webhook"
+                  >
+                    <Send className="h-3 w-3 mr-2" />
+                    {testWebhook.isPending ? "Sending..." : "Send Test Signal"}
+                  </Button>
+                  {editingId === null && (
+                    <p className="text-[10px] font-mono text-muted-foreground italic">Save the strategy first to test the webhook.</p>
+                  )}
+                </div>
+
+                <div className="pt-6 mt-auto border-t border-border flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={closeForm} className="rounded-none font-mono uppercase">Cancel</Button>
+                  <Button type="submit" disabled={isSaving || conditions.length === 0} className="rounded-none font-bold uppercase font-mono tracking-wider h-10">
+                    {isSaving ? "Saving..." : editingId === null ? "Deploy Strategy" : "Save Changes"}
                   </Button>
                 </div>
               </form>
@@ -298,6 +479,27 @@ export default function StrategiesPage() {
           )}
         </div>
       </div>
+
+      <AlertDialog open={confirmDeleteId !== null} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
+        <AlertDialogContent className="rounded-none">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono uppercase">Delete strategy?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-xs">
+              This will permanently delete the strategy and all its backtests. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-none font-mono uppercase">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-none font-mono uppercase bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => confirmDeleteId !== null && handleDelete(confirmDeleteId)}
+              disabled={deleteStrategy.isPending}
+            >
+              {deleteStrategy.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
