@@ -49,7 +49,7 @@ export type DerivAccountInfo = {
 
 export type DerivBuyParams = {
   symbol: string;
-  contractType: "CALL" | "PUT" | "MULTUP" | "MULTDOWN";
+  contractType: "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLALONGCALL" | "VANILLALONGPUT";
   amount: number;
   currency: string;
   duration: number;
@@ -219,9 +219,11 @@ export async function getAccountForMode(
 
 // ---------------------------------------------------------------------------
 // Public API: buyContract
-// Connects to Deriv v3 WebSocket, authorizes with the PAT, optionally
-// switches to the target account, then sends the buy request.
-// This is the standard documented flow — no OTP or REST pre-fetch needed.
+// Deriv v2 OTP flow (as documented):
+//   1. POST /trading/v1/options/accounts/{id}/otp  → pre-authenticated WS URL
+//   2. Connect WS (no authorize message needed — already authenticated via OTP)
+//   3. Send `proposal` → receive proposal id + ask_price
+//   4. Send `buy: proposal.id, price: ask_price` → receive contract_id
 // ---------------------------------------------------------------------------
 
 type DerivWsResponse = {
@@ -231,21 +233,27 @@ type DerivWsResponse = {
   [k: string]: unknown;
 };
 
-type AuthState = "pending" | "authorized" | "switching" | "ready";
-
 export async function buyContract(
   pat: string,
   accountId: string,
   params: DerivBuyParams
 ): Promise<DerivBuyOutcome> {
-  const appId = getAppId();
-  const wsUrl = `wss://ws.derivws.com/websockets/v3?app_id=${appId}`;
+  // Step 1: Exchange PAT for a single-use OTP → authenticated WS URL.
+  let wsUrl: string;
+  try {
+    wsUrl = await fetchOtpWsUrl(pat, accountId);
+  } catch (err) {
+    return {
+      ok: false,
+      uncertain: false,
+      error: err instanceof Error ? err.message : "Failed to obtain Deriv OTP",
+    };
+  }
 
   return new Promise<DerivBuyOutcome>((resolve) => {
     const ws = new WebSocket(wsUrl);
     let settled = false;
     let buySent = false;
-    let authState: AuthState = "pending";
 
     const settle = (outcome: DerivBuyOutcome) => {
       if (settled) return;
@@ -259,42 +267,36 @@ export async function buyContract(
       settle(
         buySent
           ? { ok: false, uncertain: true, error: "Deriv buy timed out after send — execution status unknown", reqId: params.reqId }
-          : { ok: false, uncertain: false, error: "Deriv buy timed out before send" }
+          : { ok: false, uncertain: false, error: "Deriv buy timed out before proposal response" }
       );
     }, TIMEOUT_MS);
 
-    const sendBuy = () => {
-      const proposal: Record<string, unknown> = {
-        buy: "1",
-        price: params.amount,
-        req_id: params.reqId,
-        parameters: {
-          amount: params.amount,
-          basis: params.basis ?? "stake",
-          contract_type: params.contractType,
-          currency: params.currency,
-          duration: params.duration,
-          duration_unit: params.durationUnit,
-          symbol: params.symbol,
-        },
-      };
-      if (params.contractType === "MULTUP" || params.contractType === "MULTDOWN") {
-        const p = proposal.parameters as Record<string, unknown>;
-        delete p.duration;
-        delete p.duration_unit;
-        p.multiplier = params.multiplier ?? 10;
-      }
-      try {
-        ws.send(JSON.stringify(proposal));
-        buySent = true;
-      } catch (err) {
-        settle({ ok: false, uncertain: false, error: err instanceof Error ? err.message : "Failed to send buy" });
-      }
-    };
-
     ws.on("open", () => {
-      // Step 1: authorize with the PAT.
-      ws.send(JSON.stringify({ authorize: pat, req_id: 1 }));
+      // Step 2: Request a price proposal. The OTP WS is pre-authenticated —
+      // no `authorize` message is needed. Uses `underlying_symbol` (v2 field name).
+      const msg: Record<string, unknown> = {
+        proposal: 1,
+        amount: params.amount,
+        basis: params.basis ?? "stake",
+        contract_type: params.contractType,
+        currency: params.currency,
+        underlying_symbol: params.symbol,
+        req_id: params.reqId,
+      };
+
+      const isMulti = params.contractType === "MULTUP" || params.contractType === "MULTDOWN";
+      if (isMulti) {
+        msg.multiplier = params.multiplier ?? 10;
+      } else {
+        msg.duration = params.duration;
+        msg.duration_unit = params.durationUnit;
+      }
+
+      try {
+        ws.send(JSON.stringify(msg));
+      } catch (err) {
+        settle({ ok: false, uncertain: false, error: err instanceof Error ? err.message : "Failed to send proposal" });
+      }
     });
 
     ws.on("message", (raw: Buffer) => {
@@ -303,48 +305,20 @@ export async function buyContract(
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
       if (msg.error) {
-        settle(
-          buySent && msg.msg_type === "buy"
-            ? { ok: false, uncertain: false, error: `Deriv buy rejected: ${(msg.error as any).message}` }
-            : { ok: false, uncertain: false, error: `Deriv error: ${(msg.error as any).message}` }
-        );
+        settle({ ok: false, uncertain: buySent, error: `Deriv error: ${(msg.error as any).message}`, ...(buySent ? { reqId: params.reqId } : {}) } as DerivBuyOutcome);
         return;
       }
 
-      if (msg.msg_type === "authorize") {
-        if (authState === "pending") {
-          authState = "authorized";
-          const authData = msg.authorize as {
-            loginid?: string;
-            account_list?: Array<{ loginid: string; token: string }>;
-          } | undefined;
-          const currentLoginId = authData?.loginid;
-
-          if (!accountId || currentLoginId === accountId) {
-            // Already on the right account — proceed to buy.
-            authState = "ready";
-            sendBuy();
-          } else {
-            // Try to switch to the requested account using its token from account_list.
-            const target = authData?.account_list?.find((a) => a.loginid === accountId);
-            if (target?.token) {
-              authState = "switching";
-              ws.send(JSON.stringify({ authorize: target.token, req_id: 2 }));
-            } else {
-              // Can't switch (account not listed or no token) — proceed on current account.
-              authState = "ready";
-              sendBuy();
-            }
-          }
-          return;
+      if (msg.msg_type === "proposal") {
+        // Step 3: Buy the contract using the proposal id and ask_price.
+        const p = (msg as any).proposal as { id: string; ask_price: number };
+        try {
+          ws.send(JSON.stringify({ buy: p.id, price: p.ask_price, req_id: params.reqId + 1 }));
+          buySent = true;
+        } catch (err) {
+          settle({ ok: false, uncertain: false, error: err instanceof Error ? err.message : "Failed to send buy" });
         }
-
-        if (authState === "switching") {
-          // Second authorize completed — target account is now active.
-          authState = "ready";
-          sendBuy();
-          return;
-        }
+        return;
       }
 
       if (msg.msg_type === "buy") {

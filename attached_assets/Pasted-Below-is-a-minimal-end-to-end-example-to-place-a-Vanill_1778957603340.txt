@@ -1,0 +1,77 @@
+Below is a minimal end-to-end example to place a Vanilla option trade (long call) with the new API.
+1) Get OTP via REST (server-side)
+const resp = await fetch(
+'https://api.derivws.com/trading/v1/options/accounts/YOUR_ACCOUNT_ID/otp',
+{
+method: 'POST',
+headers: {
+'Deriv-App-ID': 'YOUR_APP_ID',
+'Authorization': 'Bearer YOUR_OAUTH_ACCESS_TOKEN'
+}
+}
+);
+const { data } = await resp.json();
+const wsUrl = data.url; // e.g. wss://api.derivws.com/trading/v1/options/ws/demo?otp=...
+2) Connect to WebSocket and trade a Vanilla long call
+const ws = new WebSocket(wsUrl);
+ws.onopen = () => {
+// Step A: get a price proposal for a Vanilla Long Call
+ws.send(JSON.stringify({
+proposal: 1,
+amount: 10, // stake or payout based on basis
+basis: 'stake', // or 'payout'
+contract_type: 'VANILLALONGCALL',
+currency: 'USD',
+duration: 5, // example duration
+duration_unit: 'm', // m = minutes (also supports s/h/d/t)
+underlying_symbol: '1HZ100V',
+// For vanilla, you can also set a strike if supported on the symbol (omit if not needed)
+// strike: 'spot', // or a specific strike value if available
+req_id: 1
+}));
+};
+ws.onmessage = (evt) => {
+const msg = JSON.parse(evt.data);
+if (msg.msg_type === 'proposal') {
+// Step B: Buy the contract using the proposal ID and ask_price
+const { id, ask_price } = msg.proposal;
+ws.send(JSON.stringify({
+buy: id,
+price: ask_price,
+req_id: 2
+}));
+}
+if (msg.msg_type === 'buy') {
+const { contract_id } = msg.buy;
+console.log('Purchased contract:', contract_id);
+// Step C: Subscribe to live updates for the open contract
+ws.send(JSON.stringify({
+proposal_open_contract: 1,
+contract_id,
+subscribe: 1,
+req_id: 3
+}));
+}
+if (msg.msg_type === 'proposal_open_contract') {
+// Handle live P/L, bid/ask, status, etc.
+console.log('Contract update:', msg.proposal_open_contract);
+// Optional: Example conditional exit (sell before expiry)
+// if (msg.proposal_open_contract.profit > 5) {
+// ws.send(JSON.stringify({
+// sell: msg.proposal_open_contract.contract_id,
+// price: msg.proposal_open_contract.bid_price,
+// req_id: 4
+// }));
+// }
+}
+if (msg.error) {
+console.error('Error:', msg.error);
+}
+};
+ws.onerror = (e) => console.error('WS error', e);
+ws.onclose = () => console.log('WS closed');
+Notes:
+- Before opening the WS, you must have a valid OAuth 2.0 access token and include Deriv-App-ID on REST calls to get the OTP.
+- Use contracts_list and contracts_for to confirm availability and parameters for VANILLALONGCALL on your chosen symbol.
+- For Vanilla options, strike handling can vary by symbol. If strike selection is supported, include an appropriate field (e.g., strike) per the proposal parameters your symbol returns.
+If you share your target symbol, duration, and stake or payout preference, I can tailor the proposal payload for you.
