@@ -3,20 +3,44 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Deriv Trading Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User management and roles
+  - name: deriv
+    description: Deriv API connection management
+  - name: assets
+    description: Deriv tradable assets
+  - name: watchlist
+    description: User watchlist
+  - name: trades
+    description: Trade management
+  - name: strategies
+    description: Trading strategies
+  - name: indicators
+    description: Custom indicators
+  - name: backtests
+    description: Strategy backtesting
+  - name: ai
+    description: AI trade analysis
+  - name: dashboard
+    description: Dashboard summaries and analytics
+  - name: market
+    description: Market news and data
+  - name: openai
+    description: OpenAI AI chat and analysis operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +48,1057 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Users ───────────────────────────────────────────────────────────────────
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+    patch:
+      operationId: updateMe
+      tags: [users]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin+)
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [system, super_admin, admin, user]
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a specific user (admin+)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a user's role (admin+)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/permissions:
+    get:
+      operationId: getUserPermissions
+      tags: [users]
+      summary: Get permissions for a user (admin+)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPermissions"
+
+    patch:
+      operationId: updateUserPermissions
+      tags: [users]
+      summary: Update permissions for a user (admin+)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPermissionsUpdate"
+      responses:
+        "200":
+          description: Updated permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPermissions"
+
+  # ─── Deriv Connection ────────────────────────────────────────────────────────
+
+  /deriv/connect:
+    post:
+      operationId: connectDeriv
+      tags: [deriv]
+      summary: Save Deriv API token for current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DerivTokenInput"
+      responses:
+        "200":
+          description: Connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DerivStatus"
+
+    delete:
+      operationId: disconnectDeriv
+      tags: [deriv]
+      summary: Remove Deriv API token
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DerivStatus"
+
+  /deriv/status:
+    get:
+      operationId: getDerivStatus
+      tags: [deriv]
+      summary: Check Deriv connection status
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DerivStatus"
+
+  # ─── Assets ──────────────────────────────────────────────────────────────────
+
+  /assets:
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: List all available Deriv assets with human-readable names
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [forex, vanilla_options, multiplier, all]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: activeOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+
+  /assets/{symbol}:
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: Get a single asset by symbol
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "404":
+          description: Not found
+
+  /assets/popular:
+    get:
+      operationId: getPopularAssets
+      tags: [assets]
+      summary: Get most watched and traded assets
+      responses:
+        "200":
+          description: Popular assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+
+  # ─── Watchlist ───────────────────────────────────────────────────────────────
+
+  /watchlist:
+    get:
+      operationId: getWatchlist
+      tags: [watchlist]
+      summary: Get current user's watchlist
+      responses:
+        "200":
+          description: Watchlist items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WatchlistItem"
+
+    post:
+      operationId: addToWatchlist
+      tags: [watchlist]
+      summary: Add asset to watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistItemInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistItem"
+
+  /watchlist/{symbol}:
+    delete:
+      operationId: removeFromWatchlist
+      tags: [watchlist]
+      summary: Remove asset from watchlist
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
+
+  # ─── Trades ──────────────────────────────────────────────────────────────────
+
+  /trades:
+    get:
+      operationId: listTrades
+      tags: [trades]
+      summary: List trades
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed, cancelled, pending]
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [vanilla_options, forex, multiplier]
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of trades
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeList"
+
+    post:
+      operationId: createTrade
+      tags: [trades]
+      summary: Open a new trade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeInput"
+      responses:
+        "201":
+          description: Trade opened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trade"
+
+  /trades/recent:
+    get:
+      operationId: getRecentTrades
+      tags: [trades]
+      summary: Get recent trade activity feed
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recent trades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trade"
+
+  /trades/stats:
+    get:
+      operationId: getTradeStats
+      tags: [trades]
+      summary: Trading statistics by type, asset, and period
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, week, month, all]
+      responses:
+        "200":
+          description: Trade statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeStats"
+
+  /trades/{id}:
+    get:
+      operationId: getTrade
+      tags: [trades]
+      summary: Get a specific trade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trade details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trade"
+        "404":
+          description: Not found
+
+    patch:
+      operationId: updateTrade
+      tags: [trades]
+      summary: Update trade (target profit, notes, strategy)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeUpdate"
+      responses:
+        "200":
+          description: Updated trade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trade"
+
+    delete:
+      operationId: closeTrade
+      tags: [trades]
+      summary: Close or cancel a trade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trade closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trade"
+
+  /trades/{id}/logs:
+    get:
+      operationId: listTradeLogs
+      tags: [trades]
+      summary: Get logs for a trade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trade logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TradeLog"
+
+    post:
+      operationId: addTradeLog
+      tags: [trades]
+      summary: Add a log entry to a trade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeLogInput"
+      responses:
+        "201":
+          description: Log added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeLog"
+
+  /trades/{id}/comments:
+    get:
+      operationId: listTradeComments
+      tags: [trades]
+      summary: Get comments on a trade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trade comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TradeComment"
+
+    post:
+      operationId: addTradeComment
+      tags: [trades]
+      summary: Add a comment to a trade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeCommentInput"
+      responses:
+        "201":
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeComment"
+
+  /trades/{id}/comments/{commentId}:
+    delete:
+      operationId: deleteTradeComment
+      tags: [trades]
+      summary: Delete a comment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Strategies ──────────────────────────────────────────────────────────────
+
+  /strategies:
+    get:
+      operationId: listStrategies
+      tags: [strategies]
+      summary: List all strategies
+      responses:
+        "200":
+          description: Strategies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Strategy"
+
+    post:
+      operationId: createStrategy
+      tags: [strategies]
+      summary: Create a new strategy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrategyInput"
+      responses:
+        "201":
+          description: Strategy created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strategy"
+
+  /strategies/{id}:
+    get:
+      operationId: getStrategy
+      tags: [strategies]
+      summary: Get a specific strategy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Strategy details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strategy"
+        "404":
+          description: Not found
+
+    patch:
+      operationId: updateStrategy
+      tags: [strategies]
+      summary: Update a strategy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrategyUpdate"
+      responses:
+        "200":
+          description: Updated strategy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strategy"
+
+    delete:
+      operationId: deleteStrategy
+      tags: [strategies]
+      summary: Delete a strategy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Indicators ──────────────────────────────────────────────────────────────
+
+  /indicators:
+    get:
+      operationId: listIndicators
+      tags: [indicators]
+      summary: List all custom indicators
+      responses:
+        "200":
+          description: Indicators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Indicator"
+
+    post:
+      operationId: createIndicator
+      tags: [indicators]
+      summary: Create a custom indicator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndicatorInput"
+      responses:
+        "201":
+          description: Indicator created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Indicator"
+
+  /indicators/{id}:
+    get:
+      operationId: getIndicator
+      tags: [indicators]
+      summary: Get a specific indicator
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Indicator details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Indicator"
+
+    patch:
+      operationId: updateIndicator
+      tags: [indicators]
+      summary: Update an indicator
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndicatorUpdate"
+      responses:
+        "200":
+          description: Updated indicator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Indicator"
+
+    delete:
+      operationId: deleteIndicator
+      tags: [indicators]
+      summary: Delete an indicator
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Backtests ───────────────────────────────────────────────────────────────
+
+  /backtests:
+    get:
+      operationId: listBacktests
+      tags: [backtests]
+      summary: List all backtest runs
+      parameters:
+        - name: strategyId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Backtests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Backtest"
+
+    post:
+      operationId: runBacktest
+      tags: [backtests]
+      summary: Run a strategy backtest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BacktestInput"
+      responses:
+        "201":
+          description: Backtest started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Backtest"
+
+  /backtests/{id}:
+    get:
+      operationId: getBacktest
+      tags: [backtests]
+      summary: Get backtest result
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Backtest result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Backtest"
+
+  # ─── AI Analysis ─────────────────────────────────────────────────────────────
+
+  /ai/analyze:
+    post:
+      operationId: analyzeWithAI
+      tags: [ai]
+      summary: AI trade analysis using chart screenshot and indicators
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIAnalysisInput"
+      responses:
+        "200":
+          description: AI analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIAnalysis"
+
+  /ai/analyses:
+    get:
+      operationId: listAIAnalyses
+      tags: [ai]
+      summary: List AI analyses
+      parameters:
+        - name: tradeId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of AI analyses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AIAnalysis"
+
+  # ─── Dashboard ───────────────────────────────────────────────────────────────
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Dashboard summary - P&L, win rate, active trades, account balance
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ─── Market ──────────────────────────────────────────────────────────────────
+
+  /market/news:
+    get:
+      operationId: getMarketNews
+      tags: [market]
+      summary: Get real market news for intraday trading
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [forex, crypto, stocks, commodities, general]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Market news articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NewsArticle"
+
+  # ─── OpenAI ──────────────────────────────────────────────────────────────────
+
+  /openai/conversations:
+    get:
+      operationId: listOpenaiConversations
+      tags: [openai]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiConversation"
+    post:
+      operationId: createOpenaiConversation
+      tags: [openai]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiConversationInput"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversation"
+
+  /openai/conversations/{id}:
+    get:
+      operationId: getOpenaiConversation
+      tags: [openai]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+    delete:
+      operationId: deleteOpenaiConversation
+      tags: [openai]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /openai/conversations/{id}/messages:
+    get:
+      operationId: listOpenaiMessages
+      tags: [openai]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiMessage"
+    post:
+      operationId: sendOpenaiMessage
+      tags: [openai]
+      summary: Send a text message and receive a streaming text response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiMessageInput"
+      responses:
+        "200":
+          description: SSE stream of assistant text chunks
+          content:
+            text/event-stream: {}
+
+  /openai/generate-image:
+    post:
+      operationId: generateOpenaiImage
+      tags: [openai]
+      summary: Generate an image from a text prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiImageInput"
+      responses:
+        "200":
+          description: Generated image data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiImageOutput"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1109,991 @@ components:
       required:
         - status
 
+    # ─── Users ──────────────────────────────────────────────────────────────────
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        clerkId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [system, super_admin, admin, user]
+        isActive:
+          type: boolean
+        derivConnected:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - clerkId
+        - email
+        - role
+        - isActive
+        - derivConnected
+        - createdAt
+
+    UserList:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - users
+        - total
+        - page
+        - limit
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+
+    UserRoleUpdate:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [super_admin, admin, user]
+        isActive:
+          type: boolean
+      required:
+        - role
+
+    UserPermissions:
+      type: object
+      properties:
+        userId:
+          type: string
+        canTrade:
+          type: boolean
+        canViewAllTrades:
+          type: boolean
+        canManageUsers:
+          type: boolean
+        canManageStrategies:
+          type: boolean
+        canRunBacktests:
+          type: boolean
+        canUseAI:
+          type: boolean
+        canAccessMarketData:
+          type: boolean
+        canManageIndicators:
+          type: boolean
+        canExportData:
+          type: boolean
+        canViewAnalytics:
+          type: boolean
+      required:
+        - userId
+        - canTrade
+        - canViewAllTrades
+        - canManageUsers
+        - canManageStrategies
+        - canRunBacktests
+        - canUseAI
+        - canAccessMarketData
+        - canManageIndicators
+        - canExportData
+        - canViewAnalytics
+
+    UserPermissionsUpdate:
+      type: object
+      properties:
+        canTrade:
+          type: boolean
+        canViewAllTrades:
+          type: boolean
+        canManageUsers:
+          type: boolean
+        canManageStrategies:
+          type: boolean
+        canRunBacktests:
+          type: boolean
+        canUseAI:
+          type: boolean
+        canAccessMarketData:
+          type: boolean
+        canManageIndicators:
+          type: boolean
+        canExportData:
+          type: boolean
+        canViewAnalytics:
+          type: boolean
+
+    # ─── Deriv ──────────────────────────────────────────────────────────────────
+
+    DerivTokenInput:
+      type: object
+      properties:
+        apiToken:
+          type: string
+        accountId:
+          type: ["string", "null"]
+      required:
+        - apiToken
+
+    DerivStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        accountId:
+          type: ["string", "null"]
+        currency:
+          type: ["string", "null"]
+        balance:
+          type: ["number", "null"]
+        loginId:
+          type: ["string", "null"]
+        connectedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - connected
+
+    # ─── Assets ─────────────────────────────────────────────────────────────────
+
+    Asset:
+      type: object
+      properties:
+        symbol:
+          type: string
+        displayName:
+          type: string
+        shortName:
+          type: string
+        type:
+          type: string
+          enum: [forex, vanilla_options, multiplier, crypto, indices, commodities]
+        subtype:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        pipSize:
+          type: ["number", "null"]
+        minStake:
+          type: ["number", "null"]
+        maxStake:
+          type: ["number", "null"]
+        currency:
+          type: ["string", "null"]
+        watchCount:
+          type: integer
+      required:
+        - symbol
+        - displayName
+        - shortName
+        - type
+        - isActive
+        - watchCount
+
+    # ─── Watchlist ──────────────────────────────────────────────────────────────
+
+    WatchlistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        displayName:
+          type: string
+        type:
+          type: string
+        addedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - symbol
+        - displayName
+        - type
+        - addedAt
+
+    WatchlistItemInput:
+      type: object
+      properties:
+        symbol:
+          type: string
+      required:
+        - symbol
+
+    # ─── Trades ─────────────────────────────────────────────────────────────────
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        symbol:
+          type: string
+        displayName:
+          type: string
+        type:
+          type: string
+          enum: [vanilla_options, forex, multiplier]
+        direction:
+          type: string
+          enum: [buy, sell, call, put]
+        stake:
+          type: number
+        targetProfit:
+          type: ["number", "null"]
+        currentProfit:
+          type: ["number", "null"]
+        entryPrice:
+          type: ["number", "null"]
+        exitPrice:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [open, closed, cancelled, pending, closing]
+        contractId:
+          type: ["string", "null"]
+        strategyId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        aiConfirmed:
+          type: boolean
+        openedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: ["string", "null"]
+          format: date-time
+        duration:
+          type: ["integer", "null"]
+        durationUnit:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - symbol
+        - displayName
+        - type
+        - direction
+        - stake
+        - status
+        - aiConfirmed
+        - openedAt
+
+    TradeList:
+      type: object
+      properties:
+        trades:
+          type: array
+          items:
+            $ref: "#/components/schemas/Trade"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - trades
+        - total
+        - page
+        - limit
+
+    TradeInput:
+      type: object
+      properties:
+        symbol:
+          type: string
+        type:
+          type: string
+          enum: [vanilla_options, forex, multiplier]
+        direction:
+          type: string
+          enum: [buy, sell, call, put]
+        stake:
+          type: number
+        targetProfit:
+          type: ["number", "null"]
+        strategyId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        duration:
+          type: ["integer", "null"]
+        durationUnit:
+          type: ["string", "null"]
+        aiConfirmed:
+          type: boolean
+      required:
+        - symbol
+        - type
+        - direction
+        - stake
+        - aiConfirmed
+
+    TradeUpdate:
+      type: object
+      properties:
+        targetProfit:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        strategyId:
+          type: ["integer", "null"]
+
+    TradeStats:
+      type: object
+      properties:
+        totalTrades:
+          type: integer
+        winRate:
+          type: number
+        totalPnl:
+          type: number
+        totalStake:
+          type: number
+        averageProfit:
+          type: number
+        byType:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatByType"
+        byAsset:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatByAsset"
+        dailyPnl:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyPnl"
+      required:
+        - totalTrades
+        - winRate
+        - totalPnl
+        - totalStake
+        - averageProfit
+        - byType
+        - byAsset
+        - dailyPnl
+
+    StatByType:
+      type: object
+      properties:
+        type:
+          type: string
+        count:
+          type: integer
+        pnl:
+          type: number
+        winRate:
+          type: number
+      required:
+        - type
+        - count
+        - pnl
+        - winRate
+
+    StatByAsset:
+      type: object
+      properties:
+        symbol:
+          type: string
+        displayName:
+          type: string
+        count:
+          type: integer
+        pnl:
+          type: number
+      required:
+        - symbol
+        - displayName
+        - count
+        - pnl
+
+    DailyPnl:
+      type: object
+      properties:
+        date:
+          type: string
+        pnl:
+          type: number
+        trades:
+          type: integer
+      required:
+        - date
+        - pnl
+        - trades
+
+    TradeLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        tradeId:
+          type: integer
+        level:
+          type: string
+          enum: [info, warning, error, success]
+        message:
+          type: string
+        metadata:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tradeId
+        - level
+        - message
+        - createdAt
+
+    TradeLogInput:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [info, warning, error, success]
+        message:
+          type: string
+        metadata:
+          type: ["string", "null"]
+      required:
+        - level
+        - message
+
+    TradeComment:
+      type: object
+      properties:
+        id:
+          type: integer
+        tradeId:
+          type: integer
+        userId:
+          type: string
+        userDisplayName:
+          type: ["string", "null"]
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - tradeId
+        - userId
+        - content
+        - createdAt
+
+    TradeCommentInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    # ─── Strategies ─────────────────────────────────────────────────────────────
+
+    Strategy:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [vanilla_options, forex, multiplier, universal]
+        code:
+          type: string
+        parameters:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isPublic:
+          type: boolean
+        winRate:
+          type: ["number", "null"]
+        totalBacktests:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - name
+        - type
+        - code
+        - isActive
+        - isPublic
+        - totalBacktests
+        - createdAt
+        - updatedAt
+
+    StrategyInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [vanilla_options, forex, multiplier, universal]
+        code:
+          type: string
+        parameters:
+          type: ["string", "null"]
+        isPublic:
+          type: boolean
+      required:
+        - name
+        - type
+        - code
+
+    StrategyUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [vanilla_options, forex, multiplier, universal]
+        code:
+          type: string
+        parameters:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isPublic:
+          type: boolean
+
+    # ─── Indicators ─────────────────────────────────────────────────────────────
+
+    Indicator:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        code:
+          type: string
+        parameters:
+          type: ["string", "null"]
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - name
+        - code
+        - isPublic
+        - createdAt
+        - updatedAt
+
+    IndicatorInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        code:
+          type: string
+        parameters:
+          type: ["string", "null"]
+        isPublic:
+          type: boolean
+      required:
+        - name
+        - code
+
+    IndicatorUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        code:
+          type: string
+        parameters:
+          type: ["string", "null"]
+        isPublic:
+          type: boolean
+
+    # ─── Backtests ──────────────────────────────────────────────────────────────
+
+    Backtest:
+      type: object
+      properties:
+        id:
+          type: integer
+        strategyId:
+          type: integer
+        userId:
+          type: string
+        symbol:
+          type: string
+        fromDate:
+          type: string
+          format: date-time
+        toDate:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        totalTrades:
+          type: ["integer", "null"]
+        winRate:
+          type: ["number", "null"]
+        totalPnl:
+          type: ["number", "null"]
+        maxDrawdown:
+          type: ["number", "null"]
+        sharpeRatio:
+          type: ["number", "null"]
+        results:
+          type: ["string", "null"]
+        errorMessage:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - strategyId
+        - userId
+        - symbol
+        - fromDate
+        - toDate
+        - status
+        - createdAt
+
+    BacktestInput:
+      type: object
+      properties:
+        strategyId:
+          type: integer
+        symbol:
+          type: string
+        fromDate:
+          type: string
+          format: date-time
+        toDate:
+          type: string
+          format: date-time
+        initialBalance:
+          type: ["number", "null"]
+        stakePerTrade:
+          type: ["number", "null"]
+      required:
+        - strategyId
+        - symbol
+        - fromDate
+        - toDate
+
+    # ─── AI Analysis ────────────────────────────────────────────────────────────
+
+    AIAnalysisInput:
+      type: object
+      properties:
+        symbol:
+          type: string
+        chartScreenshot:
+          type: ["string", "null"]
+          description: Base64 encoded chart screenshot
+        indicatorData:
+          type: ["string", "null"]
+          description: JSON string of current indicator values
+        tradeType:
+          type: string
+          enum: [vanilla_options, forex, multiplier]
+        direction:
+          type: ["string", "null"]
+          enum: [buy, sell, call, put]
+        tradeId:
+          type: ["integer", "null"]
+        timeframe:
+          type: ["string", "null"]
+        additionalContext:
+          type: ["string", "null"]
+      required:
+        - symbol
+        - tradeType
+
+    AIAnalysis:
+      type: object
+      properties:
+        id:
+          type: integer
+        tradeId:
+          type: ["integer", "null"]
+        symbol:
+          type: string
+        tradeType:
+          type: string
+        direction:
+          type: ["string", "null"]
+        recommendation:
+          type: string
+          enum: [confirm, reject, wait, caution]
+        confidence:
+          type: number
+        reasoning:
+          type: string
+        keySignals:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+        suggestedEntry:
+          type: ["number", "null"]
+        suggestedTarget:
+          type: ["number", "null"]
+        suggestedStopLoss:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - symbol
+        - tradeType
+        - recommendation
+        - confidence
+        - reasoning
+        - keySignals
+        - riskLevel
+        - createdAt
+
+    # ─── Dashboard ──────────────────────────────────────────────────────────────
+
+    DashboardSummary:
+      type: object
+      properties:
+        accountBalance:
+          type: ["number", "null"]
+        currency:
+          type: ["string", "null"]
+        activeTrades:
+          type: integer
+        totalPnlToday:
+          type: number
+        totalPnlWeek:
+          type: number
+        totalPnlMonth:
+          type: number
+        winRateToday:
+          type: number
+        winRateWeek:
+          type: number
+        totalTradesAllTime:
+          type: integer
+        openTradesCount:
+          type: integer
+        derivConnected:
+          type: boolean
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/Trade"
+      required:
+        - activeTrades
+        - totalPnlToday
+        - totalPnlWeek
+        - totalPnlMonth
+        - winRateToday
+        - winRateWeek
+        - totalTradesAllTime
+        - openTradesCount
+        - derivConnected
+        - recentActivity
+
+    # ─── Market ─────────────────────────────────────────────────────────────────
+
+    NewsArticle:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        url:
+          type: string
+        source:
+          type: string
+        category:
+          type: string
+        sentiment:
+          type: ["string", "null"]
+          enum: [positive, negative, neutral]
+        publishedAt:
+          type: string
+          format: date-time
+        imageUrl:
+          type: ["string", "null"]
+      required:
+        - id
+        - title
+        - summary
+        - url
+        - source
+        - category
+        - publishedAt
+
+    # ─── OpenAI ─────────────────────────────────────────────────────────────────
+
+    OpenaiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+
+    OpenaiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+
+    OpenaiConversationInput:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+
+    OpenaiMessageInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    OpenaiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenaiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+
+    OpenaiImageInput:
+      type: object
+      properties:
+        prompt:
+          type: string
+        size:
+          type: string
+          enum: ["1024x1024", "512x512", "256x256"]
+      required:
+        - prompt
+
+    OpenaiImageOutput:
+      type: object
+      properties:
+        b64_json:
+          type: string
+      required:
+        - b64_json
+
+    OpenaiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
