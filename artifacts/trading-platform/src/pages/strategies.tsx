@@ -18,6 +18,8 @@ interface Condition {
   indicatorB: string;
 }
 
+type Direction = "buy" | "sell";
+
 export default function StrategiesPage() {
   const { data: strategies, isLoading } = useListStrategies({});
   const createStrategy = useCreateStrategy();
@@ -29,7 +31,9 @@ export default function StrategiesPage() {
   const [description, setDescription] = useState("");
   const [type, setType] = useState<StrategyInputType>(StrategyInputType.vanilla_options);
   const [logicOp, setLogicOp] = useState<"AND" | "OR">("AND");
-  
+  const [direction, setDirection] = useState<Direction>("buy");
+  const [exitDirection, setExitDirection] = useState<"opposite" | "manual" | "target">("opposite");
+
   const [conditions, setConditions] = useState<Condition[]>([]);
 
   // Pre-load example
@@ -59,6 +63,8 @@ export default function StrategiesPage() {
     
     // Construct JSON payload
     const payload = {
+      action: direction,
+      exit: exitDirection,
       logic: logicOp,
       conditions: conditions.map(({ indicatorA, operator, indicatorB }) => ({ indicatorA, operator, indicatorB }))
     };
@@ -169,9 +175,52 @@ export default function StrategiesPage() {
                   </Select>
                 </div>
 
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs uppercase font-mono text-primary font-bold">Trade Direction</Label>
+                  <p className="text-[10px] font-mono text-muted-foreground -mt-1">When the conditions below match, place this order:</p>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setDirection("buy")}
+                      className={`h-12 border rounded-none font-mono text-sm uppercase tracking-wider transition-colors ${
+                        direction === "buy"
+                          ? "border-primary bg-primary/20 text-primary font-bold"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                      }`}
+                      data-testid="button-direction-buy"
+                    >
+                      ▲ BUY / CALL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirection("sell")}
+                      className={`h-12 border rounded-none font-mono text-sm uppercase tracking-wider transition-colors ${
+                        direction === "sell"
+                          ? "border-destructive bg-destructive/20 text-destructive font-bold"
+                          : "border-border bg-background text-muted-foreground hover:border-destructive/50"
+                      }`}
+                      data-testid="button-direction-sell"
+                    >
+                      ▼ SELL / PUT
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Exit Rule</Label>
+                  <Select value={exitDirection} onValueChange={(v: any) => setExitDirection(v)}>
+                    <SelectTrigger className="rounded-none h-10 font-mono text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-none">
+                      <SelectItem value="opposite" className="font-mono text-xs">Exit on opposite signal</SelectItem>
+                      <SelectItem value="target" className="font-mono text-xs">Exit on target profit / contract expiry</SelectItem>
+                      <SelectItem value="manual" className="font-mono text-xs">Manual close only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-4 pt-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs uppercase font-mono text-primary font-bold">Execution Conditions</Label>
+                    <Label className="text-xs uppercase font-mono text-primary font-bold">Entry Conditions</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono text-muted-foreground uppercase">ALL</span>
                       <Switch 

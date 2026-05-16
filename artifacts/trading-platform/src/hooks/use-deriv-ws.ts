@@ -22,7 +22,7 @@ export interface UseDerivWsReturn {
   error: string | null;
 }
 
-const WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
+const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
 export function useDerivWs(symbol: string): UseDerivWsReturn {
   const [ticks, setTicks] = useState<Tick[]>([]);

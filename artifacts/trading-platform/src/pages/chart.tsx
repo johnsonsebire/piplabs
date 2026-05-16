@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
 import { useDerivWs } from "@/hooks/use-deriv-ws";
-import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey } from "@workspace/api-client-react";
+import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,6 +42,7 @@ export default function ChartPage() {
   );
 
   const createTrade = useCreateTrade();
+  const { data: chartIndicators } = useListIndicators({});
 
   const handleExecute = () => {
     createTrade.mutate({
@@ -142,7 +143,11 @@ export default function ChartPage() {
           </div>
           
           <div className="flex-1 relative">
-            <TradingChart symbol={symbol} height={typeof window !== 'undefined' ? window.innerHeight - 104 : 400} />
+            <TradingChart
+              symbol={symbol}
+              height={typeof window !== 'undefined' ? window.innerHeight - 104 : 400}
+              indicators={chartIndicators?.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) ?? []}
+            />
           </div>
         </div>
 
