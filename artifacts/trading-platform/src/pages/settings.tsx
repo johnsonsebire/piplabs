@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useGetMe, useUpdateMe, useGetDerivStatus, useConnectDeriv, useDisconnectDeriv } from "@workspace/api-client-react";
+import { useGetMe, useUpdateMe, useGetDerivStatus, useConnectDeriv, useDisconnectDeriv, UserProfileUpdatePreferredTradeMode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -19,18 +20,29 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
 
   const [displayName, setDisplayName] = useState("");
+  const [openAiApiKey, setOpenAiApiKey] = useState("");
+  const [preferredTradeMode, setPreferredTradeMode] = useState<UserProfileUpdatePreferredTradeMode>(UserProfileUpdatePreferredTradeMode.demo);
+
   const [apiToken, setApiToken] = useState("");
   const [accountId, setAccountId] = useState("");
 
   useEffect(() => {
     if (user?.displayName) setDisplayName(user.displayName);
+    if (user?.preferredTradeMode) setPreferredTradeMode(user.preferredTradeMode as UserProfileUpdatePreferredTradeMode);
   }, [user]);
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    updateMe.mutate({ data: { displayName } }, {
+    updateMe.mutate({ 
+      data: { 
+        displayName,
+        preferredTradeMode,
+        openAiApiKey: openAiApiKey ? openAiApiKey : undefined
+      } 
+    }, {
       onSuccess: () => {
         toast({ title: "Profile updated" });
+        setOpenAiApiKey(""); // Clear it after saving
         queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
       }
     });
@@ -146,7 +158,7 @@ export default function SettingsPage() {
           </div>
           
           <div className="p-6">
-            <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-md">
+            <form onSubmit={handleUpdateProfile} className="space-y-6 max-w-md">
               <div className="space-y-2">
                 <Label className="text-xs uppercase font-mono text-muted-foreground">System Identifier (Email)</Label>
                 <Input 
@@ -163,16 +175,43 @@ export default function SettingsPage() {
                   className="rounded-none font-mono border-border bg-background"
                 />
               </div>
+              
+              <div className="space-y-2">
+                <Label className="text-xs uppercase font-mono text-muted-foreground">OpenAI API Key</Label>
+                <Input 
+                  type="password"
+                  value={openAiApiKey}
+                  placeholder={user?.openAiApiKey ? "••••••••••••••••" : "sk-..."}
+                  onChange={e => setOpenAiApiKey(e.target.value)}
+                  className="rounded-none font-mono border-border bg-background"
+                />
+                <p className="text-[10px] font-mono text-muted-foreground">Provide an OpenAI API Key for AI trading analysis.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs uppercase font-mono text-muted-foreground">Default Trade Mode</Label>
+                <Select value={preferredTradeMode} onValueChange={(val) => setPreferredTradeMode(val as UserProfileUpdatePreferredTradeMode)}>
+                  <SelectTrigger className="w-full rounded-none border-border font-mono text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none border-border">
+                    <SelectItem value={UserProfileUpdatePreferredTradeMode.demo} className="font-mono text-xs uppercase">Demo Mode</SelectItem>
+                    <SelectItem value={UserProfileUpdatePreferredTradeMode.live} className="font-mono text-xs uppercase">Live Mode</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2 pt-2">
                 <Label className="text-xs uppercase font-mono text-muted-foreground">Clearance Level</Label>
                 <div className="font-mono text-sm uppercase px-3 py-2 bg-muted/30 border border-border inline-block">
                   {user?.role || 'UNKNOWN'}
                 </div>
               </div>
+
               <Button 
                 type="submit" 
                 variant="outline"
-                disabled={updateMe.isPending || displayName === user?.displayName}
+                disabled={updateMe.isPending}
                 className="w-full rounded-none font-mono uppercase font-bold tracking-wider mt-4 hover:bg-primary hover:text-primary-foreground border-primary text-primary"
               >
                 {updateMe.isPending ? "Updating..." : "Update Identity"}

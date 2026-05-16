@@ -66,3 +66,29 @@ export const backtestsTable = pgTable("backtests", {
 export const insertBacktestSchema = createInsertSchema(backtestsTable);
 export type InsertBacktest = z.infer<typeof insertBacktestSchema>;
 export type Backtest = typeof backtestsTable.$inferSelect;
+
+export const autoTradeSessionStatusEnum = pgEnum("auto_trade_session_status", ["running", "stopped", "paused", "error"]);
+export const autoTradeSessionModeEnum = pgEnum("auto_trade_session_mode", ["demo", "live"]);
+
+export const autoTradingSessionsTable = pgTable("auto_trading_sessions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: text("user_id").notNull(),
+  strategyId: integer("strategy_id").notNull().references(() => strategiesTable.id, { onDelete: "cascade" }),
+  status: autoTradeSessionStatusEnum("status").notNull().default("running"),
+  mode: autoTradeSessionModeEnum("mode").notNull().default("demo"),
+  symbol: text("symbol").notNull(),
+  stakeAmount: real("stake_amount").notNull(),
+  maxTrades: integer("max_trades"),
+  stopOnLoss: real("stop_on_loss"),
+  totalTrades: integer("total_trades").notNull().default(0),
+  winTrades: integer("win_trades").notNull().default(0),
+  totalPnl: real("total_pnl").notNull().default(0),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAutoTradingSessionSchema = createInsertSchema(autoTradingSessionsTable);
+export type InsertAutoTradingSession = z.infer<typeof insertAutoTradingSessionSchema>;
+export type AutoTradingSession = typeof autoTradingSessionsTable.$inferSelect;

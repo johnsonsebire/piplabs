@@ -19,6 +19,14 @@ export const UserRole = {
   user: 'user',
 } as const;
 
+export type UserPreferredTradeMode = typeof UserPreferredTradeMode[keyof typeof UserPreferredTradeMode];
+
+
+export const UserPreferredTradeMode = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
 export interface User {
   id: string;
   clerkId: string;
@@ -33,6 +41,9 @@ export interface User {
   createdAt: string;
   /** @nullable */
   lastSeenAt?: string | null;
+  preferredTradeMode?: UserPreferredTradeMode;
+  /** @nullable */
+  openAiApiKey?: string | null;
 }
 
 export interface UserList {
@@ -42,8 +53,19 @@ export interface UserList {
   limit: number;
 }
 
+export type UserProfileUpdatePreferredTradeMode = typeof UserProfileUpdatePreferredTradeMode[keyof typeof UserProfileUpdatePreferredTradeMode];
+
+
+export const UserProfileUpdatePreferredTradeMode = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
 export interface UserProfileUpdate {
   displayName?: string;
+  preferredTradeMode?: UserProfileUpdatePreferredTradeMode;
+  /** @nullable */
+  openAiApiKey?: string | null;
 }
 
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];
@@ -180,6 +202,14 @@ export const TradeStatus = {
   closing: 'closing',
 } as const;
 
+export type TradeMode = typeof TradeMode[keyof typeof TradeMode];
+
+
+export const TradeMode = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
 export interface Trade {
   id: number;
   userId: string;
@@ -211,6 +241,7 @@ export interface Trade {
   duration?: number | null;
   /** @nullable */
   durationUnit?: string | null;
+  mode: TradeMode;
 }
 
 export interface TradeList {
@@ -239,6 +270,14 @@ export const TradeInputDirection = {
   put: 'put',
 } as const;
 
+export type TradeInputMode = typeof TradeInputMode[keyof typeof TradeInputMode];
+
+
+export const TradeInputMode = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
 export interface TradeInput {
   symbol: string;
   type: TradeInputType;
@@ -255,6 +294,7 @@ export interface TradeInput {
   /** @nullable */
   durationUnit?: string | null;
   aiConfirmed: boolean;
+  mode?: TradeInputMode;
 }
 
 export interface TradeUpdate {
@@ -603,8 +643,124 @@ export interface DashboardSummary {
   winRateWeek: number;
   totalTradesAllTime: number;
   openTradesCount: number;
+  livePnlToday?: number;
+  demoPnlToday?: number;
+  liveOpenTrades?: number;
+  demoOpenTrades?: number;
   derivConnected: boolean;
   recentActivity: Trade[];
+}
+
+export type AutoTradeSessionStatus = typeof AutoTradeSessionStatus[keyof typeof AutoTradeSessionStatus];
+
+
+export const AutoTradeSessionStatus = {
+  running: 'running',
+  stopped: 'stopped',
+  paused: 'paused',
+  error: 'error',
+} as const;
+
+export type AutoTradeSessionMode = typeof AutoTradeSessionMode[keyof typeof AutoTradeSessionMode];
+
+
+export const AutoTradeSessionMode = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
+export interface AutoTradeSession {
+  id: number;
+  userId: string;
+  strategyId: number;
+  /** @nullable */
+  strategyName?: string | null;
+  status: AutoTradeSessionStatus;
+  mode: AutoTradeSessionMode;
+  symbol: string;
+  stakeAmount: number;
+  /** @nullable */
+  maxTrades?: number | null;
+  /** @nullable */
+  stopOnLoss?: number | null;
+  totalTrades: number;
+  winTrades: number;
+  totalPnl: number;
+  /** @nullable */
+  errorMessage?: string | null;
+  startedAt: string;
+  /** @nullable */
+  stoppedAt?: string | null;
+  createdAt: string;
+}
+
+export type AutoTradeSessionInputMode = typeof AutoTradeSessionInputMode[keyof typeof AutoTradeSessionInputMode];
+
+
+export const AutoTradeSessionInputMode = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
+export interface AutoTradeSessionInput {
+  strategyId: number;
+  mode: AutoTradeSessionInputMode;
+  symbol: string;
+  stakeAmount: number;
+  /** @nullable */
+  maxTrades?: number | null;
+  /** @nullable */
+  stopOnLoss?: number | null;
+}
+
+export type AutoTradeSessionUpdateStatus = typeof AutoTradeSessionUpdateStatus[keyof typeof AutoTradeSessionUpdateStatus];
+
+
+export const AutoTradeSessionUpdateStatus = {
+  running: 'running',
+  stopped: 'stopped',
+  paused: 'paused',
+} as const;
+
+export interface AutoTradeSessionUpdate {
+  status: AutoTradeSessionUpdateStatus;
+}
+
+export interface DerivActiveSymbol {
+  symbol: string;
+  displayName: string;
+  shortName: string;
+  instrumentType: string;
+  /** @nullable */
+  subtype?: string | null;
+  isTradingSuspended: boolean;
+  /** @nullable */
+  pip?: number | null;
+}
+
+export type AssetInputType = typeof AssetInputType[keyof typeof AssetInputType];
+
+
+export const AssetInputType = {
+  forex: 'forex',
+  vanilla_options: 'vanilla_options',
+  multiplier: 'multiplier',
+  crypto: 'crypto',
+  indices: 'indices',
+  commodities: 'commodities',
+} as const;
+
+export interface AssetInput {
+  symbol: string;
+  displayName: string;
+  shortName: string;
+  type: AssetInputType;
+  /** @nullable */
+  subtype?: string | null;
+  /** @nullable */
+  pipSize?: number | null;
+  /** @nullable */
+  currency?: string | null;
 }
 
 /**
@@ -699,6 +855,11 @@ export const ListUsersRole = {
   admin: 'admin',
   user: 'user',
 } as const;
+
+export type SearchDerivSymbolsParams = {
+q?: string;
+instrumentType?: string;
+};
 
 export type ListAssetsParams = {
 type?: ListAssetsType;

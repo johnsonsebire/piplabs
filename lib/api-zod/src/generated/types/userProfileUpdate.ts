@@ -5,7 +5,11 @@
  * Deriv Trading Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserProfileUpdatePreferredTradeMode } from './userProfileUpdatePreferredTradeMode';
 
 export interface UserProfileUpdate {
   displayName?: string;
+  preferredTradeMode?: UserProfileUpdatePreferredTradeMode;
+  /** @nullable */
+  openAiApiKey?: string | null;
 }

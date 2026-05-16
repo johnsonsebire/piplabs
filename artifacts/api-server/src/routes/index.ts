@@ -9,6 +9,7 @@ import aiRouter from "./ai";
 import dashboardRouter from "./dashboard";
 import newsRouter from "./news";
 import openaiRouter from "./openai";
+import autotradeRouter from "./autotrade";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(aiRouter);
 router.use(dashboardRouter);
 router.use(newsRouter);
 router.use(openaiRouter);
+router.use(autotradeRouter);
 
 export default router;

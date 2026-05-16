@@ -29,7 +29,9 @@ export const GetMeResponse = zod.object({
   "isActive": zod.boolean(),
   "derivConnected": zod.boolean(),
   "createdAt": zod.coerce.date(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
+  "openAiApiKey": zod.string().nullish()
 })
 
 
@@ -37,7 +39,9 @@ export const GetMeResponse = zod.object({
  * @summary Update current user profile
  */
 export const UpdateMeBody = zod.object({
-  "displayName": zod.string().optional()
+  "displayName": zod.string().optional(),
+  "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
+  "openAiApiKey": zod.string().nullish()
 })
 
 export const UpdateMeResponse = zod.object({
@@ -50,7 +54,9 @@ export const UpdateMeResponse = zod.object({
   "isActive": zod.boolean(),
   "derivConnected": zod.boolean(),
   "createdAt": zod.coerce.date(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
+  "openAiApiKey": zod.string().nullish()
 })
 
 
@@ -74,7 +80,9 @@ export const ListUsersResponse = zod.object({
   "isActive": zod.boolean(),
   "derivConnected": zod.boolean(),
   "createdAt": zod.coerce.date(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
+  "openAiApiKey": zod.string().nullish()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -99,7 +107,9 @@ export const GetUserResponse = zod.object({
   "isActive": zod.boolean(),
   "derivConnected": zod.boolean(),
   "createdAt": zod.coerce.date(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
+  "openAiApiKey": zod.string().nullish()
 })
 
 
@@ -125,7 +135,9 @@ export const UpdateUserResponse = zod.object({
   "isActive": zod.boolean(),
   "derivConnected": zod.boolean(),
   "createdAt": zod.coerce.date(),
-  "lastSeenAt": zod.coerce.date().nullish()
+  "lastSeenAt": zod.coerce.date().nullish(),
+  "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
+  "openAiApiKey": zod.string().nullish()
 })
 
 
@@ -231,6 +243,26 @@ export const GetDerivStatusResponse = zod.object({
 
 
 /**
+ * @summary Search Deriv active symbols (all tradeable instruments)
+ */
+export const SearchDerivSymbolsQueryParams = zod.object({
+  "q": zod.coerce.string().optional(),
+  "instrumentType": zod.coerce.string().optional()
+})
+
+export const SearchDerivSymbolsResponseItem = zod.object({
+  "symbol": zod.string(),
+  "displayName": zod.string(),
+  "shortName": zod.string(),
+  "instrumentType": zod.string(),
+  "subtype": zod.string().nullish(),
+  "isTradingSuspended": zod.boolean(),
+  "pip": zod.number().nullish()
+})
+export const SearchDerivSymbolsResponse = zod.array(SearchDerivSymbolsResponseItem)
+
+
+/**
  * @summary List all available Deriv assets with human-readable names
  */
 export const ListAssetsQueryParams = zod.object({
@@ -253,6 +285,20 @@ export const ListAssetsResponseItem = zod.object({
   "watchCount": zod.number()
 })
 export const ListAssetsResponse = zod.array(ListAssetsResponseItem)
+
+
+/**
+ * @summary Add a new asset to the local database
+ */
+export const CreateAssetBody = zod.object({
+  "symbol": zod.string(),
+  "displayName": zod.string(),
+  "shortName": zod.string(),
+  "type": zod.enum(['forex', 'vanilla_options', 'multiplier', 'crypto', 'indices', 'commodities']),
+  "subtype": zod.string().nullish(),
+  "pipSize": zod.number().nullish(),
+  "currency": zod.string().nullish()
+})
 
 
 /**
@@ -357,7 +403,8 @@ export const ListTradesResponse = zod.object({
   "openedAt": zod.coerce.date(),
   "closedAt": zod.coerce.date().nullish(),
   "duration": zod.number().nullish(),
-  "durationUnit": zod.string().nullish()
+  "durationUnit": zod.string().nullish(),
+  "mode": zod.enum(['demo', 'live'])
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -378,7 +425,8 @@ export const CreateTradeBody = zod.object({
   "notes": zod.string().nullish(),
   "duration": zod.number().nullish(),
   "durationUnit": zod.string().nullish(),
-  "aiConfirmed": zod.boolean()
+  "aiConfirmed": zod.boolean(),
+  "mode": zod.enum(['demo', 'live']).optional()
 })
 
 
@@ -409,7 +457,8 @@ export const GetRecentTradesResponseItem = zod.object({
   "openedAt": zod.coerce.date(),
   "closedAt": zod.coerce.date().nullish(),
   "duration": zod.number().nullish(),
-  "durationUnit": zod.string().nullish()
+  "durationUnit": zod.string().nullish(),
+  "mode": zod.enum(['demo', 'live'])
 })
 export const GetRecentTradesResponse = zod.array(GetRecentTradesResponseItem)
 
@@ -474,7 +523,8 @@ export const GetTradeResponse = zod.object({
   "openedAt": zod.coerce.date(),
   "closedAt": zod.coerce.date().nullish(),
   "duration": zod.number().nullish(),
-  "durationUnit": zod.string().nullish()
+  "durationUnit": zod.string().nullish(),
+  "mode": zod.enum(['demo', 'live'])
 })
 
 
@@ -511,7 +561,8 @@ export const UpdateTradeResponse = zod.object({
   "openedAt": zod.coerce.date(),
   "closedAt": zod.coerce.date().nullish(),
   "duration": zod.number().nullish(),
-  "durationUnit": zod.string().nullish()
+  "durationUnit": zod.string().nullish(),
+  "mode": zod.enum(['demo', 'live'])
 })
 
 
@@ -542,7 +593,8 @@ export const CloseTradeResponse = zod.object({
   "openedAt": zod.coerce.date(),
   "closedAt": zod.coerce.date().nullish(),
   "duration": zod.number().nullish(),
-  "durationUnit": zod.string().nullish()
+  "durationUnit": zod.string().nullish(),
+  "mode": zod.enum(['demo', 'live'])
 })
 
 
@@ -932,6 +984,84 @@ export const ListAIAnalysesResponse = zod.array(ListAIAnalysesResponseItem)
 
 
 /**
+ * @summary List auto trading sessions for the current user
+ */
+export const ListAutoTradeSessionsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "strategyId": zod.number(),
+  "strategyName": zod.string().nullish(),
+  "status": zod.enum(['running', 'stopped', 'paused', 'error']),
+  "mode": zod.enum(['demo', 'live']),
+  "symbol": zod.string(),
+  "stakeAmount": zod.number(),
+  "maxTrades": zod.number().nullish(),
+  "stopOnLoss": zod.number().nullish(),
+  "totalTrades": zod.number(),
+  "winTrades": zod.number(),
+  "totalPnl": zod.number(),
+  "errorMessage": zod.string().nullish(),
+  "startedAt": zod.coerce.date(),
+  "stoppedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAutoTradeSessionsResponse = zod.array(ListAutoTradeSessionsResponseItem)
+
+
+/**
+ * @summary Start a new auto trading session
+ */
+export const CreateAutoTradeSessionBody = zod.object({
+  "strategyId": zod.number(),
+  "mode": zod.enum(['demo', 'live']),
+  "symbol": zod.string(),
+  "stakeAmount": zod.number(),
+  "maxTrades": zod.number().nullish(),
+  "stopOnLoss": zod.number().nullish()
+})
+
+
+/**
+ * @summary Update auto trading session status (pause/stop/resume)
+ */
+export const UpdateAutoTradeSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAutoTradeSessionBody = zod.object({
+  "status": zod.enum(['running', 'stopped', 'paused'])
+})
+
+export const UpdateAutoTradeSessionResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "strategyId": zod.number(),
+  "strategyName": zod.string().nullish(),
+  "status": zod.enum(['running', 'stopped', 'paused', 'error']),
+  "mode": zod.enum(['demo', 'live']),
+  "symbol": zod.string(),
+  "stakeAmount": zod.number(),
+  "maxTrades": zod.number().nullish(),
+  "stopOnLoss": zod.number().nullish(),
+  "totalTrades": zod.number(),
+  "winTrades": zod.number(),
+  "totalPnl": zod.number(),
+  "errorMessage": zod.string().nullish(),
+  "startedAt": zod.coerce.date(),
+  "stoppedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete auto trading session
+ */
+export const DeleteAutoTradeSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary Dashboard summary - P&L, win rate, active trades, account balance
  */
 export const GetDashboardSummaryResponse = zod.object({
@@ -945,6 +1075,10 @@ export const GetDashboardSummaryResponse = zod.object({
   "winRateWeek": zod.number(),
   "totalTradesAllTime": zod.number(),
   "openTradesCount": zod.number(),
+  "livePnlToday": zod.number().optional(),
+  "demoPnlToday": zod.number().optional(),
+  "liveOpenTrades": zod.number().optional(),
+  "demoOpenTrades": zod.number().optional(),
   "derivConnected": zod.boolean(),
   "recentActivity": zod.array(zod.object({
   "id": zod.number(),
@@ -966,7 +1100,8 @@ export const GetDashboardSummaryResponse = zod.object({
   "openedAt": zod.coerce.date(),
   "closedAt": zod.coerce.date().nullish(),
   "duration": zod.number().nullish(),
-  "durationUnit": zod.string().nullish()
+  "durationUnit": zod.string().nullish(),
+  "mode": zod.enum(['demo', 'live'])
 }))
 })
 

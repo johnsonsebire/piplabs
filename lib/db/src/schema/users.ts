@@ -17,6 +17,8 @@ export const usersTable = pgTable("users", {
   derivLoginId: text("deriv_login_id"),
   derivCurrency: text("deriv_currency"),
   derivConnectedAt: timestamp("deriv_connected_at", { withTimezone: true }),
+  preferredTradeMode: text("preferred_trade_mode").notNull().default("demo"),
+  openAiApiKey: text("open_ai_api_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 });

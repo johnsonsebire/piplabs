@@ -11,6 +11,7 @@ import {
   GetWatchlistResponse,
   AddToWatchlistBody,
   RemoveFromWatchlistParams,
+  CreateAssetBody,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
@@ -62,6 +63,31 @@ router.get("/assets", requireAuth, async (req: AuthenticatedRequest, res): Promi
     : await db.select().from(assetsTable);
 
   res.json(ListAssetsResponse.parse(assets));
+});
+
+router.post("/assets", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const parsed = CreateAssetBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { symbol, displayName, shortName, type, subtype, pipSize, currency } = parsed.data;
+  const [asset] = await db.insert(assetsTable).values({
+    symbol,
+    displayName,
+    shortName,
+    type: type as any,
+    subtype: subtype ?? null,
+    pipSize: pipSize ?? null,
+    currency: currency ?? null,
+    isActive: true,
+  }).onConflictDoNothing().returning();
+  if (!asset) {
+    const [existing] = await db.select().from(assetsTable).where(eq(assetsTable.symbol, symbol));
+    res.status(201).json(existing);
+    return;
+  }
+  res.status(201).json(asset);
 });
 
 router.get("/assets/popular", requireAuth, async (_req, res): Promise<void> => {

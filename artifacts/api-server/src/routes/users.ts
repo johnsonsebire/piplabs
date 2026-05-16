@@ -47,9 +47,14 @@ router.patch("/users/me", requireAuth, async (req: AuthenticatedRequest, res): P
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const updateData: Record<string, unknown> = {};
+  if (parsed.data.displayName !== undefined) updateData.displayName = parsed.data.displayName;
+  if (parsed.data.preferredTradeMode !== undefined) updateData.preferredTradeMode = parsed.data.preferredTradeMode;
+  if ("openAiApiKey" in parsed.data) updateData.openAiApiKey = parsed.data.openAiApiKey ?? null;
+
   const [user] = await db
     .update(usersTable)
-    .set({ displayName: parsed.data.displayName })
+    .set(updateData as any)
     .where(eq(usersTable.id, req.userId!))
     .returning();
   res.json(UpdateMeResponse.parse({ id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl }));

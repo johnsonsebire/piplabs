@@ -19,7 +19,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     { label: "Strategies", href: "/strategies" },
     { label: "Indicators", href: "/indicators" },
     { label: "Backtest", href: "/backtest" },
-    { label: "Analysis", href: "/backtest" },
+    { label: "Auto Trade", href: "/autotrade" },
+    { label: "News", href: "/news" },
+    { label: "Settings", href: "/settings" },
   ];
 
   return (

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TradeInputDirection } from './tradeInputDirection';
+import type { TradeInputMode } from './tradeInputMode';
 import type { TradeInputType } from './tradeInputType';
 
 export interface TradeInput {
@@ -24,4 +25,5 @@ export interface TradeInput {
   /** @nullable */
   durationUnit?: string | null;
   aiConfirmed: boolean;
+  mode?: TradeInputMode;
 }

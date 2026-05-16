@@ -20,6 +20,10 @@ export interface DashboardSummary {
   winRateWeek: number;
   totalTradesAllTime: number;
   openTradesCount: number;
+  livePnlToday?: number;
+  demoPnlToday?: number;
+  liveOpenTrades?: number;
+  demoOpenTrades?: number;
   derivConnected: boolean;
   recentActivity: Trade[];
 }

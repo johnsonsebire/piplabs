@@ -37,6 +37,15 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
     .where(eq(tradesTable.userId, userId))
     .orderBy(desc(tradesTable.openedAt)).limit(5);
 
+  const liveTrades = allTrades.filter(t => t.mode === "live");
+  const demoTrades = allTrades.filter(t => t.mode !== "live");
+  const liveClosed = liveTrades.filter(t => t.status === "closed");
+  const demoClosed = demoTrades.filter(t => t.status === "closed");
+  const liveTodayClosed = liveClosed.filter(t => t.closedAt && t.closedAt >= startOfDay);
+  const demoTodayClosed = demoClosed.filter(t => t.closedAt && t.closedAt >= startOfDay);
+  const liveOpen = liveTrades.filter(t => t.status === "open");
+  const demoOpen = demoTrades.filter(t => t.status === "open");
+
   res.json(GetDashboardSummaryResponse.parse({
     accountBalance: null,
     currency: user.derivCurrency ?? "USD",
@@ -48,16 +57,33 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
     winRateWeek: calcWinRate(weekTrades),
     totalTradesAllTime: allTrades.length,
     openTradesCount: openTrades.length,
+    livePnlToday: sumPnl(liveTodayClosed),
+    demoPnlToday: sumPnl(demoTodayClosed),
+    liveOpenTrades: liveOpen.length,
+    demoOpenTrades: demoOpen.length,
     derivConnected: !!user.derivApiToken,
     recentActivity: recentActivity.map(t => ({
       id: t.id,
+      userId: t.userId,
       symbol: t.symbol,
+      displayName: t.displayName,
       type: t.type,
       direction: t.direction,
       status: t.status,
       stake: t.stake,
-      currentProfit: t.currentProfit,
+      currentProfit: t.currentProfit ?? null,
+      targetProfit: t.targetProfit ?? null,
+      entryPrice: t.entryPrice ?? null,
+      exitPrice: t.exitPrice ?? null,
+      contractId: t.contractId ?? null,
+      strategyId: t.strategyId ?? null,
+      notes: t.notes ?? null,
+      aiConfirmed: t.aiConfirmed,
+      duration: t.duration ?? null,
+      durationUnit: t.durationUnit ?? null,
+      mode: t.mode,
       openedAt: t.openedAt,
+      closedAt: t.closedAt ?? null,
     })),
   }));
 });

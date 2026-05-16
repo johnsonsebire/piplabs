@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const tradeTypeEnum = pgEnum("trade_type", ["vanilla_options", "forex", "multiplier"]);
 export const tradeDirectionEnum = pgEnum("trade_direction", ["buy", "sell", "call", "put"]);
 export const tradeStatusEnum = pgEnum("trade_status", ["open", "closed", "cancelled", "pending", "closing"]);
+export const tradeModeEnum = pgEnum("trade_mode", ["demo", "live"]);
 export const logLevelEnum = pgEnum("log_level", ["info", "warning", "error", "success"]);
 
 export const tradesTable = pgTable("trades", {
@@ -26,6 +27,7 @@ export const tradesTable = pgTable("trades", {
   aiConfirmed: boolean("ai_confirmed").notNull().default(false),
   duration: integer("duration"),
   durationUnit: text("duration_unit"),
+  mode: tradeModeEnum("mode").notNull().default("demo"),
   openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
 });

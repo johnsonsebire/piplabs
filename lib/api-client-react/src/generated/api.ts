@@ -23,9 +23,14 @@ import type {
   AIAnalysis,
   AIAnalysisInput,
   Asset,
+  AssetInput,
+  AutoTradeSession,
+  AutoTradeSessionInput,
+  AutoTradeSessionUpdate,
   Backtest,
   BacktestInput,
   DashboardSummary,
+  DerivActiveSymbol,
   DerivStatus,
   DerivTokenInput,
   GetMarketNewsParams,
@@ -49,6 +54,7 @@ import type {
   OpenaiImageOutput,
   OpenaiMessage,
   OpenaiMessageInput,
+  SearchDerivSymbolsParams,
   Strategy,
   StrategyInput,
   StrategyUpdate,
@@ -908,6 +914,90 @@ export function useGetDerivStatus<TData = Awaited<ReturnType<typeof getDerivStat
 
 
 
+export const getSearchDerivSymbolsUrl = (params?: SearchDerivSymbolsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/deriv/active-symbols?${stringifiedParams}` : `/api/deriv/active-symbols`
+}
+
+/**
+ * @summary Search Deriv active symbols (all tradeable instruments)
+ */
+export const searchDerivSymbols = async (params?: SearchDerivSymbolsParams, options?: RequestInit): Promise<DerivActiveSymbol[]> => {
+
+  return customFetch<DerivActiveSymbol[]>(getSearchDerivSymbolsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchDerivSymbolsQueryKey = (params?: SearchDerivSymbolsParams,) => {
+    return [
+    `/api/deriv/active-symbols`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchDerivSymbolsQueryOptions = <TData = Awaited<ReturnType<typeof searchDerivSymbols>>, TError = ErrorType<unknown>>(params?: SearchDerivSymbolsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchDerivSymbols>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchDerivSymbolsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchDerivSymbols>>> = ({ signal }) => searchDerivSymbols(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchDerivSymbols>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchDerivSymbolsQueryResult = NonNullable<Awaited<ReturnType<typeof searchDerivSymbols>>>
+export type SearchDerivSymbolsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search Deriv active symbols (all tradeable instruments)
+ */
+
+export function useSearchDerivSymbols<TData = Awaited<ReturnType<typeof searchDerivSymbols>>, TError = ErrorType<unknown>>(
+ params?: SearchDerivSymbolsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchDerivSymbols>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchDerivSymbolsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getListAssetsUrl = (params?: ListAssetsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -991,6 +1081,77 @@ export function useListAssets<TData = Awaited<ReturnType<typeof listAssets>>, TE
 
 
 
+
+export const getCreateAssetUrl = () => {
+
+
+
+
+  return `/api/assets`
+}
+
+/**
+ * @summary Add a new asset to the local database
+ */
+export const createAsset = async (assetInput: AssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getCreateAssetUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      assetInput,)
+  }
+);}
+
+
+
+
+export const getCreateAssetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{data: BodyType<AssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{data: BodyType<AssetInput>}, TContext> => {
+
+const mutationKey = ['createAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAsset>>, {data: BodyType<AssetInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAsset(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof createAsset>>>
+    export type CreateAssetMutationBody = BodyType<AssetInput>
+    export type CreateAssetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a new asset to the local database
+ */
+export const useCreateAsset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{data: BodyType<AssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAsset>>,
+        TError,
+        {data: BodyType<AssetInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAssetMutationOptions(options));
+    }
 
 export const getGetAssetUrl = (symbol: string,) => {
 
@@ -3396,6 +3557,296 @@ export function useListAIAnalyses<TData = Awaited<ReturnType<typeof listAIAnalys
 
 
 
+
+export const getListAutoTradeSessionsUrl = () => {
+
+
+
+
+  return `/api/autotrade/sessions`
+}
+
+/**
+ * @summary List auto trading sessions for the current user
+ */
+export const listAutoTradeSessions = async ( options?: RequestInit): Promise<AutoTradeSession[]> => {
+
+  return customFetch<AutoTradeSession[]>(getListAutoTradeSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAutoTradeSessionsQueryKey = () => {
+    return [
+    `/api/autotrade/sessions`
+    ] as const;
+    }
+
+
+export const getListAutoTradeSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listAutoTradeSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAutoTradeSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAutoTradeSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAutoTradeSessions>>> = ({ signal }) => listAutoTradeSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAutoTradeSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAutoTradeSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAutoTradeSessions>>>
+export type ListAutoTradeSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List auto trading sessions for the current user
+ */
+
+export function useListAutoTradeSessions<TData = Awaited<ReturnType<typeof listAutoTradeSessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAutoTradeSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAutoTradeSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateAutoTradeSessionUrl = () => {
+
+
+
+
+  return `/api/autotrade/sessions`
+}
+
+/**
+ * @summary Start a new auto trading session
+ */
+export const createAutoTradeSession = async (autoTradeSessionInput: AutoTradeSessionInput, options?: RequestInit): Promise<AutoTradeSession> => {
+
+  return customFetch<AutoTradeSession>(getCreateAutoTradeSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      autoTradeSessionInput,)
+  }
+);}
+
+
+
+
+export const getCreateAutoTradeSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAutoTradeSession>>, TError,{data: BodyType<AutoTradeSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAutoTradeSession>>, TError,{data: BodyType<AutoTradeSessionInput>}, TContext> => {
+
+const mutationKey = ['createAutoTradeSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAutoTradeSession>>, {data: BodyType<AutoTradeSessionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAutoTradeSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAutoTradeSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createAutoTradeSession>>>
+    export type CreateAutoTradeSessionMutationBody = BodyType<AutoTradeSessionInput>
+    export type CreateAutoTradeSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Start a new auto trading session
+ */
+export const useCreateAutoTradeSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAutoTradeSession>>, TError,{data: BodyType<AutoTradeSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAutoTradeSession>>,
+        TError,
+        {data: BodyType<AutoTradeSessionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAutoTradeSessionMutationOptions(options));
+    }
+
+export const getUpdateAutoTradeSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/autotrade/sessions/${id}`
+}
+
+/**
+ * @summary Update auto trading session status (pause/stop/resume)
+ */
+export const updateAutoTradeSession = async (id: number,
+    autoTradeSessionUpdate: AutoTradeSessionUpdate, options?: RequestInit): Promise<AutoTradeSession> => {
+
+  return customFetch<AutoTradeSession>(getUpdateAutoTradeSessionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      autoTradeSessionUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateAutoTradeSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAutoTradeSession>>, TError,{id: number;data: BodyType<AutoTradeSessionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAutoTradeSession>>, TError,{id: number;data: BodyType<AutoTradeSessionUpdate>}, TContext> => {
+
+const mutationKey = ['updateAutoTradeSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAutoTradeSession>>, {id: number;data: BodyType<AutoTradeSessionUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAutoTradeSession(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAutoTradeSessionMutationResult = NonNullable<Awaited<ReturnType<typeof updateAutoTradeSession>>>
+    export type UpdateAutoTradeSessionMutationBody = BodyType<AutoTradeSessionUpdate>
+    export type UpdateAutoTradeSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update auto trading session status (pause/stop/resume)
+ */
+export const useUpdateAutoTradeSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAutoTradeSession>>, TError,{id: number;data: BodyType<AutoTradeSessionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAutoTradeSession>>,
+        TError,
+        {id: number;data: BodyType<AutoTradeSessionUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAutoTradeSessionMutationOptions(options));
+    }
+
+export const getDeleteAutoTradeSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/autotrade/sessions/${id}`
+}
+
+/**
+ * @summary Delete auto trading session
+ */
+export const deleteAutoTradeSession = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAutoTradeSessionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteAutoTradeSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAutoTradeSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAutoTradeSession>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAutoTradeSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAutoTradeSession>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAutoTradeSession(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAutoTradeSessionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAutoTradeSession>>>
+
+    export type DeleteAutoTradeSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete auto trading session
+ */
+export const useDeleteAutoTradeSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAutoTradeSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAutoTradeSession>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAutoTradeSessionMutationOptions(options));
+    }
 
 export const getGetDashboardSummaryUrl = () => {
 

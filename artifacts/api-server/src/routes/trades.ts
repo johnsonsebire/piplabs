@@ -76,6 +76,7 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
     duration: parsed.data.duration ?? null,
     durationUnit: parsed.data.durationUnit ?? null,
     aiConfirmed: parsed.data.aiConfirmed ?? false,
+    mode: (parsed.data.mode ?? "demo") as any,
     status: "pending",
   }).returning();
 

@@ -5,6 +5,7 @@
  * Deriv Trading Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserPreferredTradeMode } from './userPreferredTradeMode';
 import type { UserRole } from './userRole';
 
 export interface User {
@@ -21,4 +22,7 @@ export interface User {
   createdAt: Date;
   /** @nullable */
   lastSeenAt?: Date | null;
+  preferredTradeMode?: UserPreferredTradeMode;
+  /** @nullable */
+  openAiApiKey?: string | null;
 }

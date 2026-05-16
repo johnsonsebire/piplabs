@@ -43,14 +43,22 @@ export default function Dashboard() {
 
           <Card className="rounded-none border-border bg-card">
             <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Today's P&L</CardTitle>
+              <CardTitle className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Today's P&L (Live / Demo)</CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0">
               {isLoadingSummary ? (
                 <Skeleton className="h-8 w-24 rounded-none bg-muted" />
               ) : (
-                <div className={`text-3xl font-bold font-mono ${(summary?.totalPnlToday || 0) >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                  {(summary?.totalPnlToday || 0) >= 0 ? '+' : ''}{(summary?.totalPnlToday || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <div className="flex items-baseline gap-4">
+                  <div className={`text-2xl font-bold font-mono ${(summary?.livePnlToday || 0) >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                    {(summary?.livePnlToday || 0) >= 0 ? '+' : ''}{(summary?.livePnlToday || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <span className="text-[10px] ml-1 text-muted-foreground align-top tracking-wider uppercase">L</span>
+                  </div>
+                  <div className="text-muted-foreground">/</div>
+                  <div className={`text-2xl font-bold font-mono ${(summary?.demoPnlToday || 0) >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                    {(summary?.demoPnlToday || 0) >= 0 ? '+' : ''}{(summary?.demoPnlToday || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <span className="text-[10px] ml-1 text-muted-foreground align-top tracking-wider uppercase">D</span>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -80,7 +88,9 @@ export default function Dashboard() {
                 <Skeleton className="h-8 w-24 rounded-none bg-muted" />
               ) : (
                 <div className="text-3xl font-bold font-mono text-primary">
-                  {summary?.activeTrades || 0}
+                  {summary?.liveOpenTrades || 0} <span className="text-sm text-muted-foreground uppercase font-mono tracking-widest mr-2">Live</span>
+                  <span className="text-muted-foreground">/</span>
+                  <span className="ml-2">{summary?.demoOpenTrades || 0}</span> <span className="text-sm text-muted-foreground uppercase font-mono tracking-widest">Demo</span>
                 </div>
               )}
             </CardContent>
@@ -104,6 +114,7 @@ export default function Dashboard() {
                   <thead className="bg-muted/30 sticky top-0">
                     <tr>
                       <th className="p-3 font-normal text-muted-foreground">ID</th>
+                      <th className="p-3 font-normal text-muted-foreground">MODE</th>
                       <th className="p-3 font-normal text-muted-foreground">ASSET</th>
                       <th className="p-3 font-normal text-muted-foreground">TYPE</th>
                       <th className="p-3 font-normal text-muted-foreground">STATUS</th>
@@ -118,9 +129,14 @@ export default function Dashboard() {
                             #{trade.id}
                           </Link>
                         </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 text-[10px] uppercase font-bold tracking-widest ${trade.mode === 'live' ? 'bg-destructive/20 text-destructive' : 'bg-primary/20 text-primary'}`}>
+                            {trade.mode}
+                          </span>
+                        </td>
                         <td className="p-3 text-foreground">{trade.displayName}</td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 text-xs ${trade.direction === 'buy' || trade.direction === 'call' ? 'bg-primary/20 text-primary' : 'bg-destructive/20 text-destructive'}`}>
+                          <span className={`px-2 py-0.5 text-xs ${trade.direction === 'buy' || trade.direction === 'call' ? 'text-primary' : 'text-destructive'}`}>
                             {trade.direction.toUpperCase()}
                           </span>
                         </td>

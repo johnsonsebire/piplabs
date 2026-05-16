@@ -18,6 +18,7 @@ import IndicatorsPage from "@/pages/indicators";
 import BacktestPage from "@/pages/backtest";
 import NewsPage from "@/pages/news";
 import SettingsPage from "@/pages/settings";
+import AutoTradePage from "@/pages/autotrade";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -219,6 +220,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/news">
               <ProtectedRoute component={NewsPage} />
+            </Route>
+            <Route path="/autotrade">
+              <ProtectedRoute component={AutoTradePage} />
             </Route>
             <Route path="/settings">
               <ProtectedRoute component={SettingsPage} />

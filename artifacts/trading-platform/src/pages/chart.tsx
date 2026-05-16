@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
 import { useDerivWs } from "@/hooks/use-deriv-ws";
-import { useCreateTrade, TradeInputDirection, TradeInputType } from "@workspace/api-client-react";
+import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,11 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-
-const ASSETS = [
-  "R_100", "R_75", "R_50", "R_25", "R_10",
-  "frxEURUSD", "frxGBPUSD", "frxUSDJPY"
-];
+import { useQueryClient } from "@tanstack/react-query";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function ChartPage() {
   const [symbol, setSymbol] = useState("R_100");
@@ -28,6 +29,17 @@ export default function ChartPage() {
   const [durationUnit, setDurationUnit] = useState("ticks");
   const [takeProfit, setTakeProfit] = useState("");
   const [aiConfirmed, setAiConfirmed] = useState(false);
+  const [tradeMode, setTradeMode] = useState<"demo" | "live">("demo");
+
+  // Search
+  const [openSearch, setOpenSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  
+  const { data: searchResults } = useSearchDerivSymbols(
+    { q: debouncedSearchQuery },
+    { query: { enabled: !!debouncedSearchQuery, queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
+  );
 
   const createTrade = useCreateTrade();
 
@@ -41,7 +53,8 @@ export default function ChartPage() {
         duration: parseInt(duration),
         durationUnit,
         targetProfit: takeProfit ? parseFloat(takeProfit) : null,
-        aiConfirmed
+        aiConfirmed,
+        mode: tradeMode
       }
     }, {
       onSuccess: () => {
@@ -67,16 +80,53 @@ export default function ChartPage() {
         <div className="flex-1 flex flex-col min-w-0 border-r border-border">
           <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
             <div className="flex items-center gap-4">
-              <Select value={symbol} onValueChange={setSymbol}>
-                <SelectTrigger className="w-[180px] h-8 rounded-none border-border bg-background font-mono font-bold" data-testid="select-asset">
-                  <SelectValue placeholder="Select Asset" />
-                </SelectTrigger>
-                <SelectContent className="rounded-none border-border">
-                  {ASSETS.map(a => (
-                    <SelectItem key={a} value={a} className="font-mono">{a}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openSearch} onOpenChange={setOpenSearch}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openSearch}
+                    className="w-[250px] h-8 rounded-none border-border bg-background font-mono font-bold justify-between"
+                  >
+                    {symbol}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[250px] p-0 rounded-none border-border">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search active symbols..." 
+                      className="font-mono text-xs" 
+                      value={searchQuery}
+                      onValueChange={setSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty className="py-2 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
+                      <CommandGroup>
+                        {searchResults?.map((item) => (
+                          <CommandItem
+                            key={item.symbol}
+                            value={item.symbol}
+                            onSelect={(currentValue) => {
+                              setSymbol(currentValue === symbol ? "" : currentValue);
+                              setOpenSearch(false);
+                            }}
+                            className="font-mono text-xs cursor-pointer"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                symbol === item.symbol ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {item.displayName} ({item.symbol})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <div className="flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-primary animate-pulse' : 'bg-destructive'}`}></div>
                 <span className="font-mono text-xs text-muted-foreground uppercase">{isConnected ? 'Live' : 'Disconnected'}</span>
@@ -98,8 +148,18 @@ export default function ChartPage() {
 
         {/* Order Entry Panel */}
         <div className="w-full md:w-80 bg-card shrink-0 flex flex-col h-full overflow-y-auto">
-          <div className="p-4 border-b border-border">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">Order Entry</h2>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-mono text-muted-foreground uppercase">Mode:</Label>
+              <Tabs value={tradeMode} onValueChange={(v) => setTradeMode(v as "demo" | "live")} className="w-[100px]">
+                <TabsList className="grid w-full grid-cols-2 rounded-none h-6 p-0 bg-background border border-border">
+                  <TabsTrigger value="demo" className="rounded-none text-[9px] uppercase font-mono data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">DEMO</TabsTrigger>
+                  <TabsTrigger value="live" className="rounded-none text-[9px] uppercase font-mono data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground">LIVE</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              {tradeMode === "live" && <span className="flex h-2 w-2 rounded-full bg-destructive animate-pulse ml-1" title="Live Trading Active" />}
+            </div>
           </div>
           
           <div className="p-4 space-y-6">

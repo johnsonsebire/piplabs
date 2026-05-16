@@ -66,4 +66,60 @@ router.get("/deriv/status", requireAuth, async (req: AuthenticatedRequest, res):
   }));
 });
 
+let cachedSymbols: unknown[] | null = null;
+let symbolsCachedAt = 0;
+const SYMBOLS_CACHE_TTL_MS = 60 * 60 * 1000;
+
+router.get("/deriv/active-symbols", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { q, instrumentType } = req.query as Record<string, string | undefined>;
+
+  if (!cachedSymbols || Date.now() - symbolsCachedAt > SYMBOLS_CACHE_TTL_MS) {
+    try {
+      const { default: WebSocket } = await import("ws");
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
+        const timeout = setTimeout(() => { ws.terminate(); reject(new Error("timeout")); }, 10000);
+        ws.on("open", () => ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" })));
+        ws.on("message", (data: Buffer) => {
+          clearTimeout(timeout);
+          try {
+            const parsed = JSON.parse(data.toString());
+            if (parsed.active_symbols) {
+              cachedSymbols = parsed.active_symbols.map((s: Record<string, unknown>) => ({
+                symbol: s.symbol,
+                displayName: s.display_name,
+                shortName: s.symbol_type ?? s.symbol,
+                instrumentType: s.market ?? s.symbol_type ?? "unknown",
+                subtype: s.submarket ?? null,
+                isTradingSuspended: !s.exchange_is_open,
+                pip: s.pip ?? null,
+              }));
+              symbolsCachedAt = Date.now();
+            }
+          } catch (_) {}
+          ws.close();
+          resolve();
+        });
+        ws.on("error", (err: Error) => { clearTimeout(timeout); reject(err); });
+      });
+    } catch (_) {
+      if (!cachedSymbols) cachedSymbols = [];
+    }
+  }
+
+  let results = cachedSymbols ?? [];
+  if (instrumentType) {
+    results = results.filter((s: any) => s.instrumentType === instrumentType);
+  }
+  if (q) {
+    const lower = q.toLowerCase();
+    results = results.filter((s: any) =>
+      s.displayName.toLowerCase().includes(lower) ||
+      s.symbol.toLowerCase().includes(lower)
+    );
+  }
+
+  res.json(results.slice(0, 100));
+});
+
 export default router;

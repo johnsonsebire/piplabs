@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TradeDirection } from './tradeDirection';
+import type { TradeMode } from './tradeMode';
 import type { TradeStatus } from './tradeStatus';
 import type { TradeType } from './tradeType';
 
@@ -40,4 +41,5 @@ export interface Trade {
   duration?: number | null;
   /** @nullable */
   durationUnit?: string | null;
+  mode: TradeMode;
 }

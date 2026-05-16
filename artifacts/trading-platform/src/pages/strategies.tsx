@@ -1,15 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useListStrategies, useCreateStrategy, StrategyInputType, Strategy } from "@workspace/api-client-react";
+import { useListStrategies, useCreateStrategy, StrategyInputType } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { Plus, X } from "lucide-react";
+
+interface Condition {
+  id: string;
+  indicatorA: string;
+  operator: string;
+  indicatorB: string;
+}
 
 export default function StrategiesPage() {
   const { data: strategies, isLoading } = useListStrategies({});
@@ -18,36 +25,66 @@ export default function StrategiesPage() {
   const queryClient = useQueryClient();
 
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    type: StrategyInputType.vanilla_options,
-    code: "def evaluate(ticks, indicators):\n    return 'wait'",
-    parameters: "{}",
-    isActive: true
-  });
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState<StrategyInputType>(StrategyInputType.vanilla_options);
+  const [logicOp, setLogicOp] = useState<"AND" | "OR">("AND");
+  
+  const [conditions, setConditions] = useState<Condition[]>([]);
+
+  // Pre-load example
+  useEffect(() => {
+    if (showForm && conditions.length === 0 && !name) {
+      setConditions([
+        { id: "1", indicatorA: "EMA(7)", operator: "crosses above", indicatorB: "EMA(3)" },
+        { id: "2", indicatorA: "CCI", operator: ">", indicatorB: "0" }
+      ]);
+    }
+  }, [showForm]);
+
+  const addCondition = () => {
+    setConditions([...conditions, { id: Math.random().toString(36).substring(7), indicatorA: "", operator: "==", indicatorB: "" }]);
+  };
+
+  const removeCondition = (id: string) => {
+    setConditions(conditions.filter(c => c.id !== id));
+  };
+
+  const updateCondition = (id: string, field: keyof Condition, value: string) => {
+    setConditions(conditions.map(c => c.id === id ? { ...c, [field]: value } : c));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Construct JSON payload
+    const payload = {
+      logic: logicOp,
+      conditions: conditions.map(({ indicatorA, operator, indicatorB }) => ({ indicatorA, operator, indicatorB }))
+    };
+
     createStrategy.mutate({
       data: {
-        name: formData.name,
-        description: formData.description,
-        type: formData.type,
-        code: formData.code,
-        parameters: formData.parameters
+        name,
+        description,
+        type,
+        code: JSON.stringify(payload),
+        parameters: "{}"
       }
     }, {
       onSuccess: () => {
         toast({ title: "Strategy created" });
         setShowForm(false);
-        queryClient.invalidateQueries({ queryKey: ["/api/strategies"] }); // Simplified since we don't have the exact helper imported here, standard format
+        queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
       },
       onError: (err: any) => {
         toast({ variant: "destructive", title: "Error", description: err?.message });
       }
     });
   };
+
+  const IND_OPTIONS = ["EMA(3)", "EMA(7)", "EMA(14)", "SMA(20)", "RSI", "MACD", "CCI", "BB_UPPER", "BB_LOWER", "PRICE"];
+  const OP_OPTIONS = ["crosses above", "crosses below", "is above", "is below", "==", ">", "<", ">=", "<="];
 
   return (
     <AppLayout>
@@ -102,33 +139,24 @@ export default function StrategiesPage() {
 
           {/* Form Panel */}
           {showForm && (
-            <div className="w-full md:w-[450px] border border-border bg-card shrink-0 flex flex-col overflow-hidden">
+            <div className="w-full md:w-[500px] border border-border bg-card shrink-0 flex flex-col overflow-hidden">
               <div className="p-4 border-b border-border bg-muted/20 shrink-0">
-                <h2 className="text-sm font-bold font-mono uppercase text-foreground">Strategy Configuration</h2>
+                <h2 className="text-sm font-bold font-mono uppercase text-foreground">Visual Strategy Builder</h2>
               </div>
-              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6">
+              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-6">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Name</Label>
                   <Input 
                     required 
-                    value={formData.name} 
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="rounded-none font-mono border-border bg-background"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Description</Label>
-                  <Input 
-                    value={formData.description} 
-                    onChange={e => setFormData({...formData, description: e.target.value})}
+                    value={name} 
+                    onChange={e => setName(e.target.value)}
                     className="rounded-none font-mono border-border bg-background"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Target Market</Label>
-                  <Select value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}>
+                  <Select value={type} onValueChange={(v: any) => setType(v)}>
                     <SelectTrigger className="w-full h-10 rounded-none border-border bg-background font-mono text-sm">
                       <SelectValue />
                     </SelectTrigger>
@@ -141,27 +169,78 @@ export default function StrategiesPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Parameters (JSON)</Label>
-                  <Textarea 
-                    value={formData.parameters} 
-                    onChange={e => setFormData({...formData, parameters: e.target.value})}
-                    className="rounded-none font-mono border-border bg-background h-24 font-mono text-xs"
-                  />
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs uppercase font-mono text-primary font-bold">Execution Conditions</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase">ALL</span>
+                      <Switch 
+                        checked={logicOp === "OR"} 
+                        onCheckedChange={c => setLogicOp(c ? "OR" : "AND")}
+                        className="data-[state=checked]:bg-muted-foreground data-[state=unchecked]:bg-primary"
+                      />
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase">ANY</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {conditions.map((c, i) => (
+                      <div key={c.id} className="flex flex-col gap-2 p-3 border border-border bg-muted/10 relative group">
+                        {i > 0 && (
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-background px-2 text-[10px] font-mono text-muted-foreground font-bold border border-border">
+                            {logicOp}
+                          </div>
+                        )}
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeCondition(c.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                        
+                        <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+                          <Input 
+                            value={c.indicatorA}
+                            onChange={(e) => updateCondition(c.id, "indicatorA", e.target.value)}
+                            placeholder="EMA(14) / RSI"
+                            className="rounded-none h-8 font-mono text-xs border-border"
+                          />
+                          <Select value={c.operator} onValueChange={(v) => updateCondition(c.id, "operator", v)}>
+                            <SelectTrigger className="w-[120px] h-8 rounded-none border-border bg-background font-mono text-[10px] uppercase">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-none border-border">
+                              {OP_OPTIONS.map(op => (
+                                <SelectItem key={op} value={op} className="font-mono text-[10px] uppercase">{op}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input 
+                            value={c.indicatorB}
+                            onChange={(e) => updateCondition(c.id, "indicatorB", e.target.value)}
+                            placeholder="Value / Ind"
+                            className="rounded-none h-8 font-mono text-xs border-border"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full rounded-none border-dashed border-border text-muted-foreground uppercase text-[10px] font-mono hover:text-primary hover:border-primary"
+                    onClick={addCondition}
+                  >
+                    <Plus className="h-3 w-3 mr-2" /> Add Condition
+                  </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Logic (Python/Pseudo)</Label>
-                  <Textarea 
-                    required
-                    value={formData.code} 
-                    onChange={e => setFormData({...formData, code: e.target.value})}
-                    className="rounded-none font-mono border-border bg-background h-40 font-mono text-xs text-primary"
-                  />
-                </div>
-
-                <div className="pt-4 border-t border-border flex justify-end">
-                  <Button type="submit" disabled={createStrategy.isPending} className="w-full rounded-none font-bold uppercase font-mono tracking-wider h-10">
+                <div className="pt-6 mt-auto border-t border-border flex justify-end">
+                  <Button type="submit" disabled={createStrategy.isPending || conditions.length === 0} className="w-full rounded-none font-bold uppercase font-mono tracking-wider h-10">
                     {createStrategy.isPending ? "Deploying..." : "Deploy Strategy"}
                   </Button>
                 </div>
