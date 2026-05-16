@@ -41,8 +41,11 @@ type Leg = {
   conditions: Condition[];
 };
 
-const IND_OPTIONS = ["EMA(3)", "EMA(7)", "EMA(14)", "SMA(20)", "RSI", "MACD", "CCI", "BB_UPPER", "BB_LOWER", "PRICE"];
+const IND_OPTIONS = ["EMA(3)", "EMA(7)", "EMA(14)", "EMA(21)", "EMA(50)", "EMA(200)", "SMA(20)", "SMA(50)", "RSI", "MACD", "MACD_SIGNAL", "CCI", "BB_UPPER", "BB_LOWER", "BB_MIDDLE", "ATR", "STOCH_K", "STOCH_D", "PRICE", "HIGH", "LOW", "OPEN", "CLOSE", "VOLUME"];
 const OP_OPTIONS = ["crosses above", "crosses below", "is above", "is below", "==", ">", "<", ">=", "<="];
+// Common numeric thresholds traders compare indicators against.
+const VALUE_OPTIONS = ["0", "20", "25", "30", "40", "50", "60", "70", "75", "80", "100"];
+const CUSTOM_VALUE = "__custom__";
 
 const newId = () => Math.random().toString(36).substring(2, 9);
 
@@ -122,6 +125,76 @@ function serializeCode(buy: Leg, sell: Leg): string {
   return JSON.stringify({ version: 2, buy: stripIds(buy), sell: stripIds(sell) });
 }
 
+interface IndicatorOrValuePickerProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  showValues: boolean;
+}
+
+// Dropdown that lists indicators (and optionally common numeric thresholds)
+// and falls back to a free-text input when the user picks "Custom value...".
+function IndicatorOrValuePicker({ value, onChange, placeholder, showValues }: IndicatorOrValuePickerProps) {
+  const isKnownIndicator = IND_OPTIONS.includes(value);
+  const isKnownValue = showValues && VALUE_OPTIONS.includes(value);
+  const isKnown = isKnownIndicator || isKnownValue;
+  // If the current value is non-empty but not in any preset, treat as custom.
+  const [customMode, setCustomMode] = useState<boolean>(!!value && !isKnown);
+
+  if (customMode) {
+    return (
+      <div className="flex gap-1">
+        <Input
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter value..."
+          className="rounded-none h-8 font-mono text-xs border-border flex-1"
+        />
+        <Button
+          type="button" size="icon" variant="ghost"
+          className="h-8 w-8 rounded-none shrink-0"
+          onClick={() => { onChange(""); setCustomMode(false); }}
+          title="Back to dropdown"
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Select
+      value={value || undefined}
+      onValueChange={(v) => {
+        if (v === CUSTOM_VALUE) { setCustomMode(true); onChange(""); return; }
+        onChange(v);
+      }}
+    >
+      <SelectTrigger className="rounded-none h-8 font-mono text-xs border-border bg-background">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent className="rounded-none border-border max-h-72">
+        <div className="px-2 py-1 text-[9px] uppercase font-mono text-muted-foreground tracking-wider">Indicators</div>
+        {IND_OPTIONS.map(o => (
+          <SelectItem key={o} value={o} className="font-mono text-xs">{o}</SelectItem>
+        ))}
+        {showValues && (
+          <>
+            <div className="px-2 py-1 mt-1 text-[9px] uppercase font-mono text-muted-foreground tracking-wider border-t border-border">Common Values</div>
+            {VALUE_OPTIONS.map(v => (
+              <SelectItem key={v} value={v} className="font-mono text-xs">{v}</SelectItem>
+            ))}
+          </>
+        )}
+        <div className="border-t border-border mt-1">
+          <SelectItem value={CUSTOM_VALUE} className="font-mono text-xs italic text-muted-foreground">Custom value…</SelectItem>
+        </div>
+      </SelectContent>
+    </Select>
+  );
+}
+
 interface LegEditorProps {
   side: "buy" | "sell";
   leg: Leg;
@@ -196,14 +269,12 @@ function LegEditor({ side, leg, onChange }: LegEditorProps) {
                   <X className="h-3 w-3" />
                 </Button>
                 <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                  <Input
+                  <IndicatorOrValuePicker
                     value={c.indicatorA}
-                    onChange={(e) => updateCondition(c.id, "indicatorA", e.target.value)}
-                    placeholder="EMA(14) / RSI"
-                    list={`ind-${c.id}`}
-                    className="rounded-none h-8 font-mono text-xs border-border"
+                    onChange={(v) => updateCondition(c.id, "indicatorA", v)}
+                    placeholder="Pick indicator"
+                    showValues={false}
                   />
-                  <datalist id={`ind-${c.id}`}>{IND_OPTIONS.map(o => <option key={o} value={o} />)}</datalist>
                   <Select value={c.operator} onValueChange={(v) => updateCondition(c.id, "operator", v)}>
                     <SelectTrigger className="w-[120px] h-8 rounded-none border-border bg-background font-mono text-[10px] uppercase">
                       <SelectValue />
@@ -214,11 +285,11 @@ function LegEditor({ side, leg, onChange }: LegEditorProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input
+                  <IndicatorOrValuePicker
                     value={c.indicatorB}
-                    onChange={(e) => updateCondition(c.id, "indicatorB", e.target.value)}
-                    placeholder="Value / Ind"
-                    className="rounded-none h-8 font-mono text-xs border-border"
+                    onChange={(v) => updateCondition(c.id, "indicatorB", v)}
+                    placeholder="Pick value / indicator"
+                    showValues={true}
                   />
                 </div>
               </div>
