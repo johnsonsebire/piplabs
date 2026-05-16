@@ -295,6 +295,12 @@ export interface TradeInput {
   durationUnit?: string | null;
   aiConfirmed: boolean;
   mode?: TradeInputMode;
+  /**
+     * Strike/barrier for vanilla options. Use "+0.00" for at-the-money, "+N" / "-N" for relative pips from spot, or an absolute price string. Required for VANILLALONGCALL / VANILLALONGPUT contract types.
+
+     * @nullable
+     */
+  barrier?: string | null;
 }
 
 export interface TradeUpdate {

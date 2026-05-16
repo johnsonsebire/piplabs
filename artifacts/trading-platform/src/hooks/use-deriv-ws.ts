@@ -27,7 +27,8 @@ export interface UseDerivWsReturn {
 const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
 // Deriv supports these granularities (in seconds) for ticks_history.
-const DERIV_GRANULARITIES = new Set([60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 86400]);
+// 1200 (20m) and 10800 (3h) are accepted by the API even though undocumented.
+const DERIV_GRANULARITIES = new Set([60, 120, 180, 300, 600, 900, 1200, 1800, 3600, 7200, 10800, 14400, 28800, 86400]);
 
 function clampGranularity(g: number): number {
   if (DERIV_GRANULARITIES.has(g)) return g;
@@ -160,16 +161,17 @@ export function useDerivWs(symbol: string, granularitySec: number = 60): UseDeri
 }
 
 export const TIMEFRAME_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
-  { label: "1m", seconds: 60 },
-  { label: "2m", seconds: 120 },
-  { label: "3m", seconds: 180 },
-  { label: "5m", seconds: 300 },
+  { label: "1m",  seconds: 60 },
+  { label: "2m",  seconds: 120 },
+  { label: "3m",  seconds: 180 },
+  { label: "5m",  seconds: 300 },
   { label: "10m", seconds: 600 },
   { label: "15m", seconds: 900 },
+  { label: "20m", seconds: 1200 },
   { label: "30m", seconds: 1800 },
-  { label: "1h", seconds: 3600 },
-  { label: "2h", seconds: 7200 },
-  { label: "4h", seconds: 14400 },
-  { label: "8h", seconds: 28800 },
-  { label: "1d", seconds: 86400 },
+  { label: "1h",  seconds: 3600 },
+  { label: "2h",  seconds: 7200 },
+  { label: "3h",  seconds: 10800 },
+  { label: "4h",  seconds: 14400 },
+  { label: "1d",  seconds: 86400 },
 ];

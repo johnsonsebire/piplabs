@@ -426,7 +426,8 @@ export const CreateTradeBody = zod.object({
   "duration": zod.number().nullish(),
   "durationUnit": zod.string().nullish(),
   "aiConfirmed": zod.boolean(),
-  "mode": zod.enum(['demo', 'live']).optional()
+  "mode": zod.enum(['demo', 'live']).optional(),
+  "barrier": zod.string().nullish().describe('Strike\/barrier for vanilla options. Use \"+0.00\" for at-the-money, \"+N\" \/ \"-N\" for relative pips from spot, or an absolute price string. Required for VANILLALONGCALL \/ VANILLALONGPUT contract types.\n')
 })
 
 

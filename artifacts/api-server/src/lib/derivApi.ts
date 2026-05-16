@@ -56,6 +56,8 @@ export type DerivBuyParams = {
   durationUnit: "t" | "s" | "m" | "h" | "d";
   basis?: "stake" | "payout";
   multiplier?: number;
+  /** Strike/barrier for vanilla options. e.g. "+0.00" (ATM), "+10", or absolute price string. */
+  barrier?: string;
   reqId: number;
 };
 
@@ -285,11 +287,17 @@ export async function buyContract(
       };
 
       const isMulti = params.contractType === "MULTUP" || params.contractType === "MULTDOWN";
+      const isVanilla = params.contractType === "VANILLALONGCALL" || params.contractType === "VANILLALONGPUT";
       if (isMulti) {
         msg.multiplier = params.multiplier ?? 10;
       } else {
         msg.duration = params.duration;
         msg.duration_unit = params.durationUnit;
+      }
+      // Vanilla options require a single barrier (strike price).
+      // Default to "+0.00" (at-the-money) if the caller didn't provide one.
+      if (isVanilla) {
+        msg.barrier = params.barrier ?? "+0.00";
       }
 
       try {

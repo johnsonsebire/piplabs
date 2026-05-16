@@ -36,6 +36,7 @@ export default function ChartPage() {
   const [stake, setStake] = useState("1");
   const [duration, setDuration] = useState("5");
   const [durationUnit, setDurationUnit] = useState("m");
+  const [barrier, setBarrier] = useState("+0.00");
   const [takeProfit, setTakeProfit] = useState("");
   const [aiConfirmed, setAiConfirmed] = useState(false);
   const [tradeMode, setTradeMode] = useState<"demo" | "live">("demo");
@@ -61,6 +62,7 @@ export default function ChartPage() {
         stake: parseFloat(stake),
         duration: parseInt(duration),
         durationUnit,
+        barrier: contractType === TradeInputType.vanilla_options ? barrier : null,
         targetProfit: takeProfit ? parseFloat(takeProfit) : null,
         aiConfirmed,
         mode: tradeMode
@@ -230,6 +232,25 @@ export default function ChartPage() {
                 data-testid="input-stake"
               />
             </div>
+
+            {contractType === TradeInputType.vanilla_options && (
+              <div className="space-y-3">
+                <Label className="text-xs uppercase font-mono text-muted-foreground">Barrier / Strike</Label>
+                <div className="space-y-1">
+                  <Input
+                    type="text"
+                    value={barrier}
+                    onChange={(e) => setBarrier(e.target.value)}
+                    placeholder="+0.00"
+                    className="rounded-none font-mono h-10 border-border bg-background"
+                    data-testid="input-barrier"
+                  />
+                  <p className="text-[10px] font-mono text-muted-foreground">
+                    +0.00 = at-the-money · +N / −N = pips from spot · or absolute price
+                  </p>
+                </div>
+              </div>
+            )}
 
             {contractType !== TradeInputType.multiplier && (
               <div className="space-y-3">

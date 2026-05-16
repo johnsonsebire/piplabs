@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { tradesTable, tradeLogsTable, tradeCommentsTable } from "@workspace/db";
+import { tradesTable, tradeLogsTable, tradeCommentsTable, strategiesTable } from "@workspace/db";
 import {
   ListTradesQueryParams,
   ListTradesResponse,
@@ -29,6 +29,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { buyContract, getAccountForMode, invalidateBalanceCache, nextReqId, type DerivBuyParams } from "../lib/derivApi";
+import { buildSignalPayload, fireStrategyWebhook } from "../lib/strategyWebhook";
 
 const router: IRouter = Router();
 
@@ -119,6 +120,7 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
         duration: parsed.data.duration ?? 5,
         durationUnit: (parsed.data.durationUnit as any) ?? "m",
         basis: "stake",
+        barrier: (parsed.data as any).barrier ?? undefined,
         reqId,
       };
 
@@ -140,6 +142,31 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
           level: "info",
           message: `Executed on Deriv: contract_id=${outcome.result.contractId} buy=${outcome.result.buyPrice} payout=${outcome.result.payout} — ${outcome.result.longcode}`,
         });
+
+        // Fire strategy webhook (fire-and-forget — never block the HTTP response).
+        if (parsed.data.strategyId) {
+          db.select({
+            name: strategiesTable.name,
+            webhookUrl: strategiesTable.webhookUrl,
+            webhookSecret: strategiesTable.webhookSecret,
+          })
+            .from(strategiesTable)
+            .where(eq(strategiesTable.id, parsed.data.strategyId))
+            .limit(1)
+            .then(([strat]) => {
+              if (!strat?.webhookUrl) return;
+              const payload = buildSignalPayload({
+                strategyName: strat.name,
+                symbol: trade.symbol,
+                direction: trade.direction,
+                duration: parsed.data.duration ?? null,
+                durationUnit: parsed.data.durationUnit ?? null,
+                condition: `Executed — contract ${outcome.result.contractId}, stake $${trade.stake}, entry ${outcome.result.buyPrice}`,
+              });
+              return fireStrategyWebhook(strat.webhookUrl, payload, strat.webhookSecret);
+            })
+            .catch((err) => req.log.warn({ err }, "Strategy webhook fire failed (non-fatal)"));
+        }
 
         res.status(201).json(GetTradeResponse.parse(updated));
         return;
