@@ -28,6 +28,9 @@ router.post("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res
     accountInfo = await getAccountInfo(apiToken);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid Deriv API token";
+    // Log the *actual* Deriv rejection reason so we can debug token issues
+    // (e.g. DisabledClient, InvalidToken, AuthorizationRequired, scope errors).
+    req.log.warn({ err, derivMessage: message, tokenLen: apiToken.length, tokenPrefix: apiToken.slice(0, 4) }, "Deriv connect/authorize failed");
     res.status(400).json({ error: message });
     return;
   }
@@ -69,7 +72,15 @@ router.delete("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, r
 
   invalidateBalanceCache(req.userId!);
 
-  res.json(DisconnectDerivResponse.parse({ disconnected: true }));
+  // DisconnectDerivResponse is the same DerivStatus schema — return a cleared
+  // status so the client zod parser doesn't 500 on a missing `connected` field.
+  res.json(DisconnectDerivResponse.parse({
+    connected: false,
+    accountId: null,
+    loginId: null,
+    currency: null,
+    connectedAt: null,
+  }));
 });
 
 router.get("/deriv/status", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
