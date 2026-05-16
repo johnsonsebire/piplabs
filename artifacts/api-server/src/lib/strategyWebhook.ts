@@ -3,14 +3,33 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { logger } from "./logger";
 
-export type StrategySignalPayload = {
-  strategy: string;
-  symbol: string;
-  direction: string;
-  duration: string;
-  analysis: string;
-  time: string;
+export type StrategySignalFields = {
+  Strategy: string;
+  Direction: string;
+  SYMBOL: string;
+  DURATION: string;
+  Analysis: string;
+  Time: string;
 };
+
+export type StrategySignalPayload = {
+  text: string;
+  fields: StrategySignalFields;
+};
+
+const DURATION_UNIT_WORDS: Record<string, string> = {
+  t: "TICKS",
+  s: "SECONDS",
+  m: "MINUTES",
+  h: "HOURS",
+  d: "DAYS",
+};
+
+function formatDuration(duration: number | null, unit: string | null): string {
+  if (duration == null) return "—";
+  const word = unit ? (DURATION_UNIT_WORDS[unit.toLowerCase()] ?? unit.toUpperCase()) : "";
+  return word ? `${duration} ${word}` : String(duration);
+}
 
 export type FireWebhookResult = {
   ok: boolean;
@@ -26,13 +45,30 @@ export function buildSignalPayload(args: {
   durationUnit: string | null;
   condition: string;
 }): StrategySignalPayload {
+  const strategy = `${args.strategyName},`;
+  const direction = args.direction.toUpperCase();
+  const symbol = `${args.symbol},`;
+  const duration = `${formatDuration(args.duration, args.durationUnit)},`;
+  const analysis = `${args.condition},`;
+  const time = new Date().toISOString();
+
+  const text =
+    `Strategy: ${strategy}\n` +
+    `SYMBOL: ${symbol}\n` +
+    `DURATION: ${duration}\n` +
+    `Analysis: ${analysis}\n` +
+    `Time: ${time}`;
+
   return {
-    strategy: args.strategyName,
-    symbol: args.symbol,
-    direction: args.direction.toUpperCase(),
-    duration: args.duration != null ? `${args.duration}${args.durationUnit ?? ""}` : "—",
-    analysis: args.condition,
-    time: new Date().toISOString(),
+    text,
+    fields: {
+      Strategy: strategy,
+      Direction: direction,
+      SYMBOL: symbol,
+      DURATION: duration,
+      Analysis: analysis,
+      Time: time,
+    },
   };
 }
 
