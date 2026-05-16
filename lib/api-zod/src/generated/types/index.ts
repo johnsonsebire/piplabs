@@ -28,6 +28,7 @@ export * from './backtestInput';
 export * from './backtestStatus';
 export * from './dailyPnl';
 export * from './dashboardSummary';
+export * from './dashboardSummaryAccountMode';
 export * from './derivActiveSymbol';
 export * from './derivStatus';
 export * from './derivTokenInput';

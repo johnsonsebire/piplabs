@@ -5,6 +5,7 @@
  * Deriv Trading Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { DashboardSummaryAccountMode } from './dashboardSummaryAccountMode';
 import type { Trade } from './trade';
 
 export interface DashboardSummary {
@@ -12,6 +13,18 @@ export interface DashboardSummary {
   accountBalance?: number | null;
   /** @nullable */
   currency?: string | null;
+  /**
+     * live = real money account, demo = virtual/practice account
+     * @nullable
+     */
+  accountMode?: DashboardSummaryAccountMode;
+  /** @nullable */
+  loginId?: string | null;
+  /**
+     * If non-null, fetching balance from Deriv failed (e.g. invalid token).
+     * @nullable
+     */
+  balanceError?: string | null;
   activeTrades: number;
   totalPnlToday: number;
   totalPnlWeek: number;

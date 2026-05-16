@@ -269,22 +269,20 @@ export function TradingChart({ symbol, height = 400, indicators = [] }: TradingC
           </div>
         </div>
       )}
-      <div className="absolute top-2 left-2 z-10 flex items-center gap-2 px-2 py-1 bg-background/80 border border-border">
-        <div className={`h-2 w-2 ${isConnected ? "bg-primary animate-pulse" : "bg-muted-foreground"}`} />
-        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-          {isConnected ? "LIVE • DERIV WS" : "DISCONNECTED"}
-        </span>
-      </div>
-      {computed.filter(c => c.pane === "overlay").length > 0 && (
-        <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 px-2 py-1 bg-background/80 border border-border max-w-[200px]">
-          {computed.filter(c => c.pane === "overlay").map(c => (
-            <div key={c.id} className="flex items-center gap-2">
-              <div className="h-0.5 w-3" style={{ background: c.color }} />
-              <span className="text-[10px] font-mono uppercase text-muted-foreground truncate">{c.name}</span>
-            </div>
-          ))}
+      <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-2 max-w-[calc(100%-80px)]">
+        <div className="flex items-center gap-2 px-2 py-1 bg-background/80 border border-border">
+          <div className={`h-2 w-2 ${isConnected ? "bg-primary animate-pulse" : "bg-muted-foreground"}`} />
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            {isConnected ? "LIVE • DERIV WS" : "DISCONNECTED"}
+          </span>
         </div>
-      )}
+        {computed.filter(c => c.pane === "overlay").map(c => (
+          <div key={c.id} className="flex items-center gap-1.5 px-2 py-1 bg-background/80 border border-border">
+            <div className="h-0.5 w-3" style={{ background: c.color }} />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground truncate max-w-[140px]">{c.name}</span>
+          </div>
+        ))}
+      </div>
       <div ref={chartContainerRef} className="w-full" style={{ height: mainHeight }} />
       {hasOscillator && (
         <div className="border-t border-border relative" style={{ height: oscHeight }}>

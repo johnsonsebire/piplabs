@@ -9,6 +9,7 @@ import {
   GetDerivStatusResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { getAccountInfo, invalidateBalanceCache } from "../lib/derivApi";
 
 const router: IRouter = Router();
 
@@ -21,11 +22,25 @@ router.post("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res
 
   const { apiToken, accountId } = parsed.data;
 
+  // Validate the token by authorizing with Deriv and capturing account details.
+  let accountInfo;
+  try {
+    accountInfo = await getAccountInfo(apiToken);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid Deriv API token";
+    res.status(400).json({ error: message });
+    return;
+  }
+
+  invalidateBalanceCache(req.userId!);
+
   const [user] = await db
     .update(usersTable)
     .set({
       derivApiToken: apiToken,
-      derivAccountId: accountId ?? null,
+      derivAccountId: accountId ?? accountInfo.loginId,
+      derivLoginId: accountInfo.loginId,
+      derivCurrency: accountInfo.currency,
       derivConnectedAt: new Date(),
     })
     .where(eq(usersTable.id, req.userId!))
@@ -51,6 +66,8 @@ router.delete("/deriv/disconnect", requireAuth, async (req: AuthenticatedRequest
       derivConnectedAt: null,
     })
     .where(eq(usersTable.id, req.userId!));
+
+  invalidateBalanceCache(req.userId!);
 
   res.json(DisconnectDerivResponse.parse({ disconnected: true }));
 });

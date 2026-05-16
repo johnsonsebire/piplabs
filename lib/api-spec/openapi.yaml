@@ -2062,6 +2062,15 @@ components:
           type: ["number", "null"]
         currency:
           type: ["string", "null"]
+        accountMode:
+          type: ["string", "null"]
+          enum: [live, demo, null]
+          description: "live = real money account, demo = virtual/practice account"
+        loginId:
+          type: ["string", "null"]
+        balanceError:
+          type: ["string", "null"]
+          description: "If non-null, fetching balance from Deriv failed (e.g. invalid token)."
         activeTrades:
           type: integer
         totalPnlToday:

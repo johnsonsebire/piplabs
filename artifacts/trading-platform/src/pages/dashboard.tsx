@@ -27,15 +27,39 @@ export default function Dashboard() {
         {/* Top KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="rounded-none border-border bg-card">
-            <CardHeader className="p-4 pb-2">
+            <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Account Balance</CardTitle>
+              {summary?.accountMode && (
+                <span className={`px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest font-bold ${summary.accountMode === 'live' ? 'bg-destructive/20 text-destructive' : 'bg-primary/20 text-primary'}`}>
+                  {summary.accountMode}
+                </span>
+              )}
             </CardHeader>
             <CardContent className="p-4 pt-0">
               {isLoadingSummary ? (
                 <Skeleton className="h-8 w-24 rounded-none bg-muted" />
+              ) : !summary?.derivConnected ? (
+                <div className="text-xs font-mono text-muted-foreground uppercase">
+                  No Deriv account connected.{' '}
+                  <Link href="/settings" className="text-primary hover:underline">Connect →</Link>
+                </div>
+              ) : summary?.balanceError ? (
+                <div>
+                  <div className="text-sm font-mono text-destructive uppercase">Balance unavailable</div>
+                  <div className="text-[10px] font-mono text-muted-foreground mt-1 truncate" title={summary.balanceError}>{summary.balanceError}</div>
+                </div>
+              ) : summary?.accountBalance == null ? (
+                <div className="text-sm font-mono text-muted-foreground uppercase">—</div>
               ) : (
-                <div className="text-3xl font-bold font-mono">
-                  {summary?.currency || 'USD'} {(summary?.accountBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <div>
+                  <div className="text-3xl font-bold font-mono">
+                    {summary?.currency || 'USD'} {summary.accountBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  {summary?.loginId && (
+                    <div className="text-[10px] font-mono text-muted-foreground mt-1 tracking-wider">
+                      {summary.loginId}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

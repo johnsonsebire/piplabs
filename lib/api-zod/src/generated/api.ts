@@ -1067,6 +1067,9 @@ export const DeleteAutoTradeSessionParams = zod.object({
 export const GetDashboardSummaryResponse = zod.object({
   "accountBalance": zod.number().nullish(),
   "currency": zod.string().nullish(),
+  "accountMode": zod.union([zod.literal('live'),zod.literal('demo'),zod.literal(null)]).nullish().describe('live = real money account, demo = virtual\/practice account'),
+  "loginId": zod.string().nullish(),
+  "balanceError": zod.string().nullish().describe('If non-null, fetching balance from Deriv failed (e.g. invalid token).'),
   "activeTrades": zod.number(),
   "totalPnlToday": zod.number(),
   "totalPnlWeek": zod.number(),

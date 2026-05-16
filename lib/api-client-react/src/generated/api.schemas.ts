@@ -630,11 +630,35 @@ export interface AIAnalysis {
   createdAt: string;
 }
 
+/**
+ * live = real money account, demo = virtual/practice account
+ * @nullable
+ */
+export type DashboardSummaryAccountMode = typeof DashboardSummaryAccountMode[keyof typeof DashboardSummaryAccountMode] | null;
+
+
+export const DashboardSummaryAccountMode = {
+  live: 'live',
+  demo: 'demo',
+} as const;
+
 export interface DashboardSummary {
   /** @nullable */
   accountBalance?: number | null;
   /** @nullable */
   currency?: string | null;
+  /**
+     * live = real money account, demo = virtual/practice account
+     * @nullable
+     */
+  accountMode?: DashboardSummaryAccountMode;
+  /** @nullable */
+  loginId?: string | null;
+  /**
+     * If non-null, fetching balance from Deriv failed (e.g. invalid token).
+     * @nullable
+     */
+  balanceError?: string | null;
   activeTrades: number;
   totalPnlToday: number;
   totalPnlWeek: number;

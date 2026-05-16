@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { usersTable, tradesTable } from "@workspace/db";
+import { tradesTable } from "@workspace/db";
 import { GetDashboardSummaryResponse } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { getAccountInfoCached } from "../lib/derivApi";
 
 const router: IRouter = Router();
 
@@ -46,9 +47,32 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
   const liveOpen = liveTrades.filter(t => t.status === "open");
   const demoOpen = demoTrades.filter(t => t.status === "open");
 
+  // Fetch live account info from Deriv if user has a token connected
+  let accountBalance: number | null = null;
+  let currency: string | null = user.derivCurrency ?? null;
+  let accountMode: "live" | "demo" | null = null;
+  let loginId: string | null = user.derivLoginId ?? null;
+  let balanceError: string | null = null;
+
+  if (user.derivApiToken) {
+    try {
+      const info = await getAccountInfoCached(user.id, user.derivApiToken);
+      accountBalance = info.balance;
+      currency = info.currency;
+      accountMode = info.isVirtual ? "demo" : "live";
+      loginId = info.loginId;
+    } catch (err) {
+      balanceError = err instanceof Error ? err.message : "Failed to fetch balance";
+      req.log.warn({ err }, "Failed to fetch Deriv balance for dashboard");
+    }
+  }
+
   res.json(GetDashboardSummaryResponse.parse({
-    accountBalance: null,
-    currency: user.derivCurrency ?? "USD",
+    accountBalance,
+    currency: currency ?? "USD",
+    accountMode,
+    loginId,
+    balanceError,
     activeTrades: openTrades.length,
     totalPnlToday: sumPnl(todayTrades),
     totalPnlWeek: sumPnl(weekTrades),
