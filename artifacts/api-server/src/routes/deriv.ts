@@ -55,7 +55,7 @@ router.post("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res
   }));
 });
 
-router.delete("/deriv/disconnect", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   await db
     .update(usersTable)
     .set({
