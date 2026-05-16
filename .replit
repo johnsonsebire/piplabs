@@ -34,3 +34,8 @@ externalPort = 3002
 [[ports]]
 localPort = 21210
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+DERIV_APP_ID = "33hQAGgz4aKwQ6FzzrNxV"
