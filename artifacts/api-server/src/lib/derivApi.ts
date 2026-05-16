@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 
 const DERIV_REST_BASE = "https://api.derivws.com";
-const DERIV_PUBLIC_WS = "wss://api.derivws.com/trading/v1/options/ws/public";
+const DERIV_PUBLIC_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 const TIMEOUT_MS = 15000;
 
 // ---------------------------------------------------------------------------
