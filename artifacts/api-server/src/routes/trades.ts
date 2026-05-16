@@ -28,16 +28,19 @@ import {
   DeleteTradeCommentParams,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
-import { buyContract, getAccountInfo, invalidateBalanceCache, nextReqId, type DerivBuyParams } from "../lib/derivApi";
+import { buyContract, getAccountForMode, invalidateBalanceCache, nextReqId, type DerivBuyParams } from "../lib/derivApi";
 
 const router: IRouter = Router();
 
 function mapDirectionToContractType(
   direction: string,
   type: string,
-): "CALL" | "PUT" | "MULTUP" | "MULTDOWN" {
+): "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLA_LONGCALL" | "VANILLA_LONGPUT" {
   if (type === "multiplier") {
     return direction === "sell" || direction === "put" ? "MULTDOWN" : "MULTUP";
+  }
+  if (type === "vanilla_options") {
+    return direction === "sell" || direction === "put" ? "VANILLA_LONGPUT" : "VANILLA_LONGCALL";
   }
   return direction === "sell" || direction === "put" ? "PUT" : "CALL";
 }
@@ -104,20 +107,8 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
   // Real Deriv execution path — only when user has connected an API token
   if (user.derivApiToken) {
     try {
-      // Verify the token's account matches the requested trade mode (live vs demo)
-      const account = await getAccountInfo(user.derivApiToken);
-      const accountMode = account.isVirtual ? "demo" : "live";
-      if (accountMode !== mode) {
-        const msg = `Connected Deriv account is ${accountMode.toUpperCase()} but trade mode is ${mode.toUpperCase()}. Provide an API token for a ${mode} account to execute.`;
-        await db.update(tradesTable)
-          .set({ status: "cancelled", notes: msg })
-          .where(eq(tradesTable.id, trade.id));
-        await db.insert(tradeLogsTable).values({
-          tradeId: trade.id, level: "error", message: msg,
-        });
-        res.status(400).json({ error: msg });
-        return;
-      }
+      // Pick the Deriv account that matches the requested trade mode (demo/live).
+      const account = await getAccountForMode(user.derivApiToken, mode);
 
       const contractType = mapDirectionToContractType(parsed.data.direction, parsed.data.type);
       const reqId = nextReqId();
@@ -127,12 +118,12 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
         amount: parsed.data.stake,
         currency: account.currency,
         duration: parsed.data.duration ?? 5,
-        durationUnit: (parsed.data.durationUnit as any) ?? "t",
+        durationUnit: (parsed.data.durationUnit as any) ?? "m",
         basis: "stake",
         reqId,
       };
 
-      const outcome = await buyContract(user.derivApiToken, user.derivAccountId!, buyParams);
+      const outcome = await buyContract(user.derivApiToken, account.accountId, buyParams);
       invalidateBalanceCache(user.id);
 
       if (outcome.ok) {
@@ -238,8 +229,6 @@ router.get("/trades/stats", requireAuth, async (req: AuthenticatedRequest, res):
   startOfWeek.setDate(now.getDate() - now.getDay());
 
   const closed = allTrades.filter(t => t.status === "closed");
-  const todayTrades = closed.filter(t => t.closedAt && t.closedAt >= startOfDay);
-  const weekTrades = closed.filter(t => t.closedAt && t.closedAt >= startOfWeek);
 
   function calcWinRate(trades: typeof closed): number {
     if (trades.length === 0) return 0;
@@ -247,19 +236,66 @@ router.get("/trades/stats", requireAuth, async (req: AuthenticatedRequest, res):
     return Math.round((wins / trades.length) * 100);
   }
 
-  function sumPnl(trades: typeof closed): number {
-    return trades.reduce((s, t) => s + (t.currentProfit ?? 0), 0);
+  const totalPnl = closed.reduce((s, t) => s + (t.currentProfit ?? 0), 0);
+  const totalStake = allTrades.reduce((s, t) => s + t.stake, 0);
+  const averageProfit = closed.length > 0 ? totalPnl / closed.length : 0;
+
+  // Group by contract type
+  const typeMap = new Map<string, { count: number; pnl: number; wins: number }>();
+  for (const t of closed) {
+    const key = t.type;
+    const entry = typeMap.get(key) ?? { count: 0, pnl: 0, wins: 0 };
+    entry.count++;
+    entry.pnl += t.currentProfit ?? 0;
+    if ((t.currentProfit ?? 0) > 0) entry.wins++;
+    typeMap.set(key, entry);
   }
+  const byType = Array.from(typeMap.entries()).map(([type, v]) => ({
+    type,
+    count: v.count,
+    pnl: Math.round(v.pnl * 100) / 100,
+    winRate: Math.round((v.wins / v.count) * 100),
+  }));
+
+  // Group by asset
+  const assetMap = new Map<string, { displayName: string; count: number; pnl: number }>();
+  for (const t of closed) {
+    const key = t.symbol;
+    const entry = assetMap.get(key) ?? { displayName: t.displayName ?? t.symbol, count: 0, pnl: 0 };
+    entry.count++;
+    entry.pnl += t.currentProfit ?? 0;
+    assetMap.set(key, entry);
+  }
+  const byAsset = Array.from(assetMap.entries()).map(([symbol, v]) => ({
+    symbol,
+    displayName: v.displayName,
+    count: v.count,
+    pnl: Math.round(v.pnl * 100) / 100,
+  }));
+
+  // Group by calendar day
+  const dayMap = new Map<string, { pnl: number; trades: number }>();
+  for (const t of closed) {
+    if (!t.closedAt) continue;
+    const date = t.closedAt.toISOString().slice(0, 10);
+    const entry = dayMap.get(date) ?? { pnl: 0, trades: 0 };
+    entry.pnl += t.currentProfit ?? 0;
+    entry.trades++;
+    dayMap.set(date, entry);
+  }
+  const dailyPnl = Array.from(dayMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, pnl: Math.round(v.pnl * 100) / 100, trades: v.trades }));
 
   res.json(GetTradeStatsResponse.parse({
-    totalTradesAllTime: allTrades.length,
-    openTradesCount: allTrades.filter(t => t.status === "open").length,
-    totalPnlToday: sumPnl(todayTrades),
-    totalPnlWeek: sumPnl(weekTrades),
-    totalPnlMonth: 0,
-    winRateToday: calcWinRate(todayTrades),
-    winRateWeek: calcWinRate(weekTrades),
-    winRateAllTime: calcWinRate(closed),
+    totalTrades: closed.length,
+    winRate: calcWinRate(closed),
+    totalPnl: Math.round(totalPnl * 100) / 100,
+    totalStake: Math.round(totalStake * 100) / 100,
+    averageProfit: Math.round(averageProfit * 100) / 100,
+    byType,
+    byAsset,
+    dailyPnl,
   }));
 });
 

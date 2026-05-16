@@ -9,7 +9,7 @@ import {
   GetDerivStatusResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
-import { getAccountInfo, invalidateBalanceCache } from "../lib/derivApi";
+import { getAccountInfo, getAccountInfoCached, invalidateBalanceCache } from "../lib/derivApi";
 
 const router: IRouter = Router();
 
@@ -85,11 +85,23 @@ router.delete("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, r
 
 router.get("/deriv/status", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const user = req.dbUser!;
+
+  let balance: number | null = null;
+  if (user.derivApiToken) {
+    try {
+      const info = await getAccountInfoCached(user.id, user.derivApiToken);
+      balance = info.balance;
+    } catch {
+      // Non-fatal — return status without balance if the fetch fails
+    }
+  }
+
   res.json(GetDerivStatusResponse.parse({
     connected: !!user.derivApiToken,
     accountId: user.derivAccountId,
     loginId: user.derivLoginId,
     currency: user.derivCurrency,
+    balance,
     connectedAt: user.derivConnectedAt,
   }));
 });

@@ -49,7 +49,7 @@ export type DerivAccountInfo = {
 
 export type DerivBuyParams = {
   symbol: string;
-  contractType: "CALL" | "PUT" | "MULTUP" | "MULTDOWN";
+  contractType: "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLA_LONGCALL" | "VANILLA_LONGPUT";
   amount: number;
   currency: string;
   duration: number;
@@ -138,6 +138,7 @@ async function fetchOtpWsUrl(pat: string, accountId: string): Promise<string> {
 // ---------------------------------------------------------------------------
 // Public API: getAccountInfo
 // Validates the PAT via REST and returns the best available account.
+// Prefers real account; falls back to demo.
 // ---------------------------------------------------------------------------
 
 export async function getAccountInfo(pat: string): Promise<DerivAccountInfo> {
@@ -164,6 +165,55 @@ export async function getAccountInfo(pat: string): Promise<DerivAccountInfo> {
     balance: Number(pick.balance) || 0,
     isVirtual: pick.account_type === "demo",
     fullname: pick.name ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public API: getAccountForMode
+// Picks the account that matches the requested trade mode (demo/live).
+// Returns { accountId, currency, balance, isVirtual }.
+// Throws if no matching account is found.
+// ---------------------------------------------------------------------------
+
+export type AccountForMode = {
+  accountId: string;
+  currency: string;
+  balance: number;
+  isVirtual: boolean;
+};
+
+export async function getAccountForMode(
+  pat: string,
+  mode: "demo" | "live",
+): Promise<AccountForMode> {
+  const accounts = await fetchAccounts(pat);
+
+  if (accounts.length === 0) {
+    throw new Error(
+      "No Options trading accounts found for this PAT. " +
+      "Make sure you have an Options demo or real account."
+    );
+  }
+
+  const want = mode === "demo" ? "demo" : "real";
+  const match =
+    accounts.find(a => a.account_type === want && a.status === "active") ??
+    accounts.find(a => a.account_type === want);
+
+  if (!match) {
+    const available = accounts.map(a => a.account_type).join(", ");
+    throw new Error(
+      `No ${mode.toUpperCase()} account found for this PAT. ` +
+      `Available accounts: ${available}. ` +
+      `${mode === "demo" ? "Open a demo account at app.deriv.com to trade demo." : "Fund a real account to trade live."}`
+    );
+  }
+
+  return {
+    accountId: match.account_id,
+    currency: match.currency,
+    balance: Number(match.balance) || 0,
+    isVirtual: match.account_type === "demo",
   };
 }
 
