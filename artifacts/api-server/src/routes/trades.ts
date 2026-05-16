@@ -35,13 +35,11 @@ const router: IRouter = Router();
 function mapDirectionToContractType(
   direction: string,
   type: string,
-): "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLA_LONGCALL" | "VANILLA_LONGPUT" {
+): "CALL" | "PUT" | "MULTUP" | "MULTDOWN" {
   if (type === "multiplier") {
     return direction === "sell" || direction === "put" ? "MULTDOWN" : "MULTUP";
   }
-  if (type === "vanilla_options") {
-    return direction === "sell" || direction === "put" ? "VANILLA_LONGPUT" : "VANILLA_LONGCALL";
-  }
+  // vanilla_options and forex both use digital CALL/PUT on Deriv v3 WS
   return direction === "sell" || direction === "put" ? "PUT" : "CALL";
 }
 

@@ -27,12 +27,10 @@ export interface UseDerivWsReturn {
 const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
 // Deriv supports these granularities (in seconds) for ticks_history.
-// Anything outside this set must be aggregated client-side or clamped.
 const DERIV_GRANULARITIES = new Set([60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 86400]);
 
 function clampGranularity(g: number): number {
   if (DERIV_GRANULARITIES.has(g)) return g;
-  // Find the closest supported granularity ≤ g, fall back to 60
   const supported = Array.from(DERIV_GRANULARITIES).sort((a, b) => a - b);
   let best = 60;
   for (const s of supported) if (s <= g) best = s;
@@ -48,107 +46,115 @@ export function useDerivWs(symbol: string, granularitySec: number = 60): UseDeri
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Track latest symbol/granularity without triggering reconnects
+  const symbolRef = useRef(symbol);
+  const granularityRef = useRef(clampGranularity(granularitySec));
+  const connectRef = useRef<() => void>(() => {});
 
-  const granularity = clampGranularity(granularitySec);
+  // Send fresh subscriptions on an already-open socket (no reconnect needed)
+  const resubscribe = useCallback((ws: WebSocket, sym: string, gran: number) => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    setCandles([]);
+    setTicks([]);
+    setLatestTick(null);
+    ws.send(JSON.stringify({ forget_all: "ticks" }));
+    ws.send(JSON.stringify({ forget_all: "candles" }));
+    ws.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
+    ws.send(JSON.stringify({
+      ticks_history: sym,
+      adjust_start_time: 1,
+      count: 500,
+      end: "latest",
+      granularity: gran,
+      start: 1,
+      style: "candles",
+      subscribe: 1,
+    }));
+  }, []);
 
-  const connect = useCallback(() => {
-    if (!symbol) return;
+  // Stable connection lifecycle — only runs once on mount
+  useEffect(() => {
+    function connect() {
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
 
-    if (wsRef.current) {
-      wsRef.current.close();
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setIsConnected(true);
+        setError(null);
+        resubscribe(ws, symbolRef.current, granularityRef.current);
+      };
+
+      ws.onmessage = (event) => {
+        let data: any;
+        try { data = JSON.parse(event.data); } catch { return; }
+
+        if (data.error) {
+          // Ignore "AlreadySubscribed" — harmless race during resubscription
+          if (data.error?.code !== "AlreadySubscribed") {
+            setError(data.error.message);
+          }
+          return;
+        }
+
+        if (data.msg_type === "tick") {
+          const tick: Tick = { epoch: data.tick.epoch, quote: data.tick.quote, id: data.tick.id };
+          setLatestTick(tick);
+          setTicks(prev => [...prev.slice(-99), tick]);
+        } else if (data.msg_type === "candles") {
+          const historyCandles: Candle[] = data.candles.map((c: any) => ({
+            time: c.epoch, open: c.open, high: c.high, low: c.low, close: c.close,
+          }));
+          setCandles(historyCandles);
+        } else if (data.msg_type === "ohlc") {
+          const candle: Candle = {
+            time: data.ohlc.open_time,
+            open: parseFloat(data.ohlc.open),
+            high: parseFloat(data.ohlc.high),
+            low: parseFloat(data.ohlc.low),
+            close: parseFloat(data.ohlc.close),
+          };
+          setCandles(prev => {
+            const last = prev[prev.length - 1];
+            if (last && last.time === candle.time) return [...prev.slice(0, -1), candle];
+            return [...prev.slice(-499), candle];
+          });
+        }
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), 3000);
+      };
+
+      ws.onerror = () => {
+        setError("WebSocket error occurred");
+      };
     }
 
-    // Reset candles on (re)connect to avoid mixing timeframes
-    setCandles([]);
-
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-
-      ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-
-      ws.send(JSON.stringify({
-        ticks_history: symbol,
-        adjust_start_time: 1,
-        count: 500,
-        end: "latest",
-        granularity,
-        start: 1,
-        style: "candles",
-        subscribe: 1
-      }));
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.error) {
-        setError(data.error.message);
-        return;
-      }
-
-      if (data.msg_type === "tick") {
-        const tick: Tick = {
-          epoch: data.tick.epoch,
-          quote: data.tick.quote,
-          id: data.tick.id
-        };
-        setLatestTick(tick);
-        setTicks(prev => [...prev.slice(-99), tick]);
-      } else if (data.msg_type === "candles") {
-        const historyCandles: Candle[] = data.candles.map((c: any) => ({
-          time: c.epoch,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close
-        }));
-        setCandles(historyCandles);
-      } else if (data.msg_type === "ohlc") {
-        const candle: Candle = {
-          time: data.ohlc.open_time,
-          open: parseFloat(data.ohlc.open),
-          high: parseFloat(data.ohlc.high),
-          low: parseFloat(data.ohlc.low),
-          close: parseFloat(data.ohlc.close)
-        };
-        setCandles(prev => {
-          const last = prev[prev.length - 1];
-          if (last && last.time === candle.time) {
-            return [...prev.slice(0, -1), candle];
-          }
-          return [...prev.slice(-499), candle];
-        });
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
-      }, 3000);
-    };
-
-    ws.onerror = () => {
-      setError("WebSocket error occurred");
-    };
-  }, [symbol, granularity]);
-
-  useEffect(() => {
+    connectRef.current = connect;
     connect();
 
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (wsRef.current) {
+        wsRef.current.onclose = null; // prevent reconnect on intentional close
         wsRef.current.close();
       }
     };
-  }, [connect]);
+  }, [resubscribe]);
+
+  // When symbol or granularity changes: resubscribe on the existing socket,
+  // no reconnect needed — eliminates the disconnect flicker.
+  useEffect(() => {
+    const gran = clampGranularity(granularitySec);
+    symbolRef.current = symbol;
+    granularityRef.current = gran;
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      resubscribe(wsRef.current, symbol, gran);
+    }
+  }, [symbol, granularitySec, resubscribe]);
 
   return { ticks, candles, latestTick, isConnected, error };
 }
