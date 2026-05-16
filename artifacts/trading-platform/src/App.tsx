@@ -10,6 +10,14 @@ import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/home";
 import Dashboard from "@/pages/dashboard";
+import ChartPage from "@/pages/chart";
+import TradesPage from "@/pages/trades/index";
+import TradeDetailPage from "@/pages/trades/[id]";
+import StrategiesPage from "@/pages/strategies";
+import IndicatorsPage from "@/pages/indicators";
+import BacktestPage from "@/pages/backtest";
+import NewsPage from "@/pages/news";
+import SettingsPage from "@/pages/settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -160,6 +168,8 @@ function ClerkProviderWithRoutes() {
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
+      signInFallbackRedirectUrl={`${basePath}/dashboard`}
+      signUpFallbackRedirectUrl={`${basePath}/dashboard`}
       localization={{
         signIn: {
           start: {
@@ -188,6 +198,30 @@ function ClerkProviderWithRoutes() {
             {/* Protected Routes */}
             <Route path="/dashboard">
               <ProtectedRoute component={Dashboard} />
+            </Route>
+            <Route path="/chart">
+              <ProtectedRoute component={ChartPage} />
+            </Route>
+            <Route path="/trades">
+              <ProtectedRoute component={TradesPage} />
+            </Route>
+            <Route path="/trades/:id">
+              <ProtectedRoute component={TradeDetailPage} />
+            </Route>
+            <Route path="/strategies">
+              <ProtectedRoute component={StrategiesPage} />
+            </Route>
+            <Route path="/indicators">
+              <ProtectedRoute component={IndicatorsPage} />
+            </Route>
+            <Route path="/backtest">
+              <ProtectedRoute component={BacktestPage} />
+            </Route>
+            <Route path="/news">
+              <ProtectedRoute component={NewsPage} />
+            </Route>
+            <Route path="/settings">
+              <ProtectedRoute component={SettingsPage} />
             </Route>
             
             <Route component={NotFound} />

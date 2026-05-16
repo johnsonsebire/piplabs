@@ -19,7 +19,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { label: "Strategies", href: "/strategies" },
     { label: "Indicators", href: "/indicators" },
     { label: "Backtest", href: "/backtest" },
-    { label: "Analysis", href: "/analysis" },
+    { label: "Analysis", href: "/backtest" },
   ];
 
   return (

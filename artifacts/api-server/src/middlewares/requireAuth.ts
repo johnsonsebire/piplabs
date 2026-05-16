@@ -23,26 +23,26 @@ export async function requireAuth(
   }
 
   try {
-    let [user] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.clerkId, auth.userId));
-
-    if (!user) {
-      [user] = await db
-        .insert(usersTable)
-        .values({
-          id: auth.userId,
-          clerkId: auth.userId,
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        id: auth.userId,
+        clerkId: auth.userId,
+        email: (auth as any).sessionClaims?.email ?? "",
+        displayName: (auth as any).sessionClaims?.name ?? null,
+        avatarUrl: (auth as any).sessionClaims?.image_url ?? null,
+        role: "user",
+      })
+      .onConflictDoUpdate({
+        target: usersTable.clerkId,
+        set: {
           email: (auth as any).sessionClaims?.email ?? "",
-          displayName: (auth as any).sessionClaims?.name ?? null,
-          avatarUrl: (auth as any).sessionClaims?.image_url ?? null,
-          role: "user",
-        })
-        .returning();
+          lastSeenAt: new Date(),
+        },
+      })
+      .returning();
 
-      await db.insert(userPermissionsTable).values({ userId: user.id }).onConflictDoNothing();
-    }
+    await db.insert(userPermissionsTable).values({ userId: user.id }).onConflictDoNothing();
 
     if (!user.isActive) {
       res.status(403).json({ error: "Account is disabled" });
