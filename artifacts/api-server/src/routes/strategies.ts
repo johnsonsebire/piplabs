@@ -30,6 +30,29 @@ import { buildSignalPayload, fireStrategyWebhook, generateWebhookSecret } from "
 
 const router: IRouter = Router();
 
+// Parse a strategy's `code` JSON and return the list of trade directions the
+// strategy is configured to take. Supports v2 (separate buy/sell legs with
+// `enabled` flags) and falls back to v1 (single `action: "buy"|"sell"`).
+function parseStrategyDirections(rawCode: string | null | undefined): Array<"buy" | "sell"> {
+  if (!rawCode) return [];
+  let parsed: any;
+  try { parsed = JSON.parse(rawCode); } catch { return []; }
+  const out: Array<"buy" | "sell"> = [];
+  if (parsed?.buy && parsed.buy.enabled !== false && Array.isArray(parsed.buy.conditions) && parsed.buy.conditions.length > 0) {
+    out.push("buy");
+  }
+  if (parsed?.sell && parsed.sell.enabled !== false && Array.isArray(parsed.sell.conditions) && parsed.sell.conditions.length > 0) {
+    out.push("sell");
+  }
+  if (out.length > 0) return out;
+  // Legacy v1 fallback
+  if (parsed?.action === "buy") return ["buy"];
+  if (parsed?.action === "sell") return ["sell"];
+  // No legs explicitly configured but conditions exist → default to buy
+  if (Array.isArray(parsed?.conditions) && parsed.conditions.length > 0) return ["buy"];
+  return [];
+}
+
 function parseId(raw: string | string[]): number {
   return parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
 }
@@ -196,13 +219,22 @@ router.post("/backtests", requireAuth, async (req: AuthenticatedRequest, res): P
   const parsed = RunBacktestBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  // Verify the strategy belongs to the caller (or is public) before running.
-  const [ownedStrategy] = await db.select({ id: strategiesTable.id }).from(strategiesTable)
+  // Verify the strategy belongs to the caller (or is public) before running,
+  // and load its code so the simulator can respect the configured BUY/SELL legs.
+  const [ownedStrategy] = await db.select({ id: strategiesTable.id, code: strategiesTable.code }).from(strategiesTable)
     .where(and(
       eq(strategiesTable.id, parsed.data.strategyId),
       or(eq(strategiesTable.userId, req.userId!), eq(strategiesTable.isPublic, true)),
     ));
   if (!ownedStrategy) { res.status(404).json({ error: "Strategy not found" }); return; }
+
+  // Determine which legs (buy/sell) the strategy actually trades. Supports both
+  // v2 (separate buy/sell legs) and legacy v1 (single `action`) shapes.
+  const enabledDirections = parseStrategyDirections(ownedStrategy.code);
+  if (enabledDirections.length === 0) {
+    res.status(400).json({ error: "Strategy has no enabled BUY or SELL leg" });
+    return;
+  }
 
   const [backtest] = await db.insert(backtestsTable).values({
     strategyId: parsed.data.strategyId,
@@ -241,7 +273,10 @@ router.post("/backtests", requireAuth, async (req: AuthenticatedRequest, res): P
     for (let i = 0; i < totalTrades; i++) {
       const entryAt = fromMs + i * step;
       const exitAt = entryAt + step * 0.6;
-      const direction = Math.random() > 0.5 ? "CALL" : "PUT";
+      // Only generate trades for legs the strategy actually enables.
+      // If only BUY is enabled → all CALL. Only SELL → all PUT. Both → mix.
+      const leg = enabledDirections[i % enabledDirections.length];
+      const direction = leg === "buy" ? "CALL" : "PUT";
       const entry = 1000 + Math.random() * 100;
       const isWin = i < wins;
       const exit = direction === "CALL"
