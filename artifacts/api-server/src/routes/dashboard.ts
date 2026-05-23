@@ -56,7 +56,7 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
 
   if (user.derivApiToken) {
     try {
-      const info = await getAccountInfoCached(user.id, user.derivApiToken);
+      const info = await getAccountInfoCached(user.id, user.derivApiToken, user.derivAppId);
       accountBalance = info.balance;
       currency = info.currency;
       accountMode = info.isVirtual ? "demo" : "live";

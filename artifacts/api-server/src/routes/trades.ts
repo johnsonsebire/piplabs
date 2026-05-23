@@ -108,7 +108,7 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
   if (user.derivApiToken) {
     try {
       // Pick the Deriv account that matches the requested trade mode (demo/live).
-      const account = await getAccountForMode(user.derivApiToken, mode);
+      const account = await getAccountForMode(user.derivApiToken, mode, user.derivAppId);
 
       const contractType = mapDirectionToContractType(parsed.data.direction, parsed.data.type);
       const reqId = nextReqId();
@@ -124,7 +124,7 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
         reqId,
       };
 
-      const outcome = await buyContract(user.derivApiToken, account.accountId, buyParams);
+      const outcome = await buyContract(user.derivApiToken, account.accountId, buyParams, user.derivAppId);
       invalidateBalanceCache(user.id);
 
       if (outcome.ok) {

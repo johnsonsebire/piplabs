@@ -8,22 +8,14 @@ const TIMEOUT_MS = 15000;
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getAppId(): string {
-  const id = process.env.DERIV_APP_ID;
-  if (!id) {
-    throw new Error(
-      "DERIV_APP_ID is not configured. " +
-      "Register a PAT-type app at developers.deriv.com → Dashboard, " +
-      "then set DERIV_APP_ID in your environment variables."
-    );
-  }
-  return id;
+function getAppId(customAppId?: string | null): string {
+  return customAppId || process.env.DERIV_APP_ID || "1089";
 }
 
-function derivRestHeaders(pat: string): Record<string, string> {
+function derivRestHeaders(pat: string, customAppId?: string | null): Record<string, string> {
   return {
     "Authorization": `Bearer ${pat}`,
-    "Deriv-App-ID": getAppId(),
+    "Deriv-App-ID": getAppId(customAppId),
     "Content-Type": "application/json",
   };
 }
@@ -94,12 +86,12 @@ type OptionsAccount = {
 // REST helpers
 // ---------------------------------------------------------------------------
 
-async function fetchAccounts(pat: string): Promise<OptionsAccount[]> {
+async function fetchAccounts(pat: string, customAppId?: string | null): Promise<OptionsAccount[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const resp = await fetch(`${DERIV_REST_BASE}/trading/v1/options/accounts`, {
-      headers: derivRestHeaders(pat),
+      headers: derivRestHeaders(pat, customAppId),
       signal: controller.signal,
     });
     if (!resp.ok) {
@@ -113,7 +105,7 @@ async function fetchAccounts(pat: string): Promise<OptionsAccount[]> {
   }
 }
 
-async function fetchOtpWsUrl(pat: string, accountId: string): Promise<string> {
+async function fetchOtpWsUrl(pat: string, accountId: string, customAppId?: string | null): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -121,7 +113,7 @@ async function fetchOtpWsUrl(pat: string, accountId: string): Promise<string> {
       `${DERIV_REST_BASE}/trading/v1/options/accounts/${accountId}/otp`,
       {
         method: "POST",
-        headers: derivRestHeaders(pat),
+        headers: derivRestHeaders(pat, customAppId),
         signal: controller.signal,
       }
     );
@@ -143,8 +135,8 @@ async function fetchOtpWsUrl(pat: string, accountId: string): Promise<string> {
 // Prefers real account; falls back to demo.
 // ---------------------------------------------------------------------------
 
-export async function getAccountInfo(pat: string): Promise<DerivAccountInfo> {
-  const accounts = await fetchAccounts(pat);
+export async function getAccountInfo(pat: string, customAppId?: string | null): Promise<DerivAccountInfo> {
+  const accounts = await fetchAccounts(pat, customAppId);
 
   if (accounts.length === 0) {
     throw new Error(
@@ -187,8 +179,9 @@ export type AccountForMode = {
 export async function getAccountForMode(
   pat: string,
   mode: "demo" | "live",
+  customAppId?: string | null,
 ): Promise<AccountForMode> {
-  const accounts = await fetchAccounts(pat);
+  const accounts = await fetchAccounts(pat, customAppId);
 
   if (accounts.length === 0) {
     throw new Error(
@@ -238,12 +231,13 @@ type DerivWsResponse = {
 export async function buyContract(
   pat: string,
   accountId: string,
-  params: DerivBuyParams
+  params: DerivBuyParams,
+  customAppId?: string | null,
 ): Promise<DerivBuyOutcome> {
   // Step 1: Exchange PAT for a single-use OTP → authenticated WS URL.
   let wsUrl: string;
   try {
-    wsUrl = await fetchOtpWsUrl(pat, accountId);
+    wsUrl = await fetchOtpWsUrl(pat, accountId, customAppId);
   } catch (err) {
     return {
       ok: false,
@@ -384,14 +378,14 @@ setInterval(() => {
   }
 }, CACHE_SWEEP_MS).unref?.();
 
-export async function getAccountInfoCached(userId: string, pat: string): Promise<DerivAccountInfo> {
+export async function getAccountInfoCached(userId: string, pat: string, customAppId?: string | null): Promise<DerivAccountInfo> {
   const cached = balanceCache.get(userId);
   if (cached && Date.now() - cached.ts < BALANCE_TTL_MS) return cached.info;
 
   const existing = inflightAccountInfo.get(userId);
   if (existing) return existing;
 
-  const p = getAccountInfo(pat)
+  const p = getAccountInfo(pat, customAppId)
     .then((info) => {
       balanceCache.set(userId, { info, ts: Date.now() });
       return info;

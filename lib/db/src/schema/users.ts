@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   role: userRoleEnum("role").notNull().default("user"),
   isActive: boolean("is_active").notNull().default(true),
   derivApiToken: text("deriv_api_token"),
+  derivAppId: text("deriv_app_id"),
   derivAccountId: text("deriv_account_id"),
   derivLoginId: text("deriv_login_id"),
   derivCurrency: text("deriv_currency"),

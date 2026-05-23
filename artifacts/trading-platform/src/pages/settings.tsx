@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [preferredTradeMode, setPreferredTradeMode] = useState<UserProfileUpdatePreferredTradeMode>(UserProfileUpdatePreferredTradeMode.demo);
 
   const [apiToken, setApiToken] = useState("");
+  const [appId, setAppId] = useState("");
   const [accountId, setAccountId] = useState("");
 
   useEffect(() => {
@@ -50,10 +51,11 @@ export default function SettingsPage() {
 
   const handleConnectDeriv = (e: React.FormEvent) => {
     e.preventDefault();
-    connectDeriv.mutate({ data: { apiToken, accountId: accountId || null } }, {
+    connectDeriv.mutate({ data: { apiToken, appId: appId || null, accountId: accountId || null } }, {
       onSuccess: () => {
         toast({ title: "API Connected successfully" });
         setApiToken("");
+        setAppId("");
         setAccountId("");
         queryClient.invalidateQueries({ queryKey: ["/api/deriv/status"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
@@ -94,10 +96,14 @@ export default function SettingsPage() {
           <div className="p-6">
             {derivStatus?.connected ? (
               <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div className="space-y-1 border border-border p-3">
                     <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Account ID</p>
                     <p className="font-mono font-bold">{derivStatus.accountId || '---'}</p>
+                  </div>
+                  <div className="space-y-1 border border-border p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">App ID</p>
+                    <p className="font-mono font-bold">{derivStatus.appId || '1089 (Default)'}</p>
                   </div>
                   <div className="space-y-1 border border-border p-3">
                     <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Type</p>
@@ -129,8 +135,7 @@ export default function SettingsPage() {
                   <ol className="text-[11px] font-mono text-muted-foreground space-y-1 list-decimal list-inside">
                     <li>Go to <span className="text-foreground">developers.deriv.com</span> → Dashboard → Register a new <span className="text-primary font-bold">PAT-type</span> app → copy your <span className="text-foreground">App ID</span>.</li>
                     <li>In the same dashboard → API Tokens → create a token with <span className="text-primary font-bold">trade</span> + <span className="text-primary font-bold">account_manage</span> scopes → copy your <span className="text-foreground">PAT</span>.</li>
-                    <li>Set <span className="text-primary font-mono">DERIV_APP_ID</span> as an environment variable in this project with your App ID value.</li>
-                    <li>Paste your PAT below and click <span className="text-foreground">Establish Connection</span>.</li>
+                    <li>Paste your PAT and App ID below and click <span className="text-foreground">Establish Connection</span>.</li>
                   </ol>
                 </div>
 
@@ -145,6 +150,18 @@ export default function SettingsPage() {
                     className="rounded-none font-mono border-border bg-background"
                   />
                   <p className="text-[10px] font-mono text-muted-foreground">Generated from your registered app at developers.deriv.com. Requires <code>trade</code> scope.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">App ID (Optional)</Label>
+                  <Input
+                    type="text"
+                    value={appId}
+                    onChange={e => setAppId(e.target.value)}
+                    placeholder="1089"
+                    className="rounded-none font-mono border-border bg-background"
+                  />
+                  <p className="text-[10px] font-mono text-muted-foreground">Your registered App ID from developers.deriv.com. Falls back to <code>1089</code> if left blank.</p>
                 </div>
 
                 <Button

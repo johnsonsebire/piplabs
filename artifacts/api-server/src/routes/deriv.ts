@@ -20,12 +20,12 @@ router.post("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res
     return;
   }
 
-  const { apiToken, accountId } = parsed.data;
+  const { apiToken, appId, accountId } = parsed.data;
 
   // Validate the token by authorizing with Deriv and capturing account details.
   let accountInfo;
   try {
-    accountInfo = await getAccountInfo(apiToken);
+    accountInfo = await getAccountInfo(apiToken, appId);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid Deriv API token";
     // Log the *actual* Deriv rejection reason so we can debug token issues
@@ -41,6 +41,7 @@ router.post("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res
     .update(usersTable)
     .set({
       derivApiToken: apiToken,
+      derivAppId: appId ?? null,
       derivAccountId: accountId ?? accountInfo.loginId,
       derivLoginId: accountInfo.loginId,
       derivCurrency: accountInfo.currency,
@@ -51,6 +52,7 @@ router.post("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res
 
   res.json(ConnectDerivResponse.parse({
     connected: true,
+    appId: user.derivAppId,
     accountId: user.derivAccountId,
     loginId: user.derivLoginId,
     currency: user.derivCurrency,
@@ -63,6 +65,7 @@ router.delete("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, r
     .update(usersTable)
     .set({
       derivApiToken: null,
+      derivAppId: null,
       derivAccountId: null,
       derivLoginId: null,
       derivCurrency: null,
@@ -76,6 +79,7 @@ router.delete("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, r
   // status so the client zod parser doesn't 500 on a missing `connected` field.
   res.json(DisconnectDerivResponse.parse({
     connected: false,
+    appId: null,
     accountId: null,
     loginId: null,
     currency: null,
@@ -89,7 +93,7 @@ router.get("/deriv/status", requireAuth, async (req: AuthenticatedRequest, res):
   let balance: number | null = null;
   if (user.derivApiToken) {
     try {
-      const info = await getAccountInfoCached(user.id, user.derivApiToken);
+      const info = await getAccountInfoCached(user.id, user.derivApiToken, user.derivAppId);
       balance = info.balance;
     } catch {
       // Non-fatal — return status without balance if the fetch fails
@@ -98,6 +102,7 @@ router.get("/deriv/status", requireAuth, async (req: AuthenticatedRequest, res):
 
   res.json(GetDerivStatusResponse.parse({
     connected: !!user.derivApiToken,
+    appId: user.derivAppId,
     accountId: user.derivAccountId,
     loginId: user.derivLoginId,
     currency: user.derivCurrency,
