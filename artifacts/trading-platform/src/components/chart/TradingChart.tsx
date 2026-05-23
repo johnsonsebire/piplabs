@@ -189,9 +189,9 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     };
   }, [mainReady, oscReady]);
 
-  // Render candles
+  // Render candles - Always call setData (even with empty array) to clear the chart and prevent crashes
   useEffect(() => {
-    if (seriesRef.current && validCandles.length > 0) {
+    if (seriesRef.current) {
       seriesRef.current.setData(validCandles as any);
     }
   }, [validCandles, mainReady]);
