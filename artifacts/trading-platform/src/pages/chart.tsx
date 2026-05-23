@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
@@ -120,7 +122,7 @@ export default function ChartPage() {
                           value={searchQuery}
                           onValueChange={setSearchQuery}
                         />
-                        <CommandList className="max-h-[300px] border-t border-border bg-[#0f1318]">
+                        <CommandList className="max-h-[300px] overflow-y-auto border-t border-border bg-[#0f1318] scrollbar-thin scrollbar-thumb-border">
                           {isSearching && <div className="py-4 text-center text-xs font-mono text-muted-foreground animate-pulse">Searching...</div>}
                           {!isSearching && (!searchResults || searchResults.length === 0) && (
                             <CommandEmpty className="py-4 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
