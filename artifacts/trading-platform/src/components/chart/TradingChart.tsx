@@ -29,20 +29,29 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
-  // Robust data cleaning and sorting to prevent lightweight-charts crashes
+  // Ultra-defensive data cleaning to prevent "Value is null" or "NaN" errors in lightweight-charts
   const validCandles = useMemo(() => {
     if (!Array.isArray(candles) || candles.length === 0) return [];
     
-    return candles
+    const cleaned = candles
       .filter(c => 
         c && 
         typeof c.time === 'number' && 
-        !isNaN(c.open) && !isNaN(c.high) && !isNaN(c.low) && !isNaN(c.close) &&
-        c.open !== null && c.high !== null && c.low !== null && c.close !== null
+        Number.isFinite(c.open) && 
+        Number.isFinite(c.high) && 
+        Number.isFinite(c.low) && 
+        Number.isFinite(c.close)
       )
-      .sort((a, b) => a.time - b.time)
-      // Remove duplicates by time
-      .filter((c, i, arr) => i === 0 || c.time > arr[i-1].time);
+      .sort((a, b) => a.time - b.time);
+
+    // Remove duplicates by time (required by lightweight-charts)
+    const unique: typeof cleaned = [];
+    for (const c of cleaned) {
+      if (unique.length === 0 || c.time > unique[unique.length - 1].time) {
+        unique.push(c);
+      }
+    }
+    return unique;
   }, [candles]);
 
   const computed = useMemo<IndicatorSeries[]>(() => {
@@ -182,7 +191,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   useEffect(() => {
     if (seriesRef.current && latestTick && validCandles.length > 0) {
       const last = validCandles[validCandles.length - 1];
-      if (latestTick.quote !== null && !isNaN(latestTick.quote)) {
+      if (latestTick.quote !== null && Number.isFinite(latestTick.quote)) {
         seriesRef.current.update({
           time: last.time as any,
           open: last.open,
