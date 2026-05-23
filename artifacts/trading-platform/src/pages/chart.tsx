@@ -204,6 +204,7 @@ export default function ChartPage() {
 
             <div className="flex-1 min-h-0 relative border-r border-border">
               <TradingChart
+                key={`${symbol}-${granularitySec}`}
                 symbol={symbol}
                 granularitySec={granularitySec}
                 indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
@@ -357,7 +358,7 @@ export default function ChartPage() {
                       <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono" data-testid="select-duration-unit">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl" style={{ backgroundColor: '#0f1318' }}>
+                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
                         {DURATION_UNITS.map((u) => (
                           <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
                         ))}

@@ -29,7 +29,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
-  // Ultra-aggressive data cleaning
+  // Ultra-aggressive data cleaning to prevent lightweight-charts from crashing
   const validCandles = useMemo(() => {
     if (!Array.isArray(candles) || candles.length === 0) return [];
     
@@ -37,9 +37,10 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       .filter(c => 
         c && 
         typeof c.time === 'number' && 
-        c.open !== null && c.high !== null && c.low !== null && c.close !== null &&
-        Number.isFinite(c.open) && Number.isFinite(c.high) && 
-        Number.isFinite(c.low) && Number.isFinite(c.close)
+        Number.isFinite(c.open) && 
+        Number.isFinite(c.high) && 
+        Number.isFinite(c.low) && 
+        Number.isFinite(c.close)
       )
       .sort((a, b) => a.time - b.time);
 
@@ -188,6 +189,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     if (seriesRef.current && latestTick && validCandles.length > 0) {
       const last = validCandles[validCandles.length - 1];
       if (latestTick.quote !== null && Number.isFinite(latestTick.quote)) {
+        // Only update if the tick belongs to the current last candle's timeframe
         seriesRef.current.update({
           time: last.time as any,
           open: last.open,
@@ -248,7 +250,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       let line = oscLinesRef.current.get(c.id);
       if (!line) {
         line = chart.addLineSeries({ color: c.color, lineWidth: c.thickness as any, priceLineVisible: false, lastValueVisible: true });
-        oscLinesRef.current.set(c.id, line);
+        oscLinesRef.set(c.id, line);
       } else {
         line.applyOptions({ color: c.color, lineWidth: c.thickness as any });
       }
