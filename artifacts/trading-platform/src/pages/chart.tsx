@@ -92,26 +92,26 @@ export default function ChartPage() {
 
   return (
     <AppLayout>
-      <div className="h-[calc(100vh-3rem)] w-full overflow-hidden flex flex-col">
-        <PanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-full h-full">
-          <Panel defaultSize={75} minSize={30} className="flex flex-col min-w-0 bg-background relative">
-            <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
-              <div className="flex items-center gap-2 flex-nowrap">
+      <div className="w-100 overflow-hidden d-flex flex-column" style={{ height: 'calc(100vh - 3rem)' }}>
+        <PanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-100 h-100">
+          <Panel defaultSize={75} minSize={30} className="d-flex flex-column bg-background position-relative" style={{ minWidth: 0 }}>
+            <div className="d-flex align-items-center px-3 justify-content-between bg-card flex-shrink-0 border-bottom border-secondary" style={{ height: '3rem' }}>
+              <div className="d-flex align-items-center gap-2 flex-nowrap">
                 {/* Combined Selectors Container - Forced Flex Row */}
-                <div className="flex flex-row items-center border border-border bg-background h-8 shrink-0 flex-nowrap overflow-hidden">
+                <div className="d-flex flex-row align-items-center border border-secondary bg-background flex-shrink-0 flex-nowrap overflow-hidden" style={{ height: '2rem', borderRadius: '0px' }}>
                   <Popover open={openSearch} onOpenChange={setOpenSearch}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"
                         role="combobox"
                         aria-expanded={openSearch}
-                        className="w-[140px] md:w-[180px] h-full rounded-none border-0 font-mono font-bold justify-between px-2 hover:bg-muted/50 shrink-0"
+                        className="w-[140px] md:w-[180px] h-100 rounded-none border-0 font-mono font-bold justify-between px-2 hover:bg-muted/50 flex-shrink-0"
                       >
-                        <div className="flex items-center gap-1.5 truncate">
-                          <Search size={12} className="text-muted-foreground shrink-0" />
+                        <div className="d-flex align-items-center gap-1.5 truncate">
+                          <Search size={12} className="text-muted-foreground flex-shrink-0" />
                           <span className="truncate text-xs">{symbol}</span>
                         </div>
-                        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-1 h-3 w-3 flex-shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[300px] p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start" style={{ backgroundColor: '#0f1318' }}>
@@ -139,8 +139,8 @@ export default function ChartPage() {
                                 }}
                                 className="font-mono text-xs cursor-pointer py-2 px-3 aria-selected:bg-primary/10 aria-selected:text-primary"
                               >
-                                <div className="flex items-center justify-between w-full">
-                                  <div className="flex flex-col">
+                                <div className="d-flex align-items-center justify-content-between w-100">
+                                  <div className="d-flex flex-column">
                                     <span className="font-bold">{item.symbol}</span>
                                     <span className="text-[10px] text-muted-foreground">{item.displayName}</span>
                                   </div>
@@ -154,10 +154,10 @@ export default function ChartPage() {
                     </PopoverContent>
                   </Popover>
 
-                  <div className="w-px h-4 bg-border shrink-0"></div>
+                  <div className="w-px h-4 bg-border flex-shrink-0"></div>
 
                   <Select value={String(granularitySec)} onValueChange={(v) => setGranularitySec(parseInt(v, 10))}>
-                    <SelectTrigger className="w-[70px] h-full rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50 shrink-0" data-testid="select-timeframe">
+                    <SelectTrigger className="w-[70px] h-100 rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50 flex-shrink-0" data-testid="select-timeframe">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border max-h-72 bg-[#0f1318] shadow-2xl z-[1000]" style={{ backgroundColor: '#0f1318' }}>
@@ -170,26 +170,26 @@ export default function ChartPage() {
                   </Select>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-2 ml-1 shrink-0">
+                <div className="d-none d-sm-flex align-items-center gap-2 ml-1 flex-shrink-0">
                   <div className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-primary animate-pulse' : 'bg-destructive'}`}></div>
                   <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-tighter">{isConnected ? 'Live' : 'Offline'}</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col items-end">
+              <div className="d-flex align-items-center gap-4">
+                <div className="d-flex flex-column align-items-end">
                   <span className="text-[9px] text-muted-foreground uppercase font-mono tracking-wider leading-none mb-1">Spot Price</span>
                   <span className={`font-mono font-bold text-base leading-none ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
                     {latestTick ? latestTick.quote.toFixed(4) : '---'}
                   </span>
                 </div>
                 
-                <div className="w-px h-8 bg-border hidden md:block"></div>
+                <div className="w-px h-8 bg-border d-none d-md-block"></div>
                 
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground hidden md:flex" 
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground d-none d-md-flex" 
                   onClick={() => {
                     const panel = tradePanelRef.current;
                     if (panel) {
@@ -204,7 +204,7 @@ export default function ChartPage() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 relative border-r border-border">
+            <div className="flex-1 min-h-0 position-relative border-r border-border">
               <TradingChart
                 key={`${symbol}-${granularitySec}`}
                 symbol={symbol}
@@ -216,7 +216,7 @@ export default function ChartPage() {
 
           <PanelResizeHandle className={cn(
             "bg-border transition-colors hover:bg-primary z-10",
-            isMobile ? "h-1 w-full cursor-row-resize" : "w-1 h-full cursor-col-resize"
+            isMobile ? "h-1 w-100 cursor-row-resize" : "w-1 h-100 cursor-col-resize"
           )} />
 
           <Panel
@@ -229,13 +229,13 @@ export default function ChartPage() {
             onCollapse={() => setIsTradePanelOpen(false)}
             onExpand={() => setIsTradePanelOpen(true)}
             className={cn(
-              "bg-card flex flex-col shrink-0 overflow-y-auto transition-all duration-300 ease-in-out",
-              !isTradePanelOpen && !isMobile && "hidden"
+              "bg-card d-flex flex-column flex-shrink-0 overflow-y-auto transition-all duration-300 ease-in-out",
+              !isTradePanelOpen && !isMobile && "d-none"
             )}
           >
-            <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
+            <div className="p-4 border-b border-border d-flex align-items-center justify-content-between flex-shrink-0">
               <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">Order Entry</h2>
-              <div className="flex items-center gap-2">
+              <div className="d-flex align-items-center gap-2">
                 <Label className="text-xs font-mono text-muted-foreground uppercase">Mode:</Label>
                 <div className="grid grid-cols-2 gap-1 w-[120px]">
                   <Button
@@ -255,7 +255,7 @@ export default function ChartPage() {
                     LIVE
                   </Button>
                 </div>
-                {tradeMode === "live" && <span className="flex h-2 w-2 rounded-full bg-destructive animate-pulse ml-1" title="Live Trading Active" />}
+                {tradeMode === "live" && <span className="d-flex h-2 w-2 rounded-full bg-destructive animate-pulse ml-1" title="Live Trading Active" />}
               </div>
             </div>
 
@@ -348,7 +348,7 @@ export default function ChartPage() {
               {contractType !== TradeInputType.multiplier && (
                 <div className="space-y-3">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
-                  <div className="flex gap-2">
+                  <div className="d-flex gap-2">
                     <Input
                       type="number"
                       value={duration}
@@ -382,7 +382,7 @@ export default function ChartPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-3 border border-border bg-background">
+              <div className="d-flex align-items-center justify-content-between p-3 border border-border bg-background">
                 <Label className="text-xs uppercase font-mono text-muted-foreground cursor-pointer" htmlFor="ai-confirm">
                   Request AI Confirmation
                 </Label>
@@ -397,7 +397,7 @@ export default function ChartPage() {
 
             <div className="p-4 mt-auto border-t border-border">
               <Button
-                className={`w-full rounded-none h-12 text-sm uppercase font-bold tracking-widest ${direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'}`}
+                className={`w-100 rounded-none h-12 text-sm uppercase font-bold tracking-widest ${direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'}`}
                 onClick={handleExecute}
                 disabled={createTrade.isPending || !isConnected}
                 data-testid="button-execute"
