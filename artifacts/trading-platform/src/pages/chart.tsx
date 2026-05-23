@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
 import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Check, ChevronsUpDown, PanelRightClose, PanelRightOpen, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -49,9 +49,10 @@ export default function ChartPage() {
   const tradePanelRef = useRef<ImperativePanelHandle>(null);
   const isMobile = useIsMobile();
 
-  const { data: searchResults } = useSearchDerivSymbols(
+  // Fetch symbols even with empty query to show initial list
+  const { data: searchResults, isLoading: isSearching } = useSearchDerivSymbols(
     { q: debouncedSearchQuery },
-    { query: { enabled: !!debouncedSearchQuery, queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
+    { query: { queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
   );
 
   const createTrade = useCreateTrade();
@@ -94,74 +95,90 @@ export default function ChartPage() {
         <PanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-full h-full">
           <Panel defaultSize={75} minSize={30} className="flex flex-col min-w-0 bg-background relative">
             <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
-              <div className="flex items-center gap-4">
-                <Popover open={openSearch} onOpenChange={setOpenSearch}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openSearch}
-                      className="w-[250px] h-8 rounded-none border-border bg-background font-mono font-bold justify-between"
-                    >
-                      {symbol}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[250px] p-0 rounded-none border-border">
-                    <Command>
-                      <CommandInput
-                        placeholder="Search active symbols..."
-                        className="font-mono text-xs"
-                        value={searchQuery}
-                        onValueChange={setSearchQuery}
-                      />
-                      <CommandList>
-                        <CommandEmpty className="py-2 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
-                        <CommandGroup>
-                          {Array.isArray(searchResults) ? searchResults.map((item) => (
-                            <CommandItem
-                              key={item.symbol}
-                              value={item.symbol}
-                              onSelect={(currentValue) => {
-                                setSymbol(currentValue === symbol ? "" : currentValue);
-                                setOpenSearch(false);
-                              }}
-                              className="font-mono text-xs cursor-pointer"
-                            >
-                              <Check className={cn("mr-2 h-4 w-4", symbol === item.symbol ? "opacity-100" : "opacity-0")} />
-                              {item.displayName} ({item.symbol})
-                            </CommandItem>
-                          ))
-                          : null}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+              <div className="flex items-center gap-2">
+                {/* Combined Selectors Container */}
+                <div className="flex items-center border border-border bg-background h-8">
+                  <Popover open={openSearch} onOpenChange={setOpenSearch}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        role="combobox"
+                        aria-expanded={openSearch}
+                        className="w-[180px] md:w-[220px] h-full rounded-none border-0 font-mono font-bold justify-between px-3 hover:bg-muted/50"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <Search size={14} className="text-muted-foreground shrink-0" />
+                          <span className="truncate">{symbol}</span>
+                        </div>
+                        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0 rounded-none border-border bg-card shadow-2xl" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search symbols (e.g. Volatility, EURUSD)..."
+                          className="font-mono text-xs h-10"
+                          value={searchQuery}
+                          onValueChange={setSearchQuery}
+                        />
+                        <CommandList className="max-h-[300px]">
+                          {isSearching && <div className="py-4 text-center text-xs font-mono text-muted-foreground animate-pulse">Searching Deriv...</div>}
+                          {!isSearching && (!searchResults || searchResults.length === 0) && (
+                            <CommandEmpty className="py-4 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
+                          )}
+                          <CommandGroup>
+                            {Array.isArray(searchResults) && searchResults.map((item) => (
+                              <CommandItem
+                                key={item.symbol}
+                                value={item.symbol}
+                                onSelect={() => {
+                                  setSymbol(item.symbol);
+                                  setOpenSearch(false);
+                                  setSearchQuery("");
+                                }}
+                                className="font-mono text-xs cursor-pointer py-2 px-3 aria-selected:bg-primary/10 aria-selected:text-primary"
+                              >
+                                <div className="flex items-center justify-between w-full">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold">{item.symbol}</span>
+                                    <span className="text-[10px] text-muted-foreground">{item.displayName}</span>
+                                  </div>
+                                  {symbol === item.symbol && <Check className="h-3 w-3 text-primary" />}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
 
-                <Select value={String(granularitySec)} onValueChange={(v) => setGranularitySec(parseInt(v, 10))}>
-                  <SelectTrigger className="w-[100px] h-8 rounded-none border-border bg-background font-mono text-xs" data-testid="select-timeframe">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-none border-border max-h-72">
-                    {TIMEFRAME_OPTIONS.map((tf) => (
-                      <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs">
-                        {tf.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <div className="w-px h-4 bg-border"></div>
 
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-primary animate-pulse' : 'bg-destructive'}`}></div>
-                  <span className="font-mono text-xs text-muted-foreground uppercase">{isConnected ? 'Live' : 'Disconnected'}</span>
+                  <Select value={String(granularitySec)} onValueChange={(v) => setGranularitySec(parseInt(v, 10))}>
+                    <SelectTrigger className="w-[80px] h-full rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50" data-testid="select-timeframe">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none border-border max-h-72 bg-card shadow-2xl">
+                      {TIMEFRAME_OPTIONS.map((tf) => (
+                        <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs">
+                          {tf.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-2 ml-2">
+                  <div className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-primary animate-pulse' : 'bg-destructive'}`}></div>
+                  <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-tighter">{isConnected ? 'Live' : 'Offline'}</span>
                 </div>
               </div>
 
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Current Price</span>
-                  <span className={`font-mono font-bold text-lg ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <span className="text-[9px] text-muted-foreground uppercase font-mono tracking-wider leading-none mb-1">Spot Price</span>
+                  <span className={`font-mono font-bold text-base leading-none ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
                     {latestTick ? latestTick.quote.toFixed(4) : '---'}
                   </span>
                 </div>
@@ -341,7 +358,7 @@ export default function ChartPage() {
                       <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono" data-testid="select-duration-unit">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="rounded-none border-border">
+                      <SelectContent className="rounded-none border-border bg-card shadow-2xl">
                         {DURATION_UNITS.map((u) => (
                           <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
                         ))}
