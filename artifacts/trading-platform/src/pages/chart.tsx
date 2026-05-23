@@ -105,7 +105,7 @@ export default function ChartPage() {
                         variant="ghost"
                         role="combobox"
                         aria-expanded={openSearch}
-                        className="h-100 rounded-none border-0 font-mono font-bold justify-between px-2 hover:bg-muted/50 flex-shrink-0"
+                        className="d-flex align-items-center justify-content-between h-100 rounded-none border-0 font-mono font-bold px-2 hover:bg-muted/50 flex-shrink-0"
                         style={{ width: isMobile ? '140px' : '180px' }}
                       >
                         <div className="d-flex align-items-center gap-1.5 truncate">
