@@ -49,7 +49,6 @@ export default function ChartPage() {
   const tradePanelRef = useRef<ImperativePanelHandle>(null);
   const isMobile = useIsMobile();
 
-  // Fetch symbols even with empty query to show initial list
   const { data: searchResults, isLoading: isSearching } = useSearchDerivSymbols(
     { q: debouncedSearchQuery },
     { query: { queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
@@ -96,8 +95,8 @@ export default function ChartPage() {
           <Panel defaultSize={75} minSize={30} className="flex flex-col min-w-0 bg-background relative">
             <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
               <div className="flex items-center gap-2">
-                {/* Combined Selectors Container */}
-                <div className="flex items-center border border-border bg-background h-8">
+                {/* Combined Selectors Container - Flex Row ensures side-by-side */}
+                <div className="flex flex-row items-center border border-border bg-background h-8">
                   <Popover open={openSearch} onOpenChange={setOpenSearch}>
                     <PopoverTrigger asChild>
                       <Button
@@ -113,16 +112,16 @@ export default function ChartPage() {
                         <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[300px] p-0 rounded-none border-border bg-card shadow-2xl" align="start">
-                      <Command shouldFilter={false}>
+                    <PopoverContent className="w-[300px] p-0 rounded-none border-border bg-[#0f1318] shadow-2xl" align="start">
+                      <Command shouldFilter={false} className="bg-transparent">
                         <CommandInput
-                          placeholder="Search symbols (e.g. Volatility, EURUSD)..."
-                          className="font-mono text-xs h-10"
+                          placeholder="Search symbols..."
+                          className="font-mono text-xs h-10 border-0 focus:ring-0"
                           value={searchQuery}
                           onValueChange={setSearchQuery}
                         />
-                        <CommandList className="max-h-[300px]">
-                          {isSearching && <div className="py-4 text-center text-xs font-mono text-muted-foreground animate-pulse">Searching Deriv...</div>}
+                        <CommandList className="max-h-[300px] border-t border-border">
+                          {isSearching && <div className="py-4 text-center text-xs font-mono text-muted-foreground animate-pulse">Searching...</div>}
                           {!isSearching && (!searchResults || searchResults.length === 0) && (
                             <CommandEmpty className="py-4 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
                           )}
@@ -159,7 +158,7 @@ export default function ChartPage() {
                     <SelectTrigger className="w-[80px] h-full rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50" data-testid="select-timeframe">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-none border-border max-h-72 bg-card shadow-2xl">
+                    <SelectContent className="rounded-none border-border max-h-72 bg-[#0f1318] shadow-2xl">
                       {TIMEFRAME_OPTIONS.map((tf) => (
                         <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs">
                           {tf.label}
@@ -358,7 +357,7 @@ export default function ChartPage() {
                       <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono" data-testid="select-duration-unit">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="rounded-none border-border bg-card shadow-2xl">
+                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
                         {DURATION_UNITS.map((u) => (
                           <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
                         ))}

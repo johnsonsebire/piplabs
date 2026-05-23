@@ -29,17 +29,33 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
+  // Robust data cleaning and sorting to prevent lightweight-charts crashes
+  const validCandles = useMemo(() => {
+    if (!Array.isArray(candles) || candles.length === 0) return [];
+    
+    return candles
+      .filter(c => 
+        c && 
+        typeof c.time === 'number' && 
+        !isNaN(c.open) && !isNaN(c.high) && !isNaN(c.low) && !isNaN(c.close) &&
+        c.open !== null && c.high !== null && c.low !== null && c.close !== null
+      )
+      .sort((a, b) => a.time - b.time)
+      // Remove duplicates by time
+      .filter((c, i, arr) => i === 0 || c.time > arr[i-1].time);
+  }, [candles]);
+
   const computed = useMemo<IndicatorSeries[]>(() => {
-    if (candles.length === 0) return [];
+    if (validCandles.length === 0) return [];
     const out: IndicatorSeries[] = [];
     for (const ind of indicators) {
       const cfg = parseIndicatorConfig(ind.parameters, ind.code || undefined);
       if (!cfg) continue;
-      const series = computeIndicator(String(ind.id), ind.name, cfg, candles);
+      const series = computeIndicator(String(ind.id), ind.name, cfg, validCandles);
       if (series) out.push(series);
     }
     return out;
-  }, [indicators, candles]);
+  }, [indicators, validCandles]);
 
   const hasOscillator = computed.some(c => c.pane === "oscillator");
 
@@ -76,7 +92,6 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     const ro = new ResizeObserver(handleResize);
     ro.observe(chartContainerRef.current);
 
-    // Initial resize to catch any immediate layout shifts
     setTimeout(handleResize, 50);
 
     return () => {
@@ -132,7 +147,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     };
   }, [hasOscillator]);
 
-  // Sync time-scales between main and oscillator panes
+  // Sync time-scales
   useEffect(() => {
     const main = chartRef.current;
     const osc = oscChartRef.current;
@@ -158,25 +173,26 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
   // Render candles
   useEffect(() => {
-    if (seriesRef.current && candles.length > 0) {
-      const unique = Array.from(new Map(candles.map(c => [c.time, c])).values()).sort((a, b) => a.time - b.time);
-      seriesRef.current.setData(unique as any);
+    if (seriesRef.current && validCandles.length > 0) {
+      seriesRef.current.setData(validCandles as any);
     }
-  }, [candles, mainReady]);
+  }, [validCandles, mainReady]);
 
   // Live tick update
   useEffect(() => {
-    if (seriesRef.current && latestTick && candles.length > 0) {
-      const last = candles[candles.length - 1];
-      seriesRef.current.update({
-        time: last.time as any,
-        open: last.open,
-        high: Math.max(last.high, latestTick.quote),
-        low: Math.min(last.low, latestTick.quote),
-        close: latestTick.quote,
-      });
+    if (seriesRef.current && latestTick && validCandles.length > 0) {
+      const last = validCandles[validCandles.length - 1];
+      if (latestTick.quote !== null && !isNaN(latestTick.quote)) {
+        seriesRef.current.update({
+          time: last.time as any,
+          open: last.open,
+          high: Math.max(last.high, latestTick.quote),
+          low: Math.min(last.low, latestTick.quote),
+          close: latestTick.quote,
+        });
+      }
     }
-  }, [latestTick, candles]);
+  }, [latestTick, validCandles]);
 
   // Render overlay indicators
   useEffect(() => {
@@ -234,11 +250,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       line.setData(c.data as any);
 
       if (c.guides) {
-        const fullTimes = candles.length > 0
-          ? Array.from(new Map(candles.map(cd => [cd.time, cd])).values())
-              .sort((a, b) => a.time - b.time)
-              .map(cd => cd.time)
-          : c.data.map(p => p.time);
+        const fullTimes = validCandles.length > 0 ? validCandles.map(cd => cd.time) : c.data.map(p => p.time);
         for (let i = 0; i < c.guides.length; i++) {
           const key = `${c.id}::guide${i}`;
           wanted.add(key);
@@ -271,7 +283,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     for (const [id, line] of oscLinesRef.current.entries()) {
       if (!wanted.has(id)) { chart.removeSeries(line); oscLinesRef.current.delete(id); }
     }
-  }, [computed, oscReady, candles]);
+  }, [computed, oscReady, validCandles]);
 
   return (
     <div className="relative w-full h-full flex flex-col overflow-hidden">
