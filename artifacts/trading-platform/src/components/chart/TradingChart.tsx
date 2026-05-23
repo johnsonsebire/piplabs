@@ -29,7 +29,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
-  // Ultra-defensive data cleaning to prevent "Value is null" or "NaN" errors in lightweight-charts
+  // Ultra-aggressive data cleaning
   const validCandles = useMemo(() => {
     if (!Array.isArray(candles) || candles.length === 0) return [];
     
@@ -37,12 +37,13 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       .filter(c => 
         c && 
         typeof c.time === 'number' && 
-        Number.isFinite(c.open) && 
-        Number.isFinite(c.high) && 
-        Number.isFinite(c.low) && 
-        Number.isFinite(c.close)
+        c.open !== null && c.high !== null && c.low !== null && c.close !== null &&
+        Number.isFinite(c.open) && Number.isFinite(c.high) && 
+        Number.isFinite(c.low) && Number.isFinite(c.close)
       )
       .sort((a, b) => a.time - b.time);
+
+    if (cleaned.length === 0) return [];
 
     // Remove duplicates by time (required by lightweight-charts)
     const unique: typeof cleaned = [];
@@ -101,8 +102,6 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     const ro = new ResizeObserver(handleResize);
     ro.observe(chartContainerRef.current);
 
-    setTimeout(handleResize, 50);
-
     return () => {
       ro.disconnect();
       chart.remove();
@@ -121,8 +120,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       }
       return;
     }
-    if (!oscContainerRef.current) return;
-    if (oscChartRef.current) return;
+    if (!oscContainerRef.current || oscChartRef.current) return;
 
     const chart = createChart(oscContainerRef.current, {
       layout: { background: { color: "#0a0f0d" }, textColor: "#888" },
@@ -145,8 +143,6 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     };
     const ro = new ResizeObserver(handleResize);
     ro.observe(oscContainerRef.current);
-
-    setTimeout(handleResize, 50);
 
     return () => {
       ro.disconnect();
