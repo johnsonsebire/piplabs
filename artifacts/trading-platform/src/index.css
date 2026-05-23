@@ -295,11 +295,21 @@ body {
   z-index: 1050 !important;
 }
 
-[data-radix-select-content] {
-  background-color: #111620 !important;
-  border-color: #1a2332 !important;
+/* Force solid opaque background and border styles on all Radix Select and Popover portal contents globally */
+[data-radix-select-content],
+[data-radix-popper-content-wrapper] [role="listbox"],
+[data-radix-popper-content-wrapper] [role="dialog"],
+.bg-popover,
+.bg-background {
+  background-color: #0f1318 !important;
+  border: 1px solid #1a2332 !important;
   color: #e2e8f0 !important;
   border-radius: 0 !important;
+  opacity: 1 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-radix-select-content] {
   max-height: 280px !important;
   overflow-y: auto !important;
   scrollbar-width: thin;
