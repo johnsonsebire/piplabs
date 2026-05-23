@@ -96,14 +96,14 @@ export default function ChartPage() {
             <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
               <div className="flex items-center gap-2">
                 {/* Combined Selectors Container - Flex Row ensures side-by-side */}
-                <div className="flex flex-row items-center border border-border bg-background h-8">
+                <div className="flex flex-row items-center border border-border bg-background h-8 shrink-0">
                   <Popover open={openSearch} onOpenChange={setOpenSearch}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"
                         role="combobox"
                         aria-expanded={openSearch}
-                        className="w-[180px] md:w-[220px] h-full rounded-none border-0 font-mono font-bold justify-between px-3 hover:bg-muted/50"
+                        className="w-[160px] md:w-[200px] h-full rounded-none border-0 font-mono font-bold justify-between px-3 hover:bg-muted/50"
                       >
                         <div className="flex items-center gap-2 truncate">
                           <Search size={14} className="text-muted-foreground shrink-0" />
@@ -112,7 +112,7 @@ export default function ChartPage() {
                         <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[300px] p-0 rounded-none border-border bg-[#0f1318] shadow-2xl" align="start">
+                    <PopoverContent className="w-[300px] p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start">
                       <Command shouldFilter={false} className="bg-transparent">
                         <CommandInput
                           placeholder="Search symbols..."
@@ -120,12 +120,12 @@ export default function ChartPage() {
                           value={searchQuery}
                           onValueChange={setSearchQuery}
                         />
-                        <CommandList className="max-h-[300px] border-t border-border">
+                        <CommandList className="max-h-[300px] border-t border-border bg-[#0f1318]">
                           {isSearching && <div className="py-4 text-center text-xs font-mono text-muted-foreground animate-pulse">Searching...</div>}
                           {!isSearching && (!searchResults || searchResults.length === 0) && (
                             <CommandEmpty className="py-4 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
                           )}
-                          <CommandGroup>
+                          <CommandGroup className="bg-[#0f1318]">
                             {Array.isArray(searchResults) && searchResults.map((item) => (
                               <CommandItem
                                 key={item.symbol}
@@ -158,7 +158,7 @@ export default function ChartPage() {
                     <SelectTrigger className="w-[80px] h-full rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50" data-testid="select-timeframe">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-none border-border max-h-72 bg-[#0f1318] shadow-2xl">
+                    <SelectContent className="rounded-none border-border max-h-72 bg-[#0f1318] shadow-2xl z-[1000]">
                       {TIMEFRAME_OPTIONS.map((tf) => (
                         <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs">
                           {tf.label}
