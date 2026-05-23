@@ -29,18 +29,30 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
-  // Ultra-aggressive data cleaning to prevent lightweight-charts from crashing
+  // Strict data cleaning and mathematical validation to prevent lightweight-charts from crashing
   const validCandles = useMemo(() => {
     if (!Array.isArray(candles) || candles.length === 0) return [];
     
     const cleaned = candles
+      .map(c => ({
+        time: Number(c?.time),
+        open: Number(c?.open),
+        high: Number(c?.high),
+        low: Number(c?.low),
+        close: Number(c?.close),
+      }))
       .filter(c => 
         c && 
-        typeof c.time === 'number' && 
+        Number.isFinite(c.time) && 
         Number.isFinite(c.open) && 
         Number.isFinite(c.high) && 
         Number.isFinite(c.low) && 
-        Number.isFinite(c.close)
+        Number.isFinite(c.close) &&
+        c.high >= c.low &&
+        c.high >= c.open &&
+        c.high >= c.close &&
+        c.low <= c.open &&
+        c.low <= c.close
       )
       .sort((a, b) => a.time - b.time);
 
@@ -184,19 +196,26 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     }
   }, [validCandles, mainReady]);
 
-  // Live tick update
+  // Live tick update with strict mathematical validation
   useEffect(() => {
     if (seriesRef.current && latestTick && validCandles.length > 0) {
       const last = validCandles[validCandles.length - 1];
-      if (latestTick.quote !== null && Number.isFinite(latestTick.quote)) {
-        // Only update if the tick belongs to the current last candle's timeframe
-        seriesRef.current.update({
-          time: last.time as any,
-          open: last.open,
-          high: Math.max(last.high, latestTick.quote),
-          low: Math.min(last.low, latestTick.quote),
-          close: latestTick.quote,
-        });
+      const quote = Number(latestTick.quote);
+      if (Number.isFinite(quote)) {
+        const open = Number(last.open);
+        const high = Math.max(Number(last.high), quote);
+        const low = Math.min(Number(last.low), quote);
+        const close = quote;
+        
+        if (high >= low && high >= open && high >= close && low <= open && low <= close) {
+          seriesRef.current.update({
+            time: last.time as any,
+            open,
+            high,
+            low,
+            close,
+          });
+        }
       }
     }
   }, [latestTick, validCandles]);
