@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
 import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
@@ -12,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Panel, PanelGroup, PanelResizeHandle, ImperativePanelHandle } from "react-resizable-panels";
 
 // Maps Deriv API durationUnit codes used by `buy` proposals
 const DURATION_UNITS: ReadonlyArray<{ value: string; label: string }> = [
@@ -44,6 +46,10 @@ export default function ChartPage() {
   const [openSearch, setOpenSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  
+  const [isTradePanelOpen, setIsTradePanelOpen] = useState(true);
+  const tradePanelRef = useRef<ImperativePanelHandle>(null);
+  const isMobile = useIsMobile();
 
   const { data: searchResults } = useSearchDerivSymbols(
     { q: debouncedSearchQuery },
@@ -86,9 +92,10 @@ export default function ChartPage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col md:flex-row h-[calc(100vh-3.5rem)] w-full">
-        <div className="flex-1 flex flex-col min-w-0 border-r border-border">
-          <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
+      <div className="h-[calc(100vh-3.5rem)] w-full overflow-hidden flex flex-col">
+        <PanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-full h-full">
+          <Panel defaultSize={75} minSize={30} className="flex flex-col min-w-0 bg-background relative">
+            <div className="h-12 border-b border-border flex items-center px-4 justify-between bg-card shrink-0">
             <div className="flex items-center gap-4">
               <Popover open={openSearch} onOpenChange={setOpenSearch}>
                 <PopoverTrigger asChild>
@@ -113,7 +120,7 @@ export default function ChartPage() {
                     <CommandList>
                       <CommandEmpty className="py-2 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
                       <CommandGroup>
-                        {searchResults?.map((item) => (
+                        {Array.isArray(searchResults) ? searchResults.map((item) => (
                           <CommandItem
                             key={item.symbol}
                             value={item.symbol}
@@ -126,7 +133,8 @@ export default function ChartPage() {
                             <Check className={cn("mr-2 h-4 w-4", symbol === item.symbol ? "opacity-100" : "opacity-0")} />
                             {item.displayName} ({item.symbol})
                           </CommandItem>
-                        ))}
+                        ))
+                        : null}
                       </CommandGroup>
                     </CommandList>
                   </Command>
@@ -152,35 +160,86 @@ export default function ChartPage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Current Price</span>
-              <span className={`font-mono font-bold text-lg ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
-                {latestTick ? latestTick.quote.toFixed(4) : '---'}
-              </span>
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Current Price</span>
+                <span className={`font-mono font-bold text-lg ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {latestTick ? latestTick.quote.toFixed(4) : '---'}
+                </span>
+              </div>
+              
+              <div className="w-px h-8 bg-border hidden md:block"></div>
+              
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-muted-foreground hover:text-foreground hidden md:flex" 
+                onClick={() => {
+                  const panel = tradePanelRef.current;
+                  if (panel) {
+                    if (isTradePanelOpen) panel.collapse();
+                    else panel.expand();
+                  }
+                }}
+                title={isTradePanelOpen ? "Hide Trade Panel" : "Show Trade Panel"}
+              >
+                {isTradePanelOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+              </Button>
             </div>
           </div>
 
-          <div className="flex-1 relative">
-            <TradingChart
-              symbol={symbol}
-              granularitySec={granularitySec}
-              height={typeof window !== 'undefined' ? window.innerHeight - 104 : 400}
-              indicators={chartIndicators?.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) ?? []}
-            />
+          <div className="flex-1 relative border-r border-border">
+            <div className="absolute inset-0">
+              <TradingChart
+                symbol={symbol}
+                granularitySec={granularitySec}
+                indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
+              />
+            </div>
           </div>
-        </div>
+        </Panel>
 
-        <div className="w-full md:w-80 bg-card shrink-0 flex flex-col h-full overflow-y-auto">
-          <div className="p-4 border-b border-border flex items-center justify-between">
+        <PanelResizeHandle className={cn(
+          "bg-border transition-colors hover:bg-primary z-10",
+          isMobile ? "h-1 w-full cursor-row-resize" : "w-1 h-full cursor-col-resize"
+        )} />
+
+        <Panel
+          ref={tradePanelRef}
+          collapsible
+          collapsedSize={0}
+          defaultSize={25}
+          minSize={20}
+          maxSize={40}
+          onCollapse={() => setIsTradePanelOpen(false)}
+          onExpand={() => setIsTradePanelOpen(true)}
+          className={cn(
+            "bg-card flex flex-col shrink-0 overflow-y-auto transition-all duration-300 ease-in-out",
+            !isTradePanelOpen && !isMobile && "hidden"
+          )}
+        >
+          <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
             <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">Order Entry</h2>
             <div className="flex items-center gap-2">
               <Label className="text-xs font-mono text-muted-foreground uppercase">Mode:</Label>
-              <Tabs value={tradeMode} onValueChange={(v) => setTradeMode(v as "demo" | "live")} className="w-[100px]">
-                <TabsList className="grid w-full grid-cols-2 rounded-none h-6 p-0 bg-background border border-border">
-                  <TabsTrigger value="demo" className="rounded-none text-[9px] uppercase font-mono data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">DEMO</TabsTrigger>
-                  <TabsTrigger value="live" className="rounded-none text-[9px] uppercase font-mono data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground">LIVE</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="grid grid-cols-2 gap-1 w-[120px]">
+                <Button
+                  size="sm"
+                  variant={tradeMode === "demo" ? "default" : "outline"}
+                  className={`h-6 rounded-none uppercase font-bold text-[9px] tracking-wider ${tradeMode === "demo" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                  onClick={() => setTradeMode("demo")}
+                >
+                  DEMO
+                </Button>
+                <Button
+                  size="sm"
+                  variant={tradeMode === "live" ? "default" : "outline"}
+                  className={`h-6 rounded-none uppercase font-bold text-[9px] tracking-wider ${tradeMode === "live" ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive border-border'}`}
+                  onClick={() => setTradeMode("live")}
+                >
+                  LIVE
+                </Button>
+              </div>
               {tradeMode === "live" && <span className="flex h-2 w-2 rounded-full bg-destructive animate-pulse ml-1" title="Live Trading Active" />}
             </div>
           </div>
@@ -188,13 +247,32 @@ export default function ChartPage() {
           <div className="p-4 space-y-6">
             <div className="space-y-3">
               <Label className="text-xs uppercase font-mono text-muted-foreground">Contract Type</Label>
-              <Tabs value={contractType} onValueChange={(v) => setContractType(v as TradeInputType)} className="w-full">
-                <TabsList className="grid w-full grid-cols-3 rounded-none h-8 p-0 bg-background border border-border">
-                  <TabsTrigger value={TradeInputType.vanilla_options} className="rounded-none text-[10px] uppercase font-mono data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Options</TabsTrigger>
-                  <TabsTrigger value={TradeInputType.multiplier} className="rounded-none text-[10px] uppercase font-mono data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Multiplier</TabsTrigger>
-                  <TabsTrigger value={TradeInputType.forex} className="rounded-none text-[10px] uppercase font-mono data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Forex</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant={contractType === TradeInputType.vanilla_options ? "default" : "outline"}
+                  className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${contractType === TradeInputType.vanilla_options ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                  onClick={() => setContractType(TradeInputType.vanilla_options)}
+                >
+                  Options
+                </Button>
+                <Button
+                  type="button"
+                  variant={contractType === TradeInputType.multiplier ? "default" : "outline"}
+                  className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${contractType === TradeInputType.multiplier ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                  onClick={() => setContractType(TradeInputType.multiplier)}
+                >
+                  Multiplier
+                </Button>
+                <Button
+                  type="button"
+                  variant={contractType === TradeInputType.forex ? "default" : "outline"}
+                  className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${contractType === TradeInputType.forex ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                  onClick={() => setContractType(TradeInputType.forex)}
+                >
+                  Forex
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -312,8 +390,9 @@ export default function ChartPage() {
               {createTrade.isPending ? 'Executing...' : 'Execute Trade'}
             </Button>
           </div>
-        </div>
-      </div>
-    </AppLayout>
+        </Panel>
+      </PanelGroup>
+    </div>
+  </AppLayout>
   );
 }

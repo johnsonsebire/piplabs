@@ -32,11 +32,11 @@ export default function NewsPage() {
         <div className="flex-1 overflow-y-auto pr-2">
           {isLoading ? (
             <div className="text-center text-muted-foreground font-mono uppercase mt-10">Fetching feeds...</div>
-          ) : newsItems?.length === 0 ? (
+          ) : !Array.isArray(newsItems) || newsItems.length === 0 ? (
             <div className="text-center text-muted-foreground font-mono uppercase mt-10">No feed data available</div>
           ) : (
             <div className="space-y-4">
-              {newsItems?.map((item) => (
+              {newsItems.map((item) => (
                 <a 
                   key={item.id} 
                   href={item.url} 

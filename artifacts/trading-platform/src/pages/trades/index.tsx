@@ -96,7 +96,7 @@ export default function TradesPage() {
                       <td colSpan={8} className="p-3"><Skeleton className="h-5 w-full rounded-none bg-muted" /></td>
                     </tr>
                   ))
-                ) : tradesData?.trades.length === 0 ? (
+                ) : !tradesData?.trades || tradesData?.trades.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-muted-foreground uppercase tracking-wider">No trades found</td>
                   </tr>

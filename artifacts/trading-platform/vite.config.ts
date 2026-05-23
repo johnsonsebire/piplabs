@@ -1,10 +1,17 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 
-const rawPort = process.env.PORT;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from root .env file
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
+const rawPort = process.env.VITE_PORT || process.env.FRONTEND_PORT || "21210";
 
 if (!rawPort) {
   throw new Error(
@@ -30,7 +37,6 @@ export default defineConfig({
   base: basePath,
   plugins: [
     react(),
-    tailwindcss({ optimize: false }),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
@@ -65,6 +71,12 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
+    },
+    proxy: {
+      "/api": {
+        target: `http://127.0.0.1:${process.env.PORT || 8080}`,
+        changeOrigin: true,
+      },
     },
   },
   preview: {

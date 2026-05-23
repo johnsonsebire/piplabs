@@ -174,9 +174,9 @@ export default function BacktestPage() {
                   <SelectValue placeholder="Select Strategy" />
                 </SelectTrigger>
                 <SelectContent className="rounded-none border-border">
-                  {strategies?.map(s => (
+                  {Array.isArray(strategies) ? strategies.map(s => (
                     <SelectItem key={s.id} value={s.id.toString()} className="font-mono text-xs uppercase">{s.name}</SelectItem>
-                  ))}
+                  )) : null}
                 </SelectContent>
               </Select>
             </div>
@@ -277,13 +277,13 @@ export default function BacktestPage() {
           <div className="flex-1 overflow-auto p-6">
             {isResultsLoading ? (
               <div className="text-center text-muted-foreground font-mono uppercase mt-10">Loading results...</div>
-            ) : backtests?.length === 0 ? (
+            ) : !Array.isArray(backtests) || backtests.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground font-mono uppercase">
                 No backtests run yet
               </div>
             ) : (
               <div className="space-y-6">
-                {backtests?.map(bt => {
+                {backtests.map(bt => {
                   const results = parseResults(bt.results);
                   const trades = results.trades ?? [];
                   const isOpen = expandedId === bt.id;

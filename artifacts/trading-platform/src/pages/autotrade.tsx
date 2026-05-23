@@ -110,10 +110,10 @@ export default function AutoTradePage() {
               <tbody className="divide-y divide-border">
                 {isLoading ? (
                   <tr><td colSpan={6} className="p-8 text-center text-muted-foreground uppercase">Loading...</td></tr>
-                ) : sessions?.length === 0 ? (
+                ) : !Array.isArray(sessions) || sessions.length === 0 ? (
                   <tr><td colSpan={6} className="p-8 text-center text-muted-foreground uppercase">No active sessions</td></tr>
                 ) : (
-                  sessions?.map(s => (
+                  sessions.map(s => (
                     <tr key={s.id} className="hover:bg-muted/10 transition-colors">
                       <td className="p-4 font-bold text-primary">{s.strategyName || `Strategy #${s.strategyId}`}</td>
                       <td className="p-4 text-foreground">{s.symbol}</td>
@@ -160,9 +160,9 @@ export default function AutoTradePage() {
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border">
-                      {strategies?.map(st => (
+                      {Array.isArray(strategies) ? strategies.map(st => (
                         <SelectItem key={st.id} value={st.id.toString()} className="font-mono text-xs uppercase">{st.name}</SelectItem>
-                      ))}
+                      )) : null}
                     </SelectContent>
                   </Select>
                 </div>

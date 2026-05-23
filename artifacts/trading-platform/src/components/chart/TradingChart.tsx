@@ -12,12 +12,11 @@ export interface ChartIndicatorInput {
 
 interface TradingChartProps {
   symbol: string;
-  height?: number;
   indicators?: ChartIndicatorInput[];
   granularitySec?: number;
 }
 
-export function TradingChart({ symbol, height = 400, indicators = [], granularitySec = 60 }: TradingChartProps) {
+export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const oscContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -43,8 +42,6 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
   }, [indicators, candles]);
 
   const hasOscillator = computed.some(c => c.pane === "oscillator");
-  const oscHeight = hasOscillator ? 140 : 0;
-  const mainHeight = height - oscHeight;
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -53,7 +50,7 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
       layout: { background: { color: "#0a0f0d" }, textColor: "#00ff88" },
       grid: { vertLines: { color: "#1a2a1a" }, horzLines: { color: "#1a2a1a" } },
       width: chartContainerRef.current.clientWidth,
-      height: mainHeight,
+      height: chartContainerRef.current.clientHeight,
       timeScale: { timeVisible: true, secondsVisible: false },
     });
 
@@ -68,7 +65,12 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
     setMainReady(v => v + 1);
 
     const handleResize = () => {
-      if (chartContainerRef.current) chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      if (chartContainerRef.current) {
+        chart.applyOptions({ 
+          width: chartContainerRef.current.clientWidth,
+          height: chartContainerRef.current.clientHeight
+        });
+      }
     };
     const ro = new ResizeObserver(handleResize);
     ro.observe(chartContainerRef.current);
@@ -80,7 +82,7 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
       seriesRef.current = null;
       overlayLinesRef.current.clear();
     };
-  }, [mainHeight]);
+  }, []);
 
   useEffect(() => {
     if (!hasOscillator) {
@@ -98,7 +100,7 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
       layout: { background: { color: "#0a0f0d" }, textColor: "#888" },
       grid: { vertLines: { color: "#1a2a1a" }, horzLines: { color: "#1a2a1a" } },
       width: oscContainerRef.current.clientWidth,
-      height: oscHeight,
+      height: oscContainerRef.current.clientHeight,
       timeScale: { timeVisible: true, secondsVisible: false },
       rightPriceScale: { borderColor: "#1a2a1a" },
     });
@@ -106,7 +108,12 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
     setOscReady(v => v + 1);
 
     const handleResize = () => {
-      if (oscContainerRef.current) chart.applyOptions({ width: oscContainerRef.current.clientWidth });
+      if (oscContainerRef.current) {
+        chart.applyOptions({ 
+          width: oscContainerRef.current.clientWidth,
+          height: oscContainerRef.current.clientHeight
+        });
+      }
     };
     const ro = new ResizeObserver(handleResize);
     ro.observe(oscContainerRef.current);
@@ -117,7 +124,7 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
       oscChartRef.current = null;
       oscLinesRef.current.clear();
     };
-  }, [hasOscillator, oscHeight]);
+  }, [hasOscillator]);
 
   // Sync time-scales between main and oscillator panes
   useEffect(() => {
@@ -262,7 +269,7 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
   }, [computed, oscReady, candles]);
 
   return (
-    <div className="relative w-full flex flex-col" style={{ height }}>
+    <div className="relative w-full h-full flex flex-col">
       {!isConnected && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="text-primary font-mono text-xl animate-pulse uppercase tracking-widest">
@@ -284,9 +291,9 @@ export function TradingChart({ symbol, height = 400, indicators = [], granularit
           </div>
         ))}
       </div>
-      <div ref={chartContainerRef} className="w-full" style={{ height: mainHeight }} />
+      <div ref={chartContainerRef} className="w-full flex-1 min-h-0" />
       {hasOscillator && (
-        <div className="border-t border-border relative" style={{ height: oscHeight }}>
+        <div className="border-t border-border relative h-[140px] shrink-0">
           <div className="absolute top-1 left-2 z-10 flex flex-wrap items-center gap-2 px-1 py-0.5 bg-background/80">
             {computed.filter(c => c.pane === "oscillator").map(c => (
               <div key={c.id} className="flex items-center gap-1">

@@ -152,10 +152,10 @@ export default function IndicatorsPage() {
       case "MA":
         return (
           <>
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-mono text-muted-foreground">MA Type</Label>
+            <div className="d-flex flex-column gap-2">
+              <Label className="text-xs uppercase font-mono text-secondary">MA Type</Label>
               <Select value={maSub} onValueChange={(v: any) => setMaSub(v)}>
-                <SelectTrigger className="rounded-none h-10 font-mono"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="rounded-none font-mono"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-none">
                   <SelectItem value="SMA">Simple (SMA)</SelectItem>
                   <SelectItem value="EMA">Exponential (EMA)</SelectItem>
@@ -164,8 +164,8 @@ export default function IndicatorsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-mono text-muted-foreground">Period</Label>
+            <div className="d-flex flex-column gap-2">
+              <Label className="text-xs uppercase font-mono text-secondary">Period</Label>
               <Input type="number" value={maPeriod} onChange={e => setMaPeriod(e.target.value)} className="rounded-none font-mono" />
             </div>
           </>
@@ -173,62 +173,62 @@ export default function IndicatorsPage() {
       case "BB":
         return (
           <>
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Period</Label>
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Period</Label>
               <Input type="number" value={bbPeriod} onChange={e => setBbPeriod(e.target.value)} className="rounded-none font-mono" /></div>
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Std Deviations</Label>
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Std Deviations</Label>
               <Input type="number" step="0.1" value={bbDev} onChange={e => setBbDev(e.target.value)} className="rounded-none font-mono" /></div>
           </>
         );
       case "RSI":
         return (
           <>
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Period</Label>
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Period</Label>
               <Input type="number" value={rsiPeriod} onChange={e => setRsiPeriod(e.target.value)} className="rounded-none font-mono" /></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Overbought</Label>
+            <div className="row g-2">
+              <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Overbought</Label>
                 <Input type="number" value={rsiOverbought} onChange={e => setRsiOverbought(e.target.value)} className="rounded-none font-mono" /></div>
-              <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Oversold</Label>
+              <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Oversold</Label>
                 <Input type="number" value={rsiOversold} onChange={e => setRsiOversold(e.target.value)} className="rounded-none font-mono" /></div>
             </div>
           </>
         );
       case "MACD":
         return (
-          <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Fast</Label>
+          <div className="row g-2">
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Fast</Label>
               <Input type="number" value={macdFast} onChange={e => setMacdFast(e.target.value)} className="rounded-none font-mono" /></div>
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Slow</Label>
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Slow</Label>
               <Input type="number" value={macdSlow} onChange={e => setMacdSlow(e.target.value)} className="rounded-none font-mono" /></div>
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Signal</Label>
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Signal</Label>
               <Input type="number" value={macdSignal} onChange={e => setMacdSignal(e.target.value)} className="rounded-none font-mono" /></div>
           </div>
         );
       case "STOCH":
         return (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">%K Period</Label>
+          <div className="row g-2">
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">%K Period</Label>
               <Input type="number" value={stochK} onChange={e => setStochK(e.target.value)} className="rounded-none font-mono" /></div>
-            <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">%D Period</Label>
+            <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">%D Period</Label>
               <Input type="number" value={stochD} onChange={e => setStochD(e.target.value)} className="rounded-none font-mono" /></div>
           </div>
         );
       case "CCI":
       case "ATR":
         return (
-          <div className="space-y-2"><Label className="text-xs uppercase font-mono text-muted-foreground">Period</Label>
+          <div className="d-flex flex-column gap-2"><Label className="text-xs uppercase font-mono text-secondary">Period</Label>
             <Input type="number" value={oscPeriod} onChange={e => setOscPeriod(e.target.value)} className="rounded-none font-mono" /></div>
         );
       case "CUSTOM":
         return (
-          <div className="space-y-2">
-            <Label className="text-xs uppercase font-mono text-muted-foreground">Formula / Code</Label>
+          <div className="d-flex flex-column gap-2">
+            <Label className="text-xs uppercase font-mono text-secondary">Formula / Code</Label>
             <Textarea
               value={customCode}
               onChange={e => setCustomCode(e.target.value)}
               placeholder="e.g. (close - sma(close, 20)) / stddev(close, 20)"
-              className="rounded-none font-mono text-xs h-24"
+              className="rounded-none font-mono text-xs"
             />
-            <p className="text-[10px] font-mono text-muted-foreground">Stored for reference; rendering of custom formulas is not yet computed on chart.</p>
+            <p className=" font-mono text-secondary">Stored for reference; rendering of custom formulas is not yet computed on chart.</p>
           </div>
         );
     }
@@ -238,38 +238,40 @@ export default function IndicatorsPage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden p-6 gap-6 max-w-6xl mx-auto">
-        <div className="flex justify-between items-center shrink-0">
+      <div className="d-flex flex-column overflow-hidden p-4 gap-4 mx-auto" style={{ height: 'calc(100vh - 3.5rem)', maxWidth: '1200px' }}>
+        <div className="d-flex justify-content-between align-items-center flex-shrink-0">
           <div>
-            <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">Indicator Library</h1>
-            <p className="text-xs font-mono text-muted-foreground mt-1">Saved indicators auto-render on the chart page.</p>
+            <h1 className="h4 fw-bold font-mono text-uppercase tracking-tight">Indicator Library</h1>
+            <p className="small font-mono text-secondary mt-1">Saved indicators auto-render on the chart page.</p>
           </div>
-          <Button className="rounded-none font-bold uppercase tracking-wider font-mono" onClick={() => setShowForm(!showForm)} data-testid="button-new-indicator">
+          <Button className="fw-bold text-uppercase letter-spacing-wider font-mono" onClick={() => setShowForm(!showForm)} data-testid="button-new-indicator">
             {showForm ? "Cancel" : "Add Indicator"}
           </Button>
         </div>
 
-        <div className="flex flex-1 min-h-0 gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto content-start">
+        <div className="d-flex flex-1 gap-4" style={{ minHeight: 0 }}>
+          <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 flex-1 overflow-y-auto align-content-start mb-0">
             {isLoading ? (
-              <div className="col-span-full p-8 text-center text-muted-foreground font-mono uppercase">Loading...</div>
-            ) : indicators?.length === 0 ? (
-              <div className="col-span-full p-8 text-center text-muted-foreground font-mono uppercase">No indicators. Click Add Indicator to start.</div>
+              <div className="col-12 p-4 text-center text-secondary font-mono text-uppercase">Loading...</div>
+            ) : !Array.isArray(indicators) || indicators.length === 0 ? (
+              <div className="col-12 p-4 text-center text-secondary font-mono text-uppercase">No indicators. Click Add Indicator to start.</div>
             ) : (
-              indicators?.map(ind => {
+              indicators.map(ind => {
                 let parsed: any = {};
                 try { parsed = JSON.parse(ind.parameters || "{}"); } catch {}
                 return (
-                  <div key={ind.id} className="border border-border bg-card p-5 flex flex-col h-48 hover:border-primary/50 transition-colors relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-2 h-full opacity-50" style={{ backgroundColor: parsed.color || "transparent" }} />
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold font-mono uppercase text-primary text-lg truncate">{ind.name}</h3>
-                      <span className="text-[9px] font-mono uppercase text-muted-foreground border border-border px-1.5 py-0.5">{parsed.type || ind.code}</span>
-                    </div>
-                    <p className="text-xs font-mono text-muted-foreground mb-4 line-clamp-2 flex-1">{ind.description || "No description."}</p>
-                    <div className="mt-auto">
-                      <p className="text-[10px] text-muted-foreground font-mono uppercase mb-1">Config</p>
-                      <code className="text-[10px] text-foreground bg-muted/30 px-2 py-1 block truncate border border-border">{ind.parameters || "{}"}</code>
+                  <div key={ind.id} className="col">
+                    <div className="card p-4 d-flex flex-column position-relative overflow-hidden0" style={{ minHeight: '12rem', transition: 'border-color 0.2s' }}>
+                      <div className="position-absolute top-0 end-00 opacity-50" style={{ width: '0.5rem', backgroundColor: parsed.color || 'transparent' }} />
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <h3 className="fw-bold font-mono text-uppercase text-success text-truncate mb-0" style={{ fontSize: '1.1rem' }}>{ind.name}</h3>
+                        <span className="font-mono text-uppercase text-secondary border px-2 py-1 badge" style={{ fontSize: '0.5625rem' }}>{parsed.type || ind.code}</span>
+                      </div>
+                      <p className="small font-mono text-secondary mb-3 flex-1" style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{ind.description || "No description."}</p>
+                      <div className="mt-auto">
+                        <p className="font-mono text-secondary text-uppercase mb-1" style={{ fontSize: '0.625rem' }}>Config</p>
+                        <code className="font-mono px-2 py-1 d-block text-truncate border" style={{ fontSize: '0.625rem', backgroundColor: 'rgba(30,41,59,0.3)' }}>{ind.parameters || "{}"}</code>
+                      </div>
                     </div>
                   </div>
                 );
@@ -278,21 +280,21 @@ export default function IndicatorsPage() {
           </div>
 
           {showForm && (
-            <div className="w-full md:w-[400px] border border-border bg-card shrink-0 flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-border bg-muted/20 shrink-0">
-                <h2 className="text-sm font-bold font-mono uppercase text-foreground">Indicator Builder</h2>
+            <div className="border d-flex flex-column flex-shrink-0 overflow-hidden" style={{ width: '400px', backgroundColor: 'var(--bs-card-bg)' }}>
+              <div className="p-3 border-bottom flex-shrink-0" style={{ backgroundColor: 'rgba(30,41,59,0.2)' }}>
+                <h2 className="small fw-bold font-mono text-uppercase mb-0">Indicator Builder</h2>
               </div>
-              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5">
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Indicator Type</Label>
+              <form onSubmit={handleSubmit} className="p-4 overflow-y-auto d-flex flex-column gap-4">
+                <div className="d-flex flex-column gap-2">
+                  <Label className="text-uppercase font-mono text-secondary letter-spacing-wider" style={{ fontSize: '0.75rem' }}>Indicator Type</Label>
                   <Select value={kind} onValueChange={(v: any) => setKind(v)}>
-                    <SelectTrigger className="rounded-none h-10 font-mono text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-none">
+                    <SelectTrigger className="font-mono" style={{ fontSize: '0.8125rem' }}><SelectValue /></SelectTrigger>
+                    <SelectContent>
                       {groups.map(g => (
                         <div key={g}>
-                          <div className="text-[10px] font-mono uppercase text-muted-foreground px-2 py-1 bg-muted/30">{g}</div>
+                          <div className="font-mono text-uppercase text-secondary px-2 py-1" style={{ fontSize: '0.625rem', backgroundColor: 'rgba(30,41,59,0.3)' }}>{g}</div>
                           {KINDS.filter(k => k.group === g).map(k => (
-                            <SelectItem key={k.value} value={k.value} className="font-mono text-xs">{k.label}</SelectItem>
+                            <SelectItem key={k.value} value={k.value} className="font-mono small">{k.label}</SelectItem>
                           ))}
                         </div>
                       ))}
@@ -302,18 +304,18 @@ export default function IndicatorsPage() {
 
                 {renderParamsForm()}
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground">Color</Label>
-                    <div className="flex gap-1">
-                      <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="rounded-none h-10 w-14 p-1 cursor-pointer" />
+                <div className="row g-2">
+                  <div className="d-flex flex-column gap-2">
+                    <Label className="text-xs uppercase font-mono text-secondary">Color</Label>
+                    <div className="d-flex gap-1">
+                      <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="rounded-none p-1 cursor-pointer" />
                       <Input value={color} onChange={e => setColor(e.target.value)} className="rounded-none font-mono flex-1" />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground">Thickness</Label>
+                  <div className="d-flex flex-column gap-2">
+                    <Label className="text-xs uppercase font-mono text-secondary">Thickness</Label>
                     <Select value={thickness} onValueChange={setThickness}>
-                      <SelectTrigger className="rounded-none h-10 font-mono"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="rounded-none font-mono"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-none">
                         <SelectItem value="1">1px</SelectItem>
                         <SelectItem value="2">2px</SelectItem>
@@ -323,13 +325,13 @@ export default function IndicatorsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Description (Optional)</Label>
+                <div className="d-flex flex-column gap-2">
+                  <Label className="text-xs uppercase font-mono text-secondary">Description (Optional)</Label>
                   <Input value={description} onChange={e => setDescription(e.target.value)} className="rounded-none font-mono" />
                 </div>
 
-                <div className="pt-4 border-t border-border">
-                  <Button type="submit" disabled={createIndicator.isPending} className="w-full rounded-none font-bold uppercase font-mono tracking-wider h-10">
+                <div className="pt-3 border-top">
+                  <Button type="submit" disabled={createIndicator.isPending} className="w-100 fw-bold text-uppercase font-mono tracking-wider">
                     {createIndicator.isPending ? "Saving..." : "Save Indicator"}
                   </Button>
                 </div>

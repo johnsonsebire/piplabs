@@ -199,10 +199,10 @@ export default function TradeDetailPage() {
               <div className="p-4 space-y-2">
                 {isLogsLoading ? (
                   <Skeleton className="h-10 w-full bg-muted rounded-none" />
-                ) : logs?.length === 0 ? (
+                ) : !Array.isArray(logs) || logs.length === 0 ? (
                   <p className="text-muted-foreground font-mono text-sm">No logs found.</p>
                 ) : (
-                  logs?.map(log => (
+                  logs.map(log => (
                     <div key={log.id} className="flex gap-4 text-sm font-mono border-b border-border pb-2 last:border-0">
                       <span className="text-muted-foreground w-40 shrink-0">{format(new Date(log.createdAt), "yyyy-MM-dd HH:mm:ss")}</span>
                       <span className={`w-20 shrink-0 uppercase ${log.level === 'error' ? 'text-destructive' : log.level === 'success' ? 'text-primary' : 'text-foreground'}`}>{log.level}</span>
@@ -217,10 +217,10 @@ export default function TradeDetailPage() {
               <div className="flex-1 overflow-auto p-4 space-y-4">
                 {isCommentsLoading ? (
                   <Skeleton className="h-16 w-full bg-muted rounded-none" />
-                ) : comments?.length === 0 ? (
+                ) : !Array.isArray(comments) || comments.length === 0 ? (
                   <p className="text-muted-foreground font-mono text-sm">No comments yet.</p>
                 ) : (
-                  comments?.map(comment => (
+                  comments.map(comment => (
                     <div key={comment.id} className="bg-muted/10 p-3 border border-border">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-bold text-xs font-mono uppercase text-primary">{comment.userDisplayName || 'User'}</span>

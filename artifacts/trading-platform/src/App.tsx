@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
-import { publishableKeyFromHost } from '@clerk/react/internal';
 import { dark } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -29,11 +28,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "pk_test_dummy_key";
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
@@ -67,37 +62,37 @@ const clerkAppearance = {
     borderRadius: "0rem",
   },
   elements: {
-    rootBox: "w-full flex justify-center",
-    cardBox: "bg-card rounded-none border border-border w-[440px] max-w-full overflow-hidden shadow-xl",
-    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    footer: "!shadow-none !border-0 !bg-transparent !rounded-none border-t border-border",
-    headerTitle: "text-2xl font-bold tracking-tight text-foreground",
-    headerSubtitle: "text-sm text-muted-foreground",
-    socialButtonsBlockButtonText: "text-foreground font-medium",
-    formFieldLabel: "text-sm font-medium text-foreground",
-    footerActionLink: "text-primary hover:text-primary/90 font-medium",
-    footerActionText: "text-muted-foreground",
-    dividerText: "text-muted-foreground text-xs uppercase tracking-wider",
-    identityPreviewEditButton: "text-primary hover:text-primary/90",
-    formFieldSuccessText: "text-primary",
-    alertText: "text-sm text-foreground",
-    logoBox: "h-12 flex items-center justify-center",
-    logoImage: "h-8 w-auto",
-    socialButtonsBlockButton: "border-border hover:bg-muted/50 transition-colors",
-    formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90 font-semibold h-10",
-    formFieldInput: "bg-input border-border text-foreground h-10 px-3 flex items-center w-full",
-    footerAction: "bg-muted/30 py-4",
-    dividerLine: "bg-border",
-    alert: "bg-muted border-border",
-    otpCodeFieldInput: "bg-input border-border text-foreground",
-    formFieldRow: "mb-4",
-    main: "p-6",
+    rootBox: "w-100 d-flex justify-content-center",
+    cardBox: "card border overflow-hidden shadow",
+    card: "border-0 bg-transparent shadow-none",
+    footer: "border-0 bg-transparent shadow-none border-top",
+    headerTitle: "h4 fw-bold",
+    headerSubtitle: "small text-secondary",
+    socialButtonsBlockButtonText: "fw-medium",
+    formFieldLabel: "small fw-medium",
+    footerActionLink: "text-success fw-medium",
+    footerActionText: "text-secondary",
+    dividerText: "text-secondary text-uppercase letter-spacing-wider",
+    identityPreviewEditButton: "text-success",
+    formFieldSuccessText: "text-success",
+    alertText: "small",
+    logoBox: "d-flex align-items-center justify-content-center",
+    logoImage: "",
+    socialButtonsBlockButton: "",
+    formButtonPrimary: "btn btn-primary fw-semibold",
+    formFieldInput: "form-control",
+    footerAction: "py-3",
+    dividerLine: "",
+    alert: "",
+    otpCodeFieldInput: "form-control",
+    formFieldRow: "mb-3",
+    main: "p-4",
   },
 };
 
 function SignInPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
+    <div className="d-flex min-vh-100 align-items-center justify-content-center px-3 py-5" data-bs-theme="dark" style={{ backgroundColor: 'var(--bs-body-bg)' }}>
       <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
     </div>
   );
@@ -105,7 +100,7 @@ function SignInPage() {
 
 function SignUpPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
+    <div className="d-flex min-vh-100 align-items-center justify-content-center px-3 py-5" data-bs-theme="dark" style={{ backgroundColor: 'var(--bs-body-bg)' }}>
       <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
     </div>
   );
@@ -165,7 +160,6 @@ function ClerkProviderWithRoutes() {
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
