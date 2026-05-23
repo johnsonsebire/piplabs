@@ -300,12 +300,26 @@ body {
   border-color: #1a2332 !important;
   color: #e2e8f0 !important;
   border-radius: 0 !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: #1a2332 #0a0d11;
 }
 
-[data-radix-select-content] [data-highlighted] {
-  background-color: rgba(16, 185, 129, 0.12) !important;
-  color: #10b981 !important;
-  outline: none !important;
+[data-radix-select-content]::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-radix-select-content]::-webkit-scrollbar-track {
+  background: #0a0d11;
+}
+
+[data-radix-select-content]::-webkit-scrollbar-thumb {
+  background: #1a2332;
+}
+
+[data-radix-select-content]::-webkit-scrollbar-thumb:hover {
+  background: #2a3a4e;
 }
 
 /* ============================
