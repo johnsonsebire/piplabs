@@ -49,8 +49,8 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     const chart = createChart(chartContainerRef.current, {
       layout: { background: { color: "#0a0f0d" }, textColor: "#00ff88" },
       grid: { vertLines: { color: "#1a2a1a" }, horzLines: { color: "#1a2a1a" } },
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
+      width: chartContainerRef.current.clientWidth || 600,
+      height: chartContainerRef.current.clientHeight || 400,
       timeScale: { timeVisible: true, secondsVisible: false },
     });
 
@@ -65,15 +65,19 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     setMainReady(v => v + 1);
 
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({ 
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ 
           width: chartContainerRef.current.clientWidth,
           height: chartContainerRef.current.clientHeight
         });
       }
     };
+    
     const ro = new ResizeObserver(handleResize);
     ro.observe(chartContainerRef.current);
+
+    // Initial resize to catch any immediate layout shifts
+    setTimeout(handleResize, 50);
 
     return () => {
       ro.disconnect();
@@ -99,8 +103,8 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     const chart = createChart(oscContainerRef.current, {
       layout: { background: { color: "#0a0f0d" }, textColor: "#888" },
       grid: { vertLines: { color: "#1a2a1a" }, horzLines: { color: "#1a2a1a" } },
-      width: oscContainerRef.current.clientWidth,
-      height: oscContainerRef.current.clientHeight,
+      width: oscContainerRef.current.clientWidth || 600,
+      height: oscContainerRef.current.clientHeight || 140,
       timeScale: { timeVisible: true, secondsVisible: false },
       rightPriceScale: { borderColor: "#1a2a1a" },
     });
@@ -108,8 +112,8 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     setOscReady(v => v + 1);
 
     const handleResize = () => {
-      if (oscContainerRef.current) {
-        chart.applyOptions({ 
+      if (oscContainerRef.current && oscChartRef.current) {
+        oscChartRef.current.applyOptions({ 
           width: oscContainerRef.current.clientWidth,
           height: oscContainerRef.current.clientHeight
         });
@@ -117,6 +121,8 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     };
     const ro = new ResizeObserver(handleResize);
     ro.observe(oscContainerRef.current);
+
+    setTimeout(handleResize, 50);
 
     return () => {
       ro.disconnect();
@@ -150,7 +156,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     };
   }, [mainReady, oscReady]);
 
-  // Render candles (also re-applies after chart recreation via mainReady)
+  // Render candles
   useEffect(() => {
     if (seriesRef.current && candles.length > 0) {
       const unique = Array.from(new Map(candles.map(c => [c.time, c])).values()).sort((a, b) => a.time - b.time);
@@ -228,7 +234,6 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       line.setData(c.data as any);
 
       if (c.guides) {
-        // Use full candle time range for guides so they span the entire visible pane
         const fullTimes = candles.length > 0
           ? Array.from(new Map(candles.map(cd => [cd.time, cd])).values())
               .sort((a, b) => a.time - b.time)
@@ -269,7 +274,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   }, [computed, oscReady, candles]);
 
   return (
-    <div className="relative w-full h-full flex flex-col">
+    <div className="relative w-full h-full flex flex-col overflow-hidden">
       {!isConnected && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="text-primary font-mono text-xl animate-pulse uppercase tracking-widest">
@@ -279,7 +284,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       )}
       <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-2 max-w-[calc(100%-80px)]">
         <div className="flex items-center gap-2 px-2 py-1 bg-background/80 border border-border">
-          <div className={`h-2 w-2 ${isConnected ? "bg-primary animate-pulse" : "bg-muted-foreground"}`} />
+          <div className={`h-2 w-2 ${isConnected ? "bg-primary animate-pulse" : "bg-destructive"}`} />
           <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
             {isConnected ? "LIVE • DERIV WS" : "DISCONNECTED"}
           </span>
