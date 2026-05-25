@@ -15,6 +15,7 @@ import TradeDetailPage from "@/pages/trades/[id]";
 import StrategiesPage from "@/pages/strategies";
 import IndicatorsPage from "@/pages/indicators";
 import BacktestPage from "@/pages/backtest";
+import TradeChartPage from "@/pages/trade-chart";
 import NewsPage from "@/pages/news";
 import SettingsPage from "@/pages/settings";
 import AutoTradePage from "@/pages/autotrade";
@@ -211,6 +212,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/backtest">
               <ProtectedRoute component={BacktestPage} />
+            </Route>
+            <Route path="/backtest/chart">
+              <ProtectedRoute component={TradeChartPage} />
             </Route>
             <Route path="/news">
               <ProtectedRoute component={NewsPage} />

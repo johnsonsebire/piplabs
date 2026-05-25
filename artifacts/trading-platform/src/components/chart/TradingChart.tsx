@@ -16,16 +16,163 @@ interface TradingChartProps {
   granularitySec?: number;
 }
 
+// Separate oscillator panel component
+interface OscillatorPanelProps {
+  oscillator: IndicatorSeries;
+  validCandles: any[];
+  mainChart: IChartApi | null;
+  isFirst: boolean;
+}
+
+function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: OscillatorPanelProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const linesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+
+  // Create chart instance
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const chart = createChart(containerRef.current, {
+      layout: { background: { color: "#0a0f0d" }, textColor: "#888" },
+      grid: { vertLines: { color: "#1a2a1a" }, horzLines: { color: "#1a2a1a" } },
+      width: containerRef.current.clientWidth || 600,
+      height: 120,
+      timeScale: { timeVisible: !isFirst, secondsVisible: false },
+      rightPriceScale: { borderColor: "#1a2a1a" },
+    });
+
+    chartRef.current = chart;
+
+    const handleResize = () => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight
+        });
+      }
+    };
+
+    const ro = new ResizeObserver(handleResize);
+    ro.observe(containerRef.current);
+
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+      linesRef.current.clear();
+    };
+  }, [isFirst]);
+
+  // Sync with main chart
+  useEffect(() => {
+    const main = mainChart;
+    const osc = chartRef.current;
+    if (!main || !osc) return;
+
+    let syncing = false;
+    const onMain = (r: any) => {
+      if (syncing || !r) return;
+      syncing = true;
+      try { osc.timeScale().setVisibleLogicalRange(r); } finally { syncing = false; }
+    };
+    const onOsc = (r: any) => {
+      if (syncing || !r) return;
+      syncing = true;
+      try { main.timeScale().setVisibleLogicalRange(r); } finally { syncing = false; }
+    };
+
+    main.timeScale().subscribeVisibleLogicalRangeChange(onMain);
+    osc.timeScale().subscribeVisibleLogicalRangeChange(onOsc);
+
+    return () => {
+      main.timeScale().unsubscribeVisibleLogicalRangeChange(onMain);
+      osc.timeScale().unsubscribeVisibleLogicalRangeChange(onOsc);
+    };
+  }, [mainChart]);
+
+  // Render oscillator data
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    try {
+      // Main line
+      let line = linesRef.current.get(oscillator.id);
+      if (!line) {
+        line = chart.addLineSeries({ 
+          color: oscillator.color, 
+          lineWidth: oscillator.thickness as any, 
+          priceLineVisible: false, 
+          lastValueVisible: true 
+        });
+        linesRef.current.set(oscillator.id, line);
+      }
+      line.setData(oscillator.data as any);
+
+      // Guides (horizontal lines)
+      if (oscillator.guides) {
+        const fullTimes = validCandles.length > 0 ? validCandles.map(cd => cd.time) : oscillator.data.map(p => p.time);
+        for (let i = 0; i < oscillator.guides.length; i++) {
+          const key = `${oscillator.id}::guide${i}`;
+          const g = oscillator.guides[i];
+          let gl = linesRef.current.get(key);
+          if (!gl) {
+            gl = chart.addLineSeries({ 
+              color: g.color, 
+              lineWidth: 1, 
+              lineStyle: LineStyle.Dotted, 
+              priceLineVisible: false, 
+              lastValueVisible: false 
+            });
+            linesRef.current.set(key, gl);
+          }
+          if (fullTimes.length > 0) {
+            gl.setData(fullTimes.map(t => ({ time: t, value: g.value })) as any);
+          }
+        }
+      }
+
+      // Additional series
+      if (oscillator.additionalSeries) {
+        for (let i = 0; i < oscillator.additionalSeries.length; i++) {
+          const key = `${oscillator.id}::aux${i}`;
+          const aux = oscillator.additionalSeries[i];
+          let ls = linesRef.current.get(key);
+          if (!ls) {
+            ls = chart.addLineSeries({ 
+              color: aux.color, 
+              lineWidth: (aux.thickness ?? 1) as any, 
+              priceLineVisible: false, 
+              lastValueVisible: false 
+            });
+            linesRef.current.set(key, ls);
+          }
+          ls.setData(aux.data as any);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to render oscillator:', err);
+    }
+  }, [oscillator, validCandles]);
+
+  return (
+    <div style={{ borderTop: '1px solid #1a2332', position: 'relative', flexShrink: 0, height: '120px' }}>
+      <div style={{ position: 'absolute', top: '4px', left: '8px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 4px', backgroundColor: 'rgba(10, 13, 17, 0.8)' }}>
+        <div style={{ height: '2px', width: '12px', background: oscillator.color }} />
+        <span style={{ fontSize: '9px', fontFamily: 'Space Mono, monospace', textTransform: 'uppercase', color: '#94a3b8' }}>{oscillator.name}</span>
+      </div>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+    </div>
+  );
+}
+
 export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const oscContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const oscChartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const overlayLinesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
-  const oscLinesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const [mainReady, setMainReady] = useState(0);
-  const [oscReady, setOscReady] = useState(0);
 
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
@@ -34,26 +181,40 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     if (!Array.isArray(candles) || candles.length === 0) return [];
     
     const cleaned = candles
+      .filter(c => {
+        // First pass: ensure object and all required properties exist and are not null/undefined
+        if (!c || c.time == null || c.open == null || c.high == null || c.low == null || c.close == null) {
+          return false;
+        }
+        return true;
+      })
       .map(c => ({
-        time: Number(c?.time),
-        open: Number(c?.open),
-        high: Number(c?.high),
-        low: Number(c?.low),
-        close: Number(c?.close),
+        time: Number(c.time),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
       }))
-      .filter(c => 
-        c && 
-        Number.isFinite(c.time) && 
-        Number.isFinite(c.open) && 
-        Number.isFinite(c.high) && 
-        Number.isFinite(c.low) && 
-        Number.isFinite(c.close) &&
-        c.high >= c.low &&
-        c.high >= c.open &&
-        c.high >= c.close &&
-        c.low <= c.open &&
-        c.low <= c.close
-      )
+      .filter(c => {
+        // Second pass: validate numeric values
+        if (!Number.isFinite(c.time) || 
+            !Number.isFinite(c.open) || 
+            !Number.isFinite(c.high) || 
+            !Number.isFinite(c.low) || 
+            !Number.isFinite(c.close)) {
+          return false;
+        }
+        
+        // Time must be positive
+        if (c.time <= 0) return false;
+        
+        // Validate OHLC relationships (high must be highest, low must be lowest)
+        if (c.high < c.low) return false;
+        if (c.high < c.open || c.high < c.close) return false;
+        if (c.low > c.open || c.low > c.close) return false;
+        
+        return true;
+      })
       .sort((a, b) => a.time - b.time);
 
     if (cleaned.length === 0) return [];
@@ -81,6 +242,8 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   }, [indicators, validCandles]);
 
   const hasOscillator = computed.some(c => c.pane === "oscillator");
+  const oscillatorCount = computed.filter(c => c.pane === "oscillator").length;
+  const oscillatorHeight = Math.max(140, oscillatorCount * 120); // 120px per oscillator, minimum 140px
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -124,88 +287,55 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     };
   }, []);
 
-  useEffect(() => {
-    if (!hasOscillator) {
-      if (oscChartRef.current) {
-        oscChartRef.current.remove();
-        oscChartRef.current = null;
-        oscLinesRef.current.clear();
-      }
-      return;
-    }
-    if (!oscContainerRef.current || oscChartRef.current) return;
-
-    const chart = createChart(oscContainerRef.current, {
-      layout: { background: { color: "#0a0f0d" }, textColor: "#888" },
-      grid: { vertLines: { color: "#1a2a1a" }, horzLines: { color: "#1a2a1a" } },
-      width: oscContainerRef.current.clientWidth || 600,
-      height: oscContainerRef.current.clientHeight || 140,
-      timeScale: { timeVisible: true, secondsVisible: false },
-      rightPriceScale: { borderColor: "#1a2a1a" },
-    });
-    oscChartRef.current = chart;
-    setOscReady(v => v + 1);
-
-    const handleResize = () => {
-      if (oscContainerRef.current && oscChartRef.current) {
-        oscChartRef.current.applyOptions({ 
-          width: oscContainerRef.current.clientWidth,
-          height: oscContainerRef.current.clientHeight
-        });
-      }
-    };
-    const ro = new ResizeObserver(handleResize);
-    ro.observe(oscContainerRef.current);
-
-    return () => {
-      ro.disconnect();
-      chart.remove();
-      oscChartRef.current = null;
-      oscLinesRef.current.clear();
-    };
-  }, [hasOscillator]);
-
-  // Sync time-scales
-  useEffect(() => {
-    const main = chartRef.current;
-    const osc = oscChartRef.current;
-    if (!main || !osc) return;
-    let syncing = false;
-    const onMain = (r: any) => {
-      if (syncing || !r) return;
-      syncing = true;
-      try { osc.timeScale().setVisibleLogicalRange(r); } finally { syncing = false; }
-    };
-    const onOsc = (r: any) => {
-      if (syncing || !r) return;
-      syncing = true;
-      try { main.timeScale().setVisibleLogicalRange(r); } finally { syncing = false; }
-    };
-    main.timeScale().subscribeVisibleLogicalRangeChange(onMain);
-    osc.timeScale().subscribeVisibleLogicalRangeChange(onOsc);
-    return () => {
-      main.timeScale().unsubscribeVisibleLogicalRangeChange(onMain);
-      osc.timeScale().unsubscribeVisibleLogicalRangeChange(onOsc);
-    };
-  }, [mainReady, oscReady]);
 
   // Render candles - Always call setData (even with empty array) to clear the chart and prevent crashes
   useEffect(() => {
-    if (seriesRef.current) {
-      seriesRef.current.setData(validCandles as any);
+    if (seriesRef.current && chartRef.current) {
+      try {
+        // Final validation: ensure no null values in the array before passing to chart
+        const safeCandles = validCandles.filter(c => 
+          c && 
+          c.time != null && 
+          c.open != null && 
+          c.high != null && 
+          c.low != null && 
+          c.close != null &&
+          Number.isFinite(c.time) &&
+          Number.isFinite(c.open) &&
+          Number.isFinite(c.high) &&
+          Number.isFinite(c.low) &&
+          Number.isFinite(c.close)
+        );
+        seriesRef.current.setData(safeCandles as any);
+      } catch (err) {
+        console.warn('Failed to set candle data:', err);
+      }
     }
   }, [validCandles, mainReady]);
 
   // Live tick update with strict mathematical validation
   useEffect(() => {
-    if (seriesRef.current && latestTick && validCandles.length > 0) {
-      const last = validCandles[validCandles.length - 1];
-      const quote = Number(latestTick.quote);
-      if (Number.isFinite(quote)) {
+    if (seriesRef.current && chartRef.current && latestTick && validCandles.length > 0) {
+      try {
+        const last = validCandles[validCandles.length - 1];
+        if (!last || last.open == null || last.high == null || last.low == null || last.close == null || last.time == null) {
+          return;
+        }
+        
+        const quote = Number(latestTick.quote);
+        if (!Number.isFinite(quote) || quote <= 0) {
+          return;
+        }
+        
         const open = Number(last.open);
         const high = Math.max(Number(last.high), quote);
         const low = Math.min(Number(last.low), quote);
         const close = quote;
+        
+        // Ensure all values are valid numbers
+        if (!Number.isFinite(open) || !Number.isFinite(high) || !Number.isFinite(low) || !Number.isFinite(close)) {
+          return;
+        }
         
         if (high >= low && high >= open && high >= close && low <= open && low <= close) {
           seriesRef.current.update({
@@ -216,6 +346,8 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
             close,
           });
         }
+      } catch (err) {
+        console.warn('Failed to update tick:', err);
       }
     }
   }, [latestTick, validCandles]);
@@ -225,91 +357,42 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     const chart = chartRef.current;
     if (!chart) return;
 
-    const wanted = new Set<string>();
-    for (const c of computed) {
-      if (c.pane !== "overlay") continue;
-      wanted.add(c.id);
-      let line = overlayLinesRef.current.get(c.id);
-      if (!line) {
-        line = chart.addLineSeries({ color: c.color, lineWidth: c.thickness as any, priceLineVisible: false, lastValueVisible: false });
-        overlayLinesRef.current.set(c.id, line);
-      } else {
-        line.applyOptions({ color: c.color, lineWidth: c.thickness as any });
-      }
-      line.setData(c.data as any);
+    try {
+      const wanted = new Set<string>();
+      for (const c of computed) {
+        if (c.pane !== "overlay") continue;
+        wanted.add(c.id);
+        let line = overlayLinesRef.current.get(c.id);
+        if (!line) {
+          line = chart.addLineSeries({ color: c.color, lineWidth: c.thickness as any, priceLineVisible: false, lastValueVisible: false });
+          overlayLinesRef.current.set(c.id, line);
+        } else {
+          line.applyOptions({ color: c.color, lineWidth: c.thickness as any });
+        }
+        line.setData(c.data as any);
 
-      if (c.additionalSeries) {
-        for (let i = 0; i < c.additionalSeries.length; i++) {
-          const key = `${c.id}::aux${i}`;
-          wanted.add(key);
-          const aux = c.additionalSeries[i];
-          let ls = overlayLinesRef.current.get(key);
-          if (!ls) {
-            ls = chart.addLineSeries({ color: aux.color, lineWidth: (aux.thickness ?? 1) as any, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
-            overlayLinesRef.current.set(key, ls);
+        if (c.additionalSeries) {
+          for (let i = 0; i < c.additionalSeries.length; i++) {
+            const key = `${c.id}::aux${i}`;
+            wanted.add(key);
+            const aux = c.additionalSeries[i];
+            let ls = overlayLinesRef.current.get(key);
+            if (!ls) {
+              ls = chart.addLineSeries({ color: aux.color, lineWidth: (aux.thickness ?? 1) as any, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
+              overlayLinesRef.current.set(key, ls);
+            }
+            ls.setData(aux.data as any);
           }
-          ls.setData(aux.data as any);
         }
       }
-    }
-    for (const [id, line] of overlayLinesRef.current.entries()) {
-      if (!wanted.has(id)) { chart.removeSeries(line); overlayLinesRef.current.delete(id); }
+      for (const [id, line] of overlayLinesRef.current.entries()) {
+        if (!wanted.has(id)) { chart.removeSeries(line); overlayLinesRef.current.delete(id); }
+      }
+    } catch (err) {
+      console.warn('Failed to render overlay indicators:', err);
     }
   }, [computed, mainReady]);
 
-  // Render oscillator indicators
-  useEffect(() => {
-    const chart = oscChartRef.current;
-    if (!chart) return;
-
-    const wanted = new Set<string>();
-    for (const c of computed) {
-      if (c.pane !== "oscillator") continue;
-      wanted.add(c.id);
-      let line = oscLinesRef.current.get(c.id);
-      if (!line) {
-        line = chart.addLineSeries({ color: c.color, lineWidth: c.thickness as any, priceLineVisible: false, lastValueVisible: true });
-        oscLinesRef.set(c.id, line);
-      } else {
-        line.applyOptions({ color: c.color, lineWidth: c.thickness as any });
-      }
-      line.setData(c.data as any);
-
-      if (c.guides) {
-        const fullTimes = validCandles.length > 0 ? validCandles.map(cd => cd.time) : c.data.map(p => p.time);
-        for (let i = 0; i < c.guides.length; i++) {
-          const key = `${c.id}::guide${i}`;
-          wanted.add(key);
-          const g = c.guides[i];
-          let gl = oscLinesRef.current.get(key);
-          if (!gl) {
-            gl = chart.addLineSeries({ color: g.color, lineWidth: 1, lineStyle: LineStyle.Dotted, priceLineVisible: false, lastValueVisible: false });
-            oscLinesRef.current.set(key, gl);
-          }
-          if (fullTimes.length > 0) {
-            gl.setData(fullTimes.map(t => ({ time: t, value: g.value })) as any);
-          }
-        }
-      }
-
-      if (c.additionalSeries) {
-        for (let i = 0; i < c.additionalSeries.length; i++) {
-          const key = `${c.id}::aux${i}`;
-          wanted.add(key);
-          const aux = c.additionalSeries[i];
-          let ls = oscLinesRef.current.get(key);
-          if (!ls) {
-            ls = chart.addLineSeries({ color: aux.color, lineWidth: (aux.thickness ?? 1) as any, priceLineVisible: false, lastValueVisible: false });
-            oscLinesRef.current.set(key, ls);
-          }
-          ls.setData(aux.data as any);
-        }
-      }
-    }
-    for (const [id, line] of oscLinesRef.current.entries()) {
-      if (!wanted.has(id)) { chart.removeSeries(line); oscLinesRef.current.delete(id); }
-    }
-  }, [computed, oscReady, validCandles]);
 
   return (
     <div className="relative w-full h-full flex flex-col overflow-hidden">
@@ -335,19 +418,15 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
         ))}
       </div>
       <div ref={chartContainerRef} className="w-full flex-1 min-h-0" />
-      {hasOscillator && (
-        <div className="border-t border-border relative h-[140px] shrink-0">
-          <div className="absolute top-1 left-2 z-10 flex flex-wrap items-center gap-2 px-1 py-0.5 bg-background/80">
-            {computed.filter(c => c.pane === "oscillator").map(c => (
-              <div key={c.id} className="flex items-center gap-1">
-                <div className="h-0.5 w-3" style={{ background: c.color }} />
-                <span className="text-[9px] font-mono uppercase text-muted-foreground">{c.name}</span>
-              </div>
-            ))}
-          </div>
-          <div ref={oscContainerRef} className="w-full h-full" />
-        </div>
-      )}
+      {computed.filter(c => c.pane === "oscillator").map((osc, index) => (
+        <OscillatorPanel
+          key={osc.id}
+          oscillator={osc}
+          validCandles={validCandles}
+          mainChart={chartRef.current}
+          isFirst={index === 0}
+        />
+      ))}
     </div>
   );
 }

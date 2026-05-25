@@ -51,7 +51,21 @@ export default function SettingsPage() {
 
   const handleConnectDeriv = (e: React.FormEvent) => {
     e.preventDefault();
-    connectDeriv.mutate({ data: { apiToken, appId: appId || null, accountId: accountId || null } }, {
+    const trimmedToken = apiToken.trim();
+    const trimmedAppId = appId.trim();
+    if (!trimmedToken) {
+      toast({ variant: "destructive", title: "PAT required", description: "Enter your Personal Access Token." });
+      return;
+    }
+    if (!trimmedAppId) {
+      toast({
+        variant: "destructive",
+        title: "App ID required",
+        description: "Enter the App ID from your PAT-type app at developers.deriv.com (must match the app that issued your PAT).",
+      });
+      return;
+    }
+    connectDeriv.mutate({ data: { apiToken: trimmedToken, appId: trimmedAppId, accountId: accountId.trim() || null } }, {
       onSuccess: () => {
         toast({ title: "API Connected successfully" });
         setApiToken("");
@@ -60,8 +74,9 @@ export default function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: ["/api/deriv/status"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
       },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "Connection failed", description: err?.message });
+      onError: (err: unknown) => {
+        const description = err instanceof Error ? err.message : "Connection failed";
+        toast({ variant: "destructive", title: "Connection failed", description });
       }
     });
   };
@@ -153,15 +168,18 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">App ID (Optional)</Label>
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">App ID (Required)</Label>
                   <Input
                     type="text"
+                    required
                     value={appId}
                     onChange={e => setAppId(e.target.value)}
-                    placeholder="1089"
+                    placeholder="Your PAT app ID"
                     className="rounded-none font-mono border-border bg-background"
                   />
-                  <p className="text-[10px] font-mono text-muted-foreground">Your registered App ID from developers.deriv.com. Falls back to <code>1089</code> if left blank.</p>
+                  <p className="text-[10px] font-mono text-muted-foreground">
+                    Must be the App ID from the same PAT-type app that issued your token. Legacy public App ID <code>1089</code> does not work with API v2.
+                  </p>
                 </div>
 
                 <Button

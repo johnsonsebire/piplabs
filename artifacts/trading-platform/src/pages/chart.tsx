@@ -115,15 +115,16 @@ export default function ChartPage() {
                         <ChevronsUpDown className="ml-1 h-3 w-3 flex-shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[300px] p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start" style={{ backgroundColor: '#0f1318' }}>
+                    <PopoverContent className="p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start" style={{ width: '320px', backgroundColor: '#0f1318', borderRadius: 0, border: '1px solid #1a2332' }}>
                       <Command shouldFilter={false} className="bg-transparent">
                         <CommandInput
                           placeholder="Search symbols..."
-                          className="font-mono text-xs h-10 border-0 focus:ring-0"
+                          className="font-mono text-xs border-0 focus:ring-0"
+                          style={{ height: '40px', fontSize: '0.75rem' }}
                           value={searchQuery}
                           onValueChange={setSearchQuery}
                         />
-                        <CommandList className="max-h-[300px] overflow-y-auto border-t border-border bg-[#0f1318] scrollbar-thin scrollbar-thumb-border">
+                        <CommandList style={{ maxHeight: '400px', overflowY: 'auto', borderTop: '1px solid #1a2332', backgroundColor: '#0f1318' }}>
                           {isSearching && <div className="py-4 text-center text-xs font-mono text-muted-foreground animate-pulse">Searching...</div>}
                           {!isSearching && (!searchResults || searchResults.length === 0) && (
                             <CommandEmpty className="py-4 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>

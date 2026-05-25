@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   useListStrategies,
@@ -11,10 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Download, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Download, FileText, ChevronDown, ChevronRight,
+  TrendingUp, TrendingDown, Activity, DollarSign, Target,
+  BarChart3, LineChart, Settings, Calendar, Wallet, Clock, Layers, Globe
+} from "lucide-react";
 
 type SimTrade = {
   id: number; entryAt: string; exitAt: string; direction: string;
@@ -22,14 +28,51 @@ type SimTrade = {
   stake: number; pnl: number; outcome: "win" | "loss";
 };
 
+type SessionKey = "asian" | "london" | "newyork" | "overlap_london_ny";
+
 type BacktestResults = {
   wins?: number;
   losses?: number;
   tradeType?: string;
   duration?: number;
   durationUnit?: string;
+  granularitySec?: number;
+  sessions?: SessionKey[];
   trades?: SimTrade[];
 };
+
+const SESSIONS: Array<{ value: SessionKey; label: string; short: string; hours: string }> = [
+  { value: "asian",             label: "Asian Session",            short: "ASIA",    hours: "00:00–09:00 UTC" },
+  { value: "london",            label: "London Session",           short: "LDN",     hours: "08:00–17:00 UTC" },
+  { value: "newyork",           label: "New York Session",         short: "NY",      hours: "13:00–22:00 UTC" },
+  { value: "overlap_london_ny", label: "London / NY Overlap",      short: "LDN×NY",  hours: "13:00–17:00 UTC" },
+];
+
+function sessionShort(value: SessionKey): string {
+  return SESSIONS.find(s => s.value === value)?.short ?? value;
+}
+
+// Available timeframes for backtest (in seconds) - aligned with Deriv API granularities
+const TIMEFRAMES: Array<{ value: number; label: string; short: string }> = [
+  { value: 60,    label: "1 Minute",   short: "1M" },
+  { value: 120,   label: "2 Minutes",  short: "2M" },
+  { value: 180,   label: "3 Minutes",  short: "3M" },
+  { value: 300,   label: "5 Minutes",  short: "5M" },
+  { value: 600,   label: "10 Minutes", short: "10M" },
+  { value: 900,   label: "15 Minutes", short: "15M" },
+  { value: 1800,  label: "30 Minutes", short: "30M" },
+  { value: 3600,  label: "1 Hour",     short: "1H" },
+  { value: 7200,  label: "2 Hours",    short: "2H" },
+  { value: 14400, label: "4 Hours",    short: "4H" },
+  { value: 28800, label: "8 Hours",    short: "8H" },
+  { value: 86400, label: "1 Day",      short: "1D" },
+];
+
+function timeframeShort(seconds?: number | null): string {
+  if (!seconds) return "AUTO";
+  const tf = TIMEFRAMES.find(t => t.value === seconds);
+  return tf?.short ?? `${seconds}s`;
+}
 
 function parseResults(raw: string | null | undefined): BacktestResults {
   if (!raw) return {};
@@ -105,6 +148,7 @@ export default function BacktestPage() {
   const { data: strategies } = useListStrategies({});
   const [selectedStrategy, setSelectedStrategy] = useState<string>("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [, setLocation] = useLocation();
 
   const backtestParams = { strategyId: selectedStrategy ? parseInt(selectedStrategy) : undefined };
   const { data: backtests, isLoading: isResultsLoading } = useListBacktests(
@@ -115,6 +159,18 @@ export default function BacktestPage() {
   const runBacktest = useRunBacktest();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Multi-timeframe mode toggle
+  const [multiTimeframeMode, setMultiTimeframeMode] = useState(false);
+  // Single timeframe value (default 5M = 300s)
+  const [selectedTimeframe, setSelectedTimeframe] = useState<number>(300);
+  // Multi-timeframe selection (set of granularity seconds)
+  const [selectedTimeframes, setSelectedTimeframes] = useState<Set<number>>(
+    new Set([60, 300, 900, 3600]) // Default: 1M, 5M, 15M, 1H
+  );
+
+  // Session filter: empty Set => all sessions allowed
+  const [selectedSessions, setSelectedSessions] = useState<Set<SessionKey>>(new Set());
 
   const [formData, setFormData] = useState({
     symbol: "R_100",
@@ -127,288 +183,608 @@ export default function BacktestPage() {
     durationUnit: "m",
   });
 
-  const handleRun = (e: React.FormEvent) => {
+  const handleViewChart = (trade: SimTrade, backtestId: number) => {
+    setLocation(`/backtest/chart?backtestId=${backtestId}&tradeId=${trade.id}`);
+  };
+
+  const toggleTimeframe = (tfValue: number) => {
+    setSelectedTimeframes(prev => {
+      const next = new Set(prev);
+      if (next.has(tfValue)) next.delete(tfValue);
+      else next.add(tfValue);
+      return next;
+    });
+  };
+
+  const toggleSession = (s: SessionKey) => {
+    setSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  };
+
+  const handleRun = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStrategy) {
       toast({ variant: "destructive", title: "Select a strategy first" });
       return;
     }
 
-    runBacktest.mutate({
-      data: {
-        strategyId: parseInt(selectedStrategy),
-        symbol: formData.symbol,
-        fromDate: formData.fromDate,
-        toDate: formData.toDate,
-        initialBalance: parseFloat(formData.initialBalance),
-        stakePerTrade: parseFloat(formData.stakePerTrade),
-        tradeType: formData.tradeType as any,
-        duration: parseInt(formData.duration),
-        durationUnit: formData.durationUnit as any,
-      }
-    }, {
-      onSuccess: () => {
-        toast({ title: "Backtest initiated" });
-        queryClient.invalidateQueries({ queryKey: ["/api/backtests"] });
-      },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "Error", description: err?.message });
-      }
-    });
+    const timeframesToRun = multiTimeframeMode
+      ? Array.from(selectedTimeframes).sort((a, b) => a - b)
+      : [selectedTimeframe];
+
+    if (timeframesToRun.length === 0) {
+      toast({ variant: "destructive", title: "Select at least one timeframe" });
+      return;
+    }
+
+    const sessionsArr = Array.from(selectedSessions);
+
+    const baseData = {
+      strategyId: parseInt(selectedStrategy),
+      symbol: formData.symbol,
+      fromDate: formData.fromDate,
+      toDate: formData.toDate,
+      initialBalance: parseFloat(formData.initialBalance),
+      stakePerTrade: parseFloat(formData.stakePerTrade),
+      tradeType: formData.tradeType as any,
+      duration: parseInt(formData.duration),
+      durationUnit: formData.durationUnit as any,
+      sessions: sessionsArr.length > 0 ? sessionsArr : null,
+    };
+
+    // Show toast for multi-timeframe runs
+    if (timeframesToRun.length > 1) {
+      toast({ title: `Running ${timeframesToRun.length} backtests in parallel`, description: `Timeframes: ${timeframesToRun.map(timeframeShort).join(", ")}` });
+    }
+
+    // Fire all backtests in parallel
+    const promises = timeframesToRun.map(granularitySec =>
+      runBacktest.mutateAsync({
+        data: { ...baseData, granularitySec } as any,
+      }).catch((err: any) => {
+        toast({
+          variant: "destructive",
+          title: `Backtest failed for ${timeframeShort(granularitySec)}`,
+          description: err?.message
+        });
+        return null;
+      })
+    );
+
+    await Promise.all(promises);
+    queryClient.invalidateQueries({ queryKey: ["/api/backtests"] });
+
+    if (timeframesToRun.length === 1) {
+      toast({ title: "Backtest initiated" });
+    } else {
+      toast({ title: "All backtests initiated", description: "Results will appear shortly" });
+    }
   };
 
   return (
     <AppLayout>
-      <div className="flex flex-col md:flex-row h-[calc(100vh-3.5rem)] w-full overflow-hidden">
-        <div className="w-full md:w-80 border-r border-border bg-card shrink-0 flex flex-col overflow-y-auto">
-          <div className="p-6 border-b border-border shrink-0">
-            <h1 className="text-xl font-bold font-mono uppercase tracking-tight text-foreground">Simulation</h1>
-            <p className="text-xs text-muted-foreground font-mono mt-1">Configure historical test run</p>
+      <div className="h-[calc(100vh-3.5rem)] w-full overflow-auto bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Page Header */}
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20">
+                <BarChart3 className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">Backtest</h1>
+                <p className="text-sm text-muted-foreground font-mono mt-0.5">Test strategies against real historical market data</p>
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleRun} className="p-6 space-y-6">
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-mono text-muted-foreground">Strategy</Label>
-              <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
-                <SelectTrigger className="w-full h-10 rounded-none border-border bg-background font-mono text-sm text-primary">
-                  <SelectValue placeholder="Select Strategy" />
-                </SelectTrigger>
-                <SelectContent className="rounded-none border-border">
-                  {Array.isArray(strategies) ? strategies.map(s => (
-                    <SelectItem key={s.id} value={s.id.toString()} className="font-mono text-xs uppercase">{s.name}</SelectItem>
-                  )) : null}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Main Grid: Configuration + Results */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column - Configuration Panel */}
+            <div className="lg:col-span-4">
+              <Card className="border-border rounded-xl overflow-hidden sticky top-6">
+                <div className="p-5 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-primary" />
+                    <h2 className="text-sm font-bold font-mono uppercase tracking-wider text-foreground">Configuration</h2>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-mono text-muted-foreground">Trade Type</Label>
-              <Select value={formData.tradeType} onValueChange={(v) => setFormData({ ...formData, tradeType: v })}>
-                <SelectTrigger className="w-full h-10 rounded-none border-border bg-background font-mono text-sm" data-testid="select-backtest-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-none border-border">
-                  <SelectItem value="vanilla_options" className="font-mono text-xs uppercase">Vanilla Options (Call/Put)</SelectItem>
-                  <SelectItem value="multiplier" className="font-mono text-xs uppercase">Multiplier</SelectItem>
-                  <SelectItem value="forex" className="font-mono text-xs uppercase">Forex</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <form onSubmit={handleRun} className="p-5 space-y-5">
+                  {/* Strategy Selection */}
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider flex items-center gap-1.5">
+                      <Target className="h-3 w-3" />
+                      Strategy
+                    </Label>
+                    <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
+                      <SelectTrigger className="w-full h-10 rounded-lg border-border bg-background font-mono text-sm">
+                        <SelectValue placeholder="Select Strategy" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-border">
+                        {Array.isArray(strategies) ? strategies.map(s => (
+                          <SelectItem key={s.id} value={s.id.toString()} className="font-mono text-xs uppercase">{s.name}</SelectItem>
+                        )) : null}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-mono text-muted-foreground">Trade Duration</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  required
-                  value={formData.duration}
-                  onChange={e => setFormData({ ...formData, duration: e.target.value })}
-                  className="rounded-none font-mono border-border bg-background flex-1"
-                  data-testid="input-backtest-duration"
-                />
-                <Select value={formData.durationUnit} onValueChange={(v) => setFormData({ ...formData, durationUnit: v })}>
-                  <SelectTrigger className="w-[110px] h-10 rounded-none border-border bg-background font-mono text-sm" data-testid="select-backtest-duration-unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-none border-border">
-                    <SelectItem value="m" className="font-mono text-xs">Minutes</SelectItem>
-                    <SelectItem value="t" className="font-mono text-xs">Ticks</SelectItem>
-                    <SelectItem value="s" className="font-mono text-xs">Seconds</SelectItem>
-                    <SelectItem value="h" className="font-mono text-xs">Hours</SelectItem>
-                    <SelectItem value="d" className="font-mono text-xs">Days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-mono text-muted-foreground">Symbol</Label>
-              <Input
-                required
-                value={formData.symbol}
-                onChange={e => setFormData({...formData, symbol: e.target.value})}
-                className="rounded-none font-mono border-border bg-background uppercase font-bold"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">From</Label>
-                <Input type="date" required value={formData.fromDate}
-                  onChange={e => setFormData({...formData, fromDate: e.target.value})}
-                  className="rounded-none font-mono border-border bg-background text-xs" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">To</Label>
-                <Input type="date" required value={formData.toDate}
-                  onChange={e => setFormData({...formData, toDate: e.target.value})}
-                  className="rounded-none font-mono border-border bg-background text-xs" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">Initial $</Label>
-                <Input type="number" required value={formData.initialBalance}
-                  onChange={e => setFormData({...formData, initialBalance: e.target.value})}
-                  className="rounded-none font-mono border-border bg-background" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">Stake $</Label>
-                <Input type="number" step="0.01" required value={formData.stakePerTrade}
-                  onChange={e => setFormData({...formData, stakePerTrade: e.target.value})}
-                  className="rounded-none font-mono border-border bg-background" />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-border">
-              <Button type="submit" disabled={runBacktest.isPending} className="w-full rounded-none font-bold uppercase font-mono tracking-wider h-12 text-sm bg-primary text-primary-foreground hover:bg-primary/90">
-                {runBacktest.isPending ? "Simulating..." : "Execute Backtest"}
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        <div className="flex-1 bg-background flex flex-col min-w-0">
-          <div className="p-4 border-b border-border bg-muted/20 shrink-0">
-            <h2 className="text-sm font-bold font-mono uppercase text-foreground">Simulation Results</h2>
-          </div>
-
-          <div className="flex-1 overflow-auto p-6">
-            {isResultsLoading ? (
-              <div className="text-center text-muted-foreground font-mono uppercase mt-10">Loading results...</div>
-            ) : !Array.isArray(backtests) || backtests.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground font-mono uppercase">
-                No backtests run yet
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {backtests.map(bt => {
-                  const results = parseResults(bt.results);
-                  const trades = results.trades ?? [];
-                  const isOpen = expandedId === bt.id;
-                  return (
-                    <div key={bt.id} className="border border-border bg-card">
-                      <div className="flex items-center justify-between p-4 border-b border-border bg-muted/10">
-                        <div className="flex items-center gap-4">
-                          <span className="font-bold text-lg font-mono text-primary uppercase">Run #{bt.id}</span>
-                          <span className={`px-2 py-0.5 text-[10px] font-mono uppercase ${bt.status === 'completed' ? 'bg-primary/20 text-primary' : bt.status === 'failed' ? 'bg-destructive/20 text-destructive' : 'bg-yellow-500/20 text-yellow-500'}`}>
-                            {bt.status}
-                          </span>
-                          {results.tradeType && (
-                            <span className="px-2 py-0.5 text-[10px] font-mono uppercase bg-muted text-muted-foreground">
-                              {results.tradeType} · {results.duration}{results.durationUnit}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs font-mono text-muted-foreground">{bt.symbol}</span>
+                  {/* Timeframe Selection */}
+                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3 w-3 text-primary" />
+                        <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Timeframe</h3>
                       </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y divide-border md:divide-y-0">
-                        <div className="p-4 flex flex-col">
-                          <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1">Win Rate</span>
-                          <span className="text-xl font-bold font-mono text-foreground">{bt.winRate ? `${bt.winRate.toFixed(1)}%` : '---'}</span>
-                        </div>
-                        <div className="p-4 flex flex-col">
-                          <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1">Net P&L</span>
-                          <span className={`text-xl font-bold font-mono ${bt.totalPnl && bt.totalPnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                            {bt.totalPnl != null ? `${bt.totalPnl >= 0 ? '+' : ''}$${bt.totalPnl.toFixed(2)}` : '---'}
-                          </span>
-                        </div>
-                        <div className="p-4 flex flex-col">
-                          <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1">Total Trades</span>
-                          <span className="text-xl font-bold font-mono text-foreground">{bt.totalTrades ?? '---'}</span>
-                        </div>
-                        <div className="p-4 flex flex-col">
-                          <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1">Max Drawdown</span>
-                          <span className="text-xl font-bold font-mono text-destructive">{bt.maxDrawdown ? `${bt.maxDrawdown.toFixed(1)}%` : '---'}</span>
-                        </div>
-                      </div>
-
-                      {trades.length > 0 && (
-                        <div className="border-t border-border">
-                          <div className="flex items-center justify-between p-3 bg-muted/5">
-                            <button
-                              type="button"
-                              className="flex items-center gap-2 text-xs font-mono uppercase text-foreground hover:text-primary"
-                              onClick={() => setExpandedId(isOpen ? null : bt.id)}
-                              data-testid={`button-toggle-trades-${bt.id}`}
-                            >
-                              {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                              {isOpen ? "Hide" : "Show"} Trade List ({trades.length})
-                            </button>
-                            <div className="flex gap-2">
-                              <Button
-                                type="button" size="sm" variant="outline"
-                                onClick={() => downloadCsv(`backtest-${bt.id}-trades.csv`, trades)}
-                                className="rounded-none text-[10px] uppercase font-mono h-7"
-                                data-testid={`button-csv-${bt.id}`}
-                              >
-                                <Download className="h-3 w-3 mr-1" /> CSV / Excel
-                              </Button>
-                              <Button
-                                type="button" size="sm" variant="outline"
-                                onClick={() => printPdf(`Backtest Run #${bt.id} — ${bt.symbol}`, trades)}
-                                className="rounded-none text-[10px] uppercase font-mono h-7"
-                                data-testid={`button-pdf-${bt.id}`}
-                              >
-                                <FileText className="h-3 w-3 mr-1" /> PDF
-                              </Button>
-                            </div>
-                          </div>
-
-                          {isOpen && (
-                            <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                              <table className="w-full text-xs font-mono">
-                                <thead className="bg-muted/30 sticky top-0">
-                                  <tr>
-                                    <th className="p-2 text-left text-[10px] uppercase text-muted-foreground">#</th>
-                                    <th className="p-2 text-left text-[10px] uppercase text-muted-foreground">Entry</th>
-                                    <th className="p-2 text-left text-[10px] uppercase text-muted-foreground">Dir</th>
-                                    <th className="p-2 text-left text-[10px] uppercase text-muted-foreground">Dur</th>
-                                    <th className="p-2 text-right text-[10px] uppercase text-muted-foreground">Entry Px</th>
-                                    <th className="p-2 text-right text-[10px] uppercase text-muted-foreground">Exit Px</th>
-                                    <th className="p-2 text-right text-[10px] uppercase text-muted-foreground">Stake</th>
-                                    <th className="p-2 text-right text-[10px] uppercase text-muted-foreground">P&L</th>
-                                    <th className="p-2 text-left text-[10px] uppercase text-muted-foreground">Result</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                  {trades.map(t => (
-                                    <tr key={t.id} className="hover:bg-muted/10">
-                                      <td className="p-2 text-muted-foreground">{t.id}</td>
-                                      <td className="p-2 text-muted-foreground text-[10px]">{new Date(t.entryAt).toLocaleString()}</td>
-                                      <td className={`p-2 font-bold ${t.direction === "CALL" ? "text-primary" : "text-destructive"}`}>{t.direction}</td>
-                                      <td className="p-2 text-muted-foreground">{t.duration}</td>
-                                      <td className="p-2 text-right">{t.entry.toFixed(4)}</td>
-                                      <td className="p-2 text-right">{t.exit.toFixed(4)}</td>
-                                      <td className="p-2 text-right">${t.stake.toFixed(2)}</td>
-                                      <td className={`p-2 text-right font-bold ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
-                                        {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
-                                      </td>
-                                      <td className={`p-2 text-[10px] uppercase ${t.outcome === "win" ? "text-primary" : "text-destructive"}`}>{t.outcome}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {bt.errorMessage && (
-                        <div className="p-4 bg-destructive/10 border-t border-border text-destructive font-mono text-xs">
-                          Error: {bt.errorMessage}
-                        </div>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setMultiTimeframeMode(m => !m)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono uppercase font-bold tracking-wider transition-all ${
+                          multiTimeframeMode
+                            ? "bg-primary/15 text-primary border border-primary/30"
+                            : "bg-muted text-muted-foreground border border-border hover:border-primary/30 hover:text-primary"
+                        }`}
+                        title="Toggle multi-timeframe mode"
+                      >
+                        <Layers className="h-3 w-3" />
+                        Multi
+                      </button>
                     </div>
-                  );
-                })}
+
+                    {!multiTimeframeMode ? (
+                      <>
+                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Candle Period</Label>
+                        <Select value={String(selectedTimeframe)} onValueChange={(v) => setSelectedTimeframe(parseInt(v))}>
+                          <SelectTrigger className="w-full h-10 rounded-lg border-border bg-background font-mono text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg border-border max-h-80">
+                            {TIMEFRAMES.map(tf => (
+                              <SelectItem key={tf.value} value={String(tf.value)} className="font-mono text-xs uppercase">
+                                {tf.short} — {tf.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
+                          The granularity of historical candles used during the backtest.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">
+                          Select Multiple ({selectedTimeframes.size} selected)
+                        </Label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {TIMEFRAMES.map(tf => {
+                            const active = selectedTimeframes.has(tf.value);
+                            return (
+                              <button
+                                type="button"
+                                key={tf.value}
+                                onClick={() => toggleTimeframe(tf.value)}
+                                className={`h-9 rounded-md text-[10px] font-mono uppercase font-bold tracking-wider border transition-all ${
+                                  active
+                                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                    : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-primary"
+                                }`}
+                                title={tf.label}
+                              >
+                                {tf.short}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
+                          Will run {selectedTimeframes.size} parallel backtests, one per selected timeframe. Compare results to find the best.
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Trade Settings */}
+                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="flex items-center gap-1.5">
+                      <Activity className="h-3 w-3 text-primary" />
+                      <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Trade Settings</h3>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Trade Type</Label>
+                      <Select value={formData.tradeType} onValueChange={(v) => setFormData({ ...formData, tradeType: v })}>
+                        <SelectTrigger className="w-full h-10 rounded-lg border-border bg-background font-mono text-sm" data-testid="select-backtest-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-lg border-border">
+                          <SelectItem value="vanilla_options" className="font-mono text-xs uppercase">Vanilla Options</SelectItem>
+                          <SelectItem value="multiplier" className="font-mono text-xs uppercase">Multiplier</SelectItem>
+                          <SelectItem value="forex" className="font-mono text-xs uppercase">Forex</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Trade Duration</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          required
+                          value={formData.duration}
+                          onChange={e => setFormData({ ...formData, duration: e.target.value })}
+                          className="rounded-lg font-mono border-border bg-background flex-1"
+                          data-testid="input-backtest-duration"
+                        />
+                        <Select value={formData.durationUnit} onValueChange={(v) => setFormData({ ...formData, durationUnit: v })}>
+                          <SelectTrigger className="w-[100px] h-10 rounded-lg border-border bg-background font-mono text-sm" data-testid="select-backtest-duration-unit">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg border-border">
+                            <SelectItem value="m" className="font-mono text-xs">Min</SelectItem>
+                            <SelectItem value="t" className="font-mono text-xs">Ticks</SelectItem>
+                            <SelectItem value="s" className="font-mono text-xs">Sec</SelectItem>
+                            <SelectItem value="h" className="font-mono text-xs">Hours</SelectItem>
+                            <SelectItem value="d" className="font-mono text-xs">Days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
+                        How long each simulated trade is held open.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Trading Sessions */}
+                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Globe className="h-3 w-3 text-primary" />
+                        <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Trading Sessions</h3>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {selectedSessions.size === 0 ? "ALL" : `${selectedSessions.size} selected`}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {SESSIONS.map(s => {
+                        const active = selectedSessions.has(s.value);
+                        return (
+                          <button
+                            type="button"
+                            key={s.value}
+                            onClick={() => toggleSession(s.value)}
+                            title={`${s.label} (${s.hours})`}
+                            className={`flex flex-col items-start gap-0.5 px-2.5 py-2 rounded-md text-left border transition-all ${
+                              active
+                                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-primary"
+                            }`}
+                          >
+                            <span className="text-[10px] font-mono uppercase font-bold tracking-wider">
+                              {s.short}
+                            </span>
+                            <span className={`text-[9px] font-mono ${active ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>
+                              {s.hours}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
+                      {selectedSessions.size === 0
+                        ? "All sessions included. Click to restrict entries to specific sessions."
+                        : "Only trades initiated within the selected sessions (UTC) will be opened."}
+                    </p>
+                  </div>
+
+                  {/* Market & Period */}
+                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3 w-3 text-primary" />
+                      <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Market & Period</h3>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Symbol</Label>
+                      <Input
+                        required
+                        value={formData.symbol}
+                        onChange={e => setFormData({...formData, symbol: e.target.value})}
+                        className="rounded-lg font-mono border-border bg-background uppercase font-bold"
+                        placeholder="R_100"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">From</Label>
+                        <Input type="date" required value={formData.fromDate}
+                          onChange={e => setFormData({...formData, fromDate: e.target.value})}
+                          className="rounded-lg font-mono border-border bg-background text-xs" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">To</Label>
+                        <Input type="date" required value={formData.toDate}
+                          onChange={e => setFormData({...formData, toDate: e.target.value})}
+                          className="rounded-lg font-mono border-border bg-background text-xs" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Capital */}
+                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="flex items-center gap-1.5">
+                      <Wallet className="h-3 w-3 text-primary" />
+                      <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Capital</h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Initial $</Label>
+                        <Input type="number" required value={formData.initialBalance}
+                          onChange={e => setFormData({...formData, initialBalance: e.target.value})}
+                          className="rounded-lg font-mono border-border bg-background"
+                          placeholder="10000" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Stake $</Label>
+                        <Input type="number" step="0.01" required value={formData.stakePerTrade}
+                          onChange={e => setFormData({...formData, stakePerTrade: e.target.value})}
+                          className="rounded-lg font-mono border-border bg-background"
+                          placeholder="1.00" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <Button
+                    type="submit"
+                    disabled={runBacktest.isPending}
+                    className="w-full rounded-lg font-bold uppercase font-mono tracking-wider h-11 text-sm shadow-md hover:shadow-lg transition-all"
+                  >
+                    {runBacktest.isPending ? (
+                      <>
+                        <Activity className="h-4 w-4 mr-2 animate-spin" />
+                        Simulating...
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        Execute Backtest{multiTimeframeMode && selectedTimeframes.size > 1 ? ` (${selectedTimeframes.size}x)` : ""}
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </Card>
+            </div>
+
+            {/* Right Column - Results */}
+            <div className="lg:col-span-8">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-bold font-mono uppercase text-foreground tracking-wider">Results</h2>
+                </div>
+                {Array.isArray(backtests) && backtests.length > 0 && (
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {backtests.length} backtest{backtests.length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </div>
-            )}
+
+              {isResultsLoading ? (
+                <Card className="border-border rounded-xl p-12 flex flex-col items-center justify-center">
+                  <Activity className="h-8 w-8 text-primary animate-spin mb-4" />
+                  <div className="text-center text-muted-foreground font-mono uppercase text-sm">Loading results...</div>
+                </Card>
+              ) : !Array.isArray(backtests) || backtests.length === 0 ? (
+                <Card className="border-border rounded-xl p-12 flex flex-col items-center justify-center min-h-[400px]">
+                  <BarChart3 className="h-16 w-16 mb-4 text-muted-foreground/20" />
+                  <div className="font-mono uppercase text-sm text-muted-foreground">No backtests run yet</div>
+                  <p className="text-xs mt-2 text-muted-foreground/60 font-mono">Configure and execute a backtest to see results</p>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {backtests.map(bt => {
+                    const results = parseResults(bt.results);
+                    const trades = results.trades ?? [];
+                    const isOpen = expandedId === bt.id;
+                    return (
+                      <Card key={bt.id} className="border-border rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
+                        {/* Result Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-muted/30 to-transparent flex-wrap gap-2">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 rounded-lg bg-primary/10">
+                                <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                              </div>
+                              <span className="font-bold text-base font-mono text-primary uppercase">#{bt.id}</span>
+                            </div>
+                            <span className={`px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md font-bold ${
+                              bt.status === 'completed' ? 'bg-primary/15 text-primary border border-primary/20' :
+                              bt.status === 'failed' ? 'bg-destructive/15 text-destructive border border-destructive/20' :
+                              'bg-yellow-500/15 text-yellow-600 border border-yellow-500/20'
+                            }`}>
+                              {bt.status}
+                            </span>
+                            {/* Timeframe Badge */}
+                            <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md bg-primary/10 text-primary font-bold border border-primary/20 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {timeframeShort(results.granularitySec)}
+                            </span>
+                            {results.tradeType && (
+                              <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md bg-muted text-muted-foreground font-semibold border border-border">
+                                {results.tradeType} · {results.duration}{results.durationUnit}
+                              </span>
+                            )}
+                            {results.sessions && results.sessions.length > 0 && (
+                              <span
+                                className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md bg-primary/10 text-primary font-bold border border-primary/20 flex items-center gap-1"
+                                title={`Filtered to: ${results.sessions.map(sessionShort).join(", ")}`}
+                              >
+                                <Globe className="h-3 w-3" />
+                                {results.sessions.map(sessionShort).join(" · ")}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs font-mono font-bold text-foreground bg-muted/60 px-2.5 py-1 rounded-md border border-border">
+                            {bt.symbol}
+                          </span>
+                        </div>
+
+                        {/* Metrics Grid - well-spaced, label above value with breathing room */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border">
+                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
+                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                              <Target className="h-3 w-3 shrink-0" />
+                              <span>Win Rate</span>
+                            </span>
+                            <span className="text-2xl font-bold font-mono text-foreground leading-none tabular-nums">
+                              {bt.winRate != null ? `${bt.winRate.toFixed(1)}%` : '---'}
+                            </span>
+                          </div>
+                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
+                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                              <DollarSign className="h-3 w-3 shrink-0" />
+                              <span>Net P&amp;L</span>
+                            </span>
+                            <span className={`text-2xl font-bold font-mono leading-none tabular-nums ${bt.totalPnl != null && bt.totalPnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                              {bt.totalPnl != null ? `${bt.totalPnl >= 0 ? '+' : ''}$${bt.totalPnl.toFixed(2)}` : '---'}
+                            </span>
+                          </div>
+                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
+                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                              <Activity className="h-3 w-3 shrink-0" />
+                              <span>Trades</span>
+                            </span>
+                            <span className="text-2xl font-bold font-mono text-foreground leading-none tabular-nums">
+                              {bt.totalTrades ?? '---'}
+                            </span>
+                          </div>
+                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
+                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                              <TrendingDown className="h-3 w-3 shrink-0" />
+                              <span>Max DD</span>
+                            </span>
+                            <span className="text-2xl font-bold font-mono text-destructive leading-none tabular-nums">
+                              {bt.maxDrawdown != null ? `${bt.maxDrawdown.toFixed(1)}%` : '---'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Trade List Toggle */}
+                        {trades.length > 0 && (
+                          <div className="border-t border-border">
+                            <div className="flex items-center justify-between p-3 bg-muted/10 gap-2 flex-wrap">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg text-[11px] uppercase font-mono h-8 px-3 font-semibold border-border hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
+                                onClick={() => setExpandedId(isOpen ? null : bt.id)}
+                                data-testid={`button-toggle-trades-${bt.id}`}
+                              >
+                                {isOpen ? <ChevronDown className="h-3.5 w-3.5 mr-1.5" /> : <ChevronRight className="h-3.5 w-3.5 mr-1.5" />}
+                                {isOpen ? "Hide" : "Show"} Trades ({trades.length})
+                              </Button>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button" size="sm" variant="outline"
+                                  onClick={() => downloadCsv(`backtest-${bt.id}-${timeframeShort(results.granularitySec)}-trades.csv`, trades)}
+                                  className="rounded-lg text-[11px] uppercase font-mono h-8 px-3 font-semibold border-border hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
+                                  data-testid={`button-csv-${bt.id}`}
+                                >
+                                  <Download className="h-3.5 w-3.5 mr-1.5" /> CSV
+                                </Button>
+                                <Button
+                                  type="button" size="sm" variant="outline"
+                                  onClick={() => printPdf(`Backtest #${bt.id} — ${bt.symbol} @ ${timeframeShort(results.granularitySec)}`, trades)}
+                                  className="rounded-lg text-[11px] uppercase font-mono h-8 px-3 font-semibold border-border hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
+                                  data-testid={`button-pdf-${bt.id}`}
+                                >
+                                  <FileText className="h-3.5 w-3.5 mr-1.5" /> PDF
+                                </Button>
+                              </div>
+                            </div>
+
+                            {isOpen && (
+                              <div className="overflow-x-auto max-h-96 overflow-y-auto border-t border-border">
+                                <table className="w-full text-xs font-mono border-separate border-spacing-0 min-w-[760px]">
+                                  <thead className="bg-muted/40 sticky top-0 backdrop-blur-sm z-10">
+                                    <tr>
+                                      <th className="w-10 px-3 py-3 text-left text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">#</th>
+                                      <th className="px-4 py-3 text-left text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Entry Time</th>
+                                      <th className="w-20 px-3 py-3 text-left text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Dir</th>
+                                      <th className="px-4 py-3 text-right text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Entry</th>
+                                      <th className="px-4 py-3 text-right text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Exit</th>
+                                      <th className="px-4 py-3 text-right text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">P&amp;L</th>
+                                      <th className="w-20 px-3 py-3 text-center text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Result</th>
+                                      <th className="w-24 px-3 py-3 text-center text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {trades.map(t => (
+                                      <tr key={t.id} className="hover:bg-muted/20 transition-colors">
+                                        <td className="px-3 py-3 text-muted-foreground font-semibold border-b border-border/40">{t.id}</td>
+                                        <td className="px-4 py-3 text-muted-foreground text-[11px] whitespace-nowrap border-b border-border/40">{new Date(t.entryAt).toLocaleString()}</td>
+                                        <td className="px-3 py-3 border-b border-border/40">
+                                          <span className={`inline-block px-2 py-0.5 rounded font-bold text-[10px] tracking-wider ${t.direction === "CALL" ? "bg-primary/15 text-primary border border-primary/20" : "bg-destructive/15 text-destructive border border-destructive/20"}`}>
+                                            {t.direction}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-semibold tabular-nums border-b border-border/40">{t.entry.toFixed(4)}</td>
+                                        <td className="px-4 py-3 text-right font-semibold tabular-nums border-b border-border/40">{t.exit.toFixed(4)}</td>
+                                        <td className={`px-4 py-3 text-right font-bold tabular-nums border-b border-border/40 ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
+                                          {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
+                                        </td>
+                                        <td className="px-3 py-3 text-center border-b border-border/40">
+                                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${t.outcome === "win" ? "bg-primary/15 text-primary border border-primary/20" : "bg-destructive/15 text-destructive border border-destructive/20"}`}>
+                                            {t.outcome}
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-3 text-center border-b border-border/40">
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleViewChart(t, bt.id)}
+                                            className="h-8 px-2.5 rounded-md text-[10px] font-mono uppercase font-semibold border-border hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all"
+                                            title="View trade on chart"
+                                          >
+                                            <LineChart className="h-3 w-3 mr-1" />
+                                            Chart
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {bt.errorMessage && (
+                          <div className="p-4 bg-destructive/5 border-t border-destructive/20 text-destructive font-mono text-xs flex items-start gap-2">
+                            <span className="font-bold">Error:</span>
+                            <span>{bt.errorMessage}</span>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
     </AppLayout>
   );
 }
