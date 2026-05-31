@@ -6,14 +6,21 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AutoTradeSessionInputMode } from './autoTradeSessionInputMode';
+import type { AutoTradeSessionInputPairMode } from './autoTradeSessionInputPairMode';
 
 export interface AutoTradeSessionInput {
   strategyId: number;
   mode: AutoTradeSessionInputMode;
   symbol: string;
+  symbols?: string[];
+  pairMode?: AutoTradeSessionInputPairMode;
   stakeAmount: number;
+  duration: number;
+  durationUnit: string;
   /** @nullable */
   maxTrades?: number | null;
   /** @nullable */
   stopOnLoss?: number | null;
+  /** @nullable */
+  profitTarget?: number | null;
 }

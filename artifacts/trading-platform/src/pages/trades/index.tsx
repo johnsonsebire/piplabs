@@ -1,22 +1,78 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useListTrades, useGetTradeStats, ListTradesStatus, ListTradesType } from "@workspace/api-client-react";
+import { useListTrades, useGetTradeStats, ListTradesStatus, ListTradesType, getListTradesQueryKey, getGetTradeStatsQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
+import { format, differenceInSeconds } from "date-fns";
+
+function calculateTimeRemaining(openedAt: string, duration?: number | null, unit?: string | null): string | null {
+  if (!duration || !unit || unit === 't') return null; // Can't accurately predict ticks on frontend
+  
+  const start = new Date(openedAt);
+  let durationSeconds = 0;
+  if (unit === 's') durationSeconds = duration;
+  if (unit === 'm') durationSeconds = duration * 60;
+  if (unit === 'h') durationSeconds = duration * 3600;
+  if (unit === 'd') durationSeconds = duration * 86400;
+
+  const end = new Date(start.getTime() + durationSeconds * 1000);
+  const now = new Date();
+  
+  const diffSec = differenceInSeconds(end, now);
+  if (diffSec <= 0) return "Closing...";
+
+  const m = Math.floor(diffSec / 60);
+  const s = diffSec % 60;
+  if (m > 60) {
+    const h = Math.floor(m / 60);
+    const hm = m % 60;
+    return `${h}h ${hm}m`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function TimeRemainingCell({ trade }: { trade: any }) {
+  const [timeLeft, setTimeLeft] = useState<string | null>(() => 
+    trade.status === 'open' ? calculateTimeRemaining(trade.openedAt, trade.duration, trade.durationUnit) : null
+  );
+
+  useEffect(() => {
+    if (trade.status !== 'open') {
+      setTimeLeft(null);
+      return;
+    }
+    const interval = setInterval(() => {
+      setTimeLeft(calculateTimeRemaining(trade.openedAt, trade.duration, trade.durationUnit));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [trade.status, trade.openedAt, trade.duration, trade.durationUnit]);
+
+  if (trade.status !== 'open') return <span className="text-muted-foreground">-</span>;
+  if (!timeLeft) return <span className="text-muted-foreground">Unknown</span>;
+
+  return (
+    <span className={`font-mono ${timeLeft === "Closing..." ? "text-primary animate-pulse" : ""}`}>
+      {timeLeft}
+    </span>
+  );
+}
 
 export default function TradesPage() {
   const [status, setStatus] = useState<ListTradesStatus | "all">("all");
   const [type, setType] = useState<ListTradesType | "all">("all");
   
-  const { data: tradesData, isLoading } = useListTrades({
+  const params = {
     status: status === "all" ? undefined : status,
     type: type === "all" ? undefined : type,
     limit: 50
-  });
+  };
+  const { data: tradesData, isLoading } = useListTrades(
+    params,
+    { query: { queryKey: getListTradesQueryKey(params), refetchInterval: 5000 } }
+  );
 
-  const { data: stats } = useGetTradeStats({});
+  const { data: stats } = useGetTradeStats({}, { query: { queryKey: getGetTradeStatsQueryKey({}), refetchInterval: 10000 } });
 
   return (
     <AppLayout>
@@ -85,20 +141,21 @@ export default function TradesPage() {
                   <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs">Type</th>
                   <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs">Dir</th>
                   <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs text-right">Stake</th>
-                  <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs text-right">P&L</th>
-                  <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs">Status</th>
+                  <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs text-right">Time Left</th>
+                  <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs text-right">Live P&L</th>
+                  <th className="p-3 font-normal text-muted-foreground uppercase tracking-wider text-xs text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {isLoading ? (
                   Array(10).fill(0).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={8} className="p-3"><Skeleton className="h-5 w-full rounded-none bg-muted" /></td>
+                      <td colSpan={9} className="p-3"><Skeleton className="h-5 w-full rounded-none bg-muted" /></td>
                     </tr>
                   ))
                 ) : !tradesData?.trades || tradesData?.trades.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground uppercase tracking-wider">No trades found</td>
+                    <td colSpan={9} className="p-8 text-center text-muted-foreground uppercase tracking-wider">No trades found</td>
                   </tr>
                 ) : (
                   tradesData?.trades.map((trade) => (
@@ -117,11 +174,14 @@ export default function TradesPage() {
                         </span>
                       </td>
                       <td className="p-3 text-right">{trade.stake.toFixed(2)}</td>
+                      <td className="p-3 text-right">
+                        <TimeRemainingCell trade={trade} />
+                      </td>
                       <td className={`p-3 text-right ${trade.currentProfit && trade.currentProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
                         {trade.currentProfit ? (trade.currentProfit >= 0 ? '+' : '') + trade.currentProfit.toFixed(2) : '-'}
                       </td>
-                      <td className="p-3">
-                        <span className="text-muted-foreground uppercase text-xs">{trade.status}</span>
+                      <td className="p-3 text-right">
+                        <span className={`text-xs uppercase font-bold ${trade.status === 'open' ? 'text-primary animate-pulse' : 'text-muted-foreground'}`}>{trade.status}</span>
                       </td>
                     </tr>
                   ))

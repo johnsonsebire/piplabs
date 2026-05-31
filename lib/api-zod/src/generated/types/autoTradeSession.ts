@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AutoTradeSessionMode } from './autoTradeSessionMode';
+import type { AutoTradeSessionPairMode } from './autoTradeSessionPairMode';
 import type { AutoTradeSessionStatus } from './autoTradeSessionStatus';
 
 export interface AutoTradeSession {
@@ -18,10 +19,16 @@ export interface AutoTradeSession {
   mode: AutoTradeSessionMode;
   symbol: string;
   stakeAmount: number;
+  duration: number;
+  durationUnit: string;
   /** @nullable */
   maxTrades?: number | null;
   /** @nullable */
   stopOnLoss?: number | null;
+  symbols?: string[];
+  pairMode?: AutoTradeSessionPairMode;
+  /** @nullable */
+  profitTarget?: number | null;
   totalTrades: number;
   winTrades: number;
   totalPnl: number;

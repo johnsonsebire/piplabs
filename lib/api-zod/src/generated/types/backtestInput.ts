@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BacktestInputDurationUnit } from './backtestInputDurationUnit';
+import type { BacktestInputSessionsItem } from './backtestInputSessionsItem';
 import type { BacktestInputTradeType } from './backtestInputTradeType';
 
 export interface BacktestInput {
@@ -22,4 +23,19 @@ export interface BacktestInput {
   initialBalance?: number | null;
   /** @nullable */
   stakePerTrade?: number | null;
+  /**
+     * Candle granularity in seconds for the backtest data (60=1m, 300=5m, 900=15m, 3600=1h, 14400=4h, 86400=1d). If null, auto-derived from durationUnit.
+     * @nullable
+     */
+  granularitySec?: number | null;
+  /**
+     * Restrict the backtest to trades initiated within the given trading sessions (UTC). If null or empty, all sessions are included.
+     * @nullable
+     */
+  sessions?: BacktestInputSessionsItem[] | null;
+  /**
+     * If provided, the backtest will run using this local CSV file instead of fetching from Deriv API.
+     * @nullable
+     */
+  datasetFile?: string | null;
 }

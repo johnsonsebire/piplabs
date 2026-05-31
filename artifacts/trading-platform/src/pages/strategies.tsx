@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
+import { swalSuccess, swalError, swalWarning, swalConfirm } from "@/lib/swal";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Plus, X, Pencil, Trash2, Send } from "lucide-react";
@@ -105,7 +105,8 @@ function parseStrategyCode(raw: string | null | undefined): { buy: Leg; sell: Le
 
  // v1 migration: single direction + conditions → put under the matching leg
  if (Array.isArray(parsed?.conditions)) {
- const dir = parsed.action === "sell" ? "sell" : "buy";
+ const action = typeof parsed.action === "string" ? parsed.action.toLowerCase() : "";
+ const dir = action === "sell" ? "sell" : "buy";
  const migrated = toLeg(parsed, true);
  return dir === "buy"
  ? { buy: migrated, sell: emptyLeg(false) }
@@ -327,7 +328,6 @@ export default function StrategiesPage() {
  const updateStrategy = useUpdateStrategy();
  const deleteStrategy = useDeleteStrategy();
  const testWebhook = useTestStrategyWebhook();
- const { toast } = useToast();
  const queryClient = useQueryClient();
 
  const [showForm, setShowForm] = useState(false);
@@ -391,7 +391,7 @@ export default function StrategiesPage() {
  const buyValid = buyLeg.enabled && buyLeg.conditions.length > 0;
  const sellValid = sellLeg.enabled && sellLeg.conditions.length > 0;
  if (!buyValid && !sellValid) {
- toast({ variant: "destructive", title: "Strategy needs at least one leg", description: "Enable BUY or SELL and add at least one condition." });
+ swalWarning("Strategy needs at least one leg", "Enable BUY or SELL and add at least one condition.");
  return;
  }
 
@@ -407,20 +407,20 @@ export default function StrategiesPage() {
  if (editingId === null) {
  createStrategy.mutate({ data: body }, {
  onSuccess: () => {
- toast({ title: "Strategy created" });
+ swalSuccess("Strategy created!", `"${name}" is ready to use.`);
  closeForm();
  queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
  },
- onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
+ onError: (err: any) => swalError("Error creating strategy", err?.message),
  });
  } else {
  updateStrategy.mutate({ id: editingId, data: body }, {
  onSuccess: () => {
- toast({ title: "Strategy updated" });
+ swalSuccess("Strategy updated!", `"${name}" has been saved.`);
  closeForm();
  queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
  },
- onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
+ onError: (err: any) => swalError("Error updating strategy", err?.message),
  });
  }
  };
@@ -428,30 +428,30 @@ export default function StrategiesPage() {
  const handleDelete = (id: number) => {
  deleteStrategy.mutate({ id }, {
  onSuccess: () => {
- toast({ title: "Strategy deleted" });
+ swalSuccess("Strategy deleted", "The strategy has been permanently removed.");
  setConfirmDeleteId(null);
  if (editingId === id) closeForm();
  queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
  },
- onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
+ onError: (err: any) => swalError("Error deleting strategy", err?.message),
  });
  };
 
  const handleTestWebhook = () => {
  if (editingId === null) {
- toast({ variant: "destructive", title: "Save the strategy first to send a test signal" });
+ swalWarning("Save the strategy first", "Save the strategy before sending a test signal.");
  return;
  }
  if (!webhookUrl.trim()) {
- toast({ variant: "destructive", title: "Add a webhook URL first" });
+ swalWarning("No webhook URL", "Add a webhook URL first.");
  return;
  }
  testWebhook.mutate({ id: editingId }, {
  onSuccess: (data: any) => {
- if (data?.ok) toast({ title: "Webhook delivered", description: `HTTP ${data.status}` });
- else toast({ variant: "destructive", title: "Webhook failed", description: data?.error ?? "Unknown error" });
+ if (data?.ok) swalSuccess("Webhook delivered", `HTTP ${data.status}`);
+ else swalError("Webhook failed", data?.error ?? "Unknown error");
  },
- onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err?.message }),
+ onError: (err: any) => swalError("Webhook error", err?.message),
  });
  };
 

@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
+import { swalSuccess, swalError, swalConfirm } from "@/lib/swal";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
@@ -84,12 +84,11 @@ export default function IndicatorsPage() {
   const createIndicator = useCreateIndicator();
   const updateIndicator = useUpdateIndicator();
   const deleteIndicator = useDeleteIndicator();
-  const { toast } = useToast();
+
   const queryClient = useQueryClient();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [kind, setKind] = useState<Kind>("MA");
   const [isPublic, setIsPublic] = useState(true);
 
@@ -273,12 +272,13 @@ export default function IndicatorsPage() {
         { data: body },
         {
           onSuccess: () => {
-            toast({ title: "Indicator created", description: `${p.name} is available on the chart.` });
+            swalSuccess("Indicator created", `${p.name} is now available on the chart.`);
             closeForm();
             invalidate();
           },
           onError: (err: unknown) => {
-            toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to save" });
+            const msg = err instanceof Error ? err.message : "Failed to save";
+            swalError("Error saving indicator", msg);
           },
         },
       );
@@ -287,30 +287,37 @@ export default function IndicatorsPage() {
         { id: editingId, data: body },
         {
           onSuccess: () => {
-            toast({ title: "Indicator updated", description: p.name });
+            swalSuccess("Indicator updated", p.name);
             closeForm();
             invalidate();
           },
           onError: (err: unknown) => {
-            toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to update" });
+            const msg = err instanceof Error ? err.message : "Failed to update";
+            swalError("Error updating indicator", msg);
           },
         },
       );
     }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
+    const confirmed = await swalConfirm(
+      "Delete indicator?",
+      "This indicator will be permanently removed.",
+      "Yes, delete it"
+    );
+    if (!confirmed) return;
     deleteIndicator.mutate(
       { id },
       {
         onSuccess: () => {
-          toast({ title: "Indicator deleted" });
-          setConfirmDeleteId(null);
+          swalSuccess("Indicator deleted", "The indicator has been removed.");
           if (editingId === id) closeForm();
           invalidate();
         },
         onError: (err: unknown) => {
-          toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to delete" });
+          const msg = err instanceof Error ? err.message : "Failed to delete";
+          swalError("Error deleting indicator", msg);
         },
       },
     );
@@ -490,11 +497,11 @@ export default function IndicatorsPage() {
                 size="icon"
                 variant="ghost"
                 className="text-danger"
-                onClick={() => setConfirmDeleteId(ind.id)}
+                onClick={() => handleDelete(ind.id)}
                 title="Delete indicator"
                 data-testid={`button-delete-indicator-${ind.id}`}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
           ) : (
@@ -674,27 +681,6 @@ export default function IndicatorsPage() {
           )}
         </div>
       </div>
-
-      <AlertDialog open={confirmDeleteId !== null} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
-        <AlertDialogContent className="rounded-none border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-mono text-uppercase">Delete indicator?</AlertDialogTitle>
-            <AlertDialogDescription className="font-mono small">
-              This removes the indicator from your library and the chart. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-none font-mono text-uppercase">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="rounded-none font-mono text-uppercase bg-danger"
-              onClick={() => confirmDeleteId !== null && handleDelete(confirmDeleteId)}
-              disabled={deleteIndicator.isPending}
-            >
-              {deleteIndicator.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AppLayout>
   );
 }

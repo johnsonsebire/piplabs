@@ -28,7 +28,7 @@ import {
   DeleteTradeCommentParams,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
-import { buyContract, getAccountForMode, invalidateBalanceCache, nextReqId, type DerivBuyParams } from "../lib/derivApi";
+import { buyContract, sellContract, getAccountForMode, invalidateBalanceCache, nextReqId, type DerivBuyParams } from "../lib/derivApi";
 import { buildSignalPayload, fireStrategyWebhook } from "../lib/strategyWebhook";
 
 const router: IRouter = Router();
@@ -370,20 +370,59 @@ router.post("/trades/:id/close", requireAuth, async (req: AuthenticatedRequest, 
     res.status(400).json({ error: "Invalid trade id" });
     return;
   }
-  const [trade] = await db.update(tradesTable)
-    .set({ status: "closed", closedAt: new Date() })
-    .where(and(eq(tradesTable.id, params.data.id), eq(tradesTable.userId, req.userId!)))
-    .returning();
-  if (!trade) {
-    res.status(404).json({ error: "Trade not found" });
+  
+  const [trade] = await db.select().from(tradesTable)
+    .where(and(eq(tradesTable.id, params.data.id), eq(tradesTable.userId, req.userId!)));
+    
+  if (!trade || trade.status !== "open" || !trade.contractId) {
+    res.status(404).json({ error: "Trade not found or not open" });
     return;
   }
-  await db.insert(tradeLogsTable).values({
-    tradeId: trade.id,
-    level: "info",
-    message: `Trade closed at profit $${trade.currentProfit ?? 0}`,
-  });
-  res.json(CloseTradeResponse.parse(trade));
+
+  const user = req.dbUser!;
+  if (!user.derivApiToken) {
+    res.status(400).json({ error: "Deriv API token not connected" });
+    return;
+  }
+
+  try {
+    const account = await getAccountForMode(user.derivApiToken, (trade.mode || "demo") as "live" | "demo", user.derivAppId);
+    
+    // Send sell request
+    const outcome = await sellContract(user.derivApiToken, account.accountId, trade.contractId, user.derivAppId);
+    
+    if (!outcome.ok) {
+      await db.insert(tradeLogsTable).values({
+        tradeId: trade.id,
+        level: "error",
+        message: `Failed to sell contract: ${outcome.error}`,
+      });
+      res.status(502).json({ error: outcome.error });
+      return;
+    }
+    
+    // Update trade in DB
+    const [updatedTrade] = await db.update(tradesTable)
+      .set({ 
+        status: "closed", 
+        closedAt: new Date(), 
+        currentProfit: outcome.result.soldPrice - trade.stake 
+      })
+      .where(eq(tradesTable.id, trade.id))
+      .returning();
+
+    await db.insert(tradeLogsTable).values({
+      tradeId: trade.id,
+      level: "info",
+      message: `Trade manually closed at profit $${updatedTrade.currentProfit ?? 0} (Sold for $${outcome.result.soldPrice})`,
+    });
+    
+    res.json(CloseTradeResponse.parse(updatedTrade));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to execute sell";
+    req.log.error({ err, tradeId: trade.id }, "Error selling trade");
+    res.status(500).json({ error: msg });
+  }
 });
 
 router.get("/trades/:id/logs", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {

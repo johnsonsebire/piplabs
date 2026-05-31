@@ -9,9 +9,13 @@
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
+    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
+    "migrate:deriv": "node ./scripts/migrate-deriv-columns.mjs",
+    "migrate:sessions-v2": "node ./scripts/migrate-sessions-v2.mjs",
+    "db:check": "node ./scripts/db-connect.mjs"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",
     "pg": "^8.20.0",

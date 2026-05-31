@@ -5,8 +5,20 @@
  * Deriv Trading Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { AutoTradeSessionUpdatePairMode } from './autoTradeSessionUpdatePairMode';
 import type { AutoTradeSessionUpdateStatus } from './autoTradeSessionUpdateStatus';
 
 export interface AutoTradeSessionUpdate {
-  status: AutoTradeSessionUpdateStatus;
+  status?: AutoTradeSessionUpdateStatus;
+  stakeAmount?: number;
+  duration?: number;
+  durationUnit?: string;
+  symbols?: string[];
+  pairMode?: AutoTradeSessionUpdatePairMode;
+  /** @nullable */
+  maxTrades?: number | null;
+  /** @nullable */
+  stopOnLoss?: number | null;
+  /** @nullable */
+  profitTarget?: number | null;
 }

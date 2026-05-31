@@ -203,11 +203,13 @@ export const UpdateUserPermissionsResponse = zod.object({
  */
 export const ConnectDerivBody = zod.object({
   "apiToken": zod.string(),
+  "appId": zod.string().nullish(),
   "accountId": zod.string().nullish()
 })
 
 export const ConnectDerivResponse = zod.object({
   "connected": zod.boolean(),
+  "appId": zod.string().nullish(),
   "accountId": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "balance": zod.number().nullish(),
@@ -221,6 +223,7 @@ export const ConnectDerivResponse = zod.object({
  */
 export const DisconnectDerivResponse = zod.object({
   "connected": zod.boolean(),
+  "appId": zod.string().nullish(),
   "accountId": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "balance": zod.number().nullish(),
@@ -234,6 +237,7 @@ export const DisconnectDerivResponse = zod.object({
  */
 export const GetDerivStatusResponse = zod.object({
   "connected": zod.boolean(),
+  "appId": zod.string().nullish(),
   "accountId": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "balance": zod.number().nullish(),
@@ -263,7 +267,7 @@ export const SearchDerivSymbolsResponse = zod.array(SearchDerivSymbolsResponseIt
 
 
 /**
- * @summary List all available Deriv assets with human-readable names
+ * @summary List all available Deriv available assets with human-readable names
  */
 export const ListAssetsQueryParams = zod.object({
   "type": zod.enum(['forex', 'vanilla_options', 'multiplier', 'all']).optional(),
@@ -427,7 +431,8 @@ export const CreateTradeBody = zod.object({
   "durationUnit": zod.string().nullish(),
   "aiConfirmed": zod.boolean(),
   "mode": zod.enum(['demo', 'live']).optional(),
-  "barrier": zod.string().nullish().describe('Strike\/barrier for vanilla options. Use \"+0.00\" for at-the-money, \"+N\" \/ \"-N\" for relative pips from spot, or an absolute price string. Required for VANILLALONGCALL \/ VANILLALONGPUT contract types.\n')
+  "barrier": zod.string().nullish().describe('Strike\/barrier for vanilla options. Use \"+0.00\" for at-the-money, \"+N\" \/ \"-N\" for relative pips from spot, or an absolute price string. Required for VANILLALONGCALL \/ VANILLALONGPUT contract types.\n'),
+  "multiplier": zod.number().nullish().describe('Multiplier value. Used only for Multiplier trade types. Acceptable values: 40, 100, 200, 300, 400.\n')
 })
 
 
@@ -862,6 +867,26 @@ export const DeleteIndicatorParams = zod.object({
 
 
 /**
+ * @summary List available CSV datasets for backtesting
+ */
+export const ListBacktestDatasetsResponseItem = zod.string()
+export const ListBacktestDatasetsResponse = zod.array(ListBacktestDatasetsResponseItem)
+
+
+/**
+ * @summary Upload a new CSV dataset for backtesting
+ */
+export const UploadBacktestDatasetBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const UploadBacktestDatasetResponse = zod.object({
+  "filename": zod.string(),
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary List all backtest runs
  */
 export const ListBacktestsQueryParams = zod.object({
@@ -901,7 +926,10 @@ export const RunBacktestBody = zod.object({
   "duration": zod.number().nullish(),
   "durationUnit": zod.union([zod.literal('t'),zod.literal('s'),zod.literal('m'),zod.literal('h'),zod.literal('d'),zod.literal(null)]).nullish(),
   "initialBalance": zod.number().nullish(),
-  "stakePerTrade": zod.number().nullish()
+  "stakePerTrade": zod.number().nullish(),
+  "granularitySec": zod.number().nullish().describe('Candle granularity in seconds for the backtest data (60=1m, 300=5m, 900=15m, 3600=1h, 14400=4h, 86400=1d). If null, auto-derived from durationUnit.'),
+  "sessions": zod.array(zod.enum(['asian', 'london', 'newyork', 'overlap_london_ny'])).nullish().describe('Restrict the backtest to trades initiated within the given trading sessions (UTC). If null or empty, all sessions are included.'),
+  "datasetFile": zod.string().nullish().describe('If provided, the backtest will run using this local CSV file instead of fetching from Deriv API.')
 })
 
 
@@ -943,6 +971,14 @@ export const GetBacktestResponse = zod.object({
   "errorMessage": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Delete a backtest
+ */
+export const DeleteBacktestParams = zod.object({
+  "id": zod.coerce.number()
 })
 
 
@@ -1018,8 +1054,15 @@ export const ListAutoTradeSessionsResponseItem = zod.object({
   "mode": zod.enum(['demo', 'live']),
   "symbol": zod.string(),
   "stakeAmount": zod.number(),
+  "duration": zod.number(),
+  "durationUnit": zod.string(),
   "maxTrades": zod.number().nullish(),
   "stopOnLoss": zod.number().nullish(),
+  "symbols": zod.array(zod.string()).optional(),
+  "pairMode": zod.enum(['single', 'rotating', 'simultaneous']).optional(),
+  "profitTarget": zod.number().nullish(),
+  "tradeProfitTarget": zod.number().nullish(),
+  "alternateDirection": zod.boolean().optional(),
   "totalTrades": zod.number(),
   "winTrades": zod.number(),
   "totalPnl": zod.number(),
@@ -1038,9 +1081,16 @@ export const CreateAutoTradeSessionBody = zod.object({
   "strategyId": zod.number(),
   "mode": zod.enum(['demo', 'live']),
   "symbol": zod.string(),
+  "symbols": zod.array(zod.string()).optional(),
+  "pairMode": zod.enum(['single', 'rotating', 'simultaneous']).optional(),
   "stakeAmount": zod.number(),
+  "duration": zod.number(),
+  "durationUnit": zod.string(),
   "maxTrades": zod.number().nullish(),
-  "stopOnLoss": zod.number().nullish()
+  "stopOnLoss": zod.number().nullish(),
+  "profitTarget": zod.number().nullish(),
+  "tradeProfitTarget": zod.number().nullish(),
+  "alternateDirection": zod.boolean().optional()
 })
 
 
@@ -1052,7 +1102,17 @@ export const UpdateAutoTradeSessionParams = zod.object({
 })
 
 export const UpdateAutoTradeSessionBody = zod.object({
-  "status": zod.enum(['running', 'stopped', 'paused'])
+  "status": zod.enum(['running', 'stopped', 'paused']).optional(),
+  "stakeAmount": zod.number().optional(),
+  "duration": zod.number().optional(),
+  "durationUnit": zod.string().optional(),
+  "symbols": zod.array(zod.string()).optional(),
+  "pairMode": zod.enum(['single', 'rotating', 'simultaneous']).optional(),
+  "maxTrades": zod.number().nullish(),
+  "stopOnLoss": zod.number().nullish(),
+  "profitTarget": zod.number().nullish(),
+  "tradeProfitTarget": zod.number().nullish(),
+  "alternateDirection": zod.boolean().optional()
 })
 
 export const UpdateAutoTradeSessionResponse = zod.object({
@@ -1064,8 +1124,15 @@ export const UpdateAutoTradeSessionResponse = zod.object({
   "mode": zod.enum(['demo', 'live']),
   "symbol": zod.string(),
   "stakeAmount": zod.number(),
+  "duration": zod.number(),
+  "durationUnit": zod.string(),
   "maxTrades": zod.number().nullish(),
   "stopOnLoss": zod.number().nullish(),
+  "symbols": zod.array(zod.string()).optional(),
+  "pairMode": zod.enum(['single', 'rotating', 'simultaneous']).optional(),
+  "profitTarget": zod.number().nullish(),
+  "tradeProfitTarget": zod.number().nullish(),
+  "alternateDirection": zod.boolean().optional(),
   "totalTrades": zod.number(),
   "winTrades": zod.number(),
   "totalPnl": zod.number(),
@@ -1182,8 +1249,7 @@ export const GetOpenaiConversationParams = zod.object({
 
 export const GetOpenaiConversationResponse = zod.object({
   "id": zod.number(),
-  "title": zod.string(),
-  "createdAt": zod.coerce.date(),
+  "title": zod.coerce.date(),
   "messages": zod.array(zod.object({
   "id": zod.number(),
   "conversationId": zod.number(),

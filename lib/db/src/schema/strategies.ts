@@ -79,9 +79,20 @@ export const autoTradingSessionsTable = pgTable("auto_trading_sessions", {
   status: autoTradeSessionStatusEnum("status").notNull().default("running"),
   mode: autoTradeSessionModeEnum("mode").notNull().default("demo"),
   symbol: text("symbol").notNull(),
+  // Multi-pair: JSON array of symbols e.g. '["R_100","R_75"]'. Empty = use symbol above.
+  symbols: text("symbols").notNull().default("[]"),
+  // Pair mode: 'single' | 'simultaneous' | 'rotating'
+  pairMode: text("pair_mode").notNull().default("single"),
+  // Current index for rotating mode
+  currentPairIdx: integer("current_pair_idx").notNull().default(0),
   stakeAmount: real("stake_amount").notNull(),
+  duration: integer("duration").notNull().default(15),
+  durationUnit: text("duration_unit").notNull().default("m"),
   maxTrades: integer("max_trades"),
   stopOnLoss: real("stop_on_loss"),
+  profitTarget: real("profit_target"),
+  tradeProfitTarget: real("trade_profit_target"),
+  alternateDirection: boolean("alternate_direction").notNull().default(false),
   totalTrades: integer("total_trades").notNull().default(0),
   winTrades: integer("win_trades").notNull().default(0),
   totalPnl: real("total_pnl").notNull().default(0),

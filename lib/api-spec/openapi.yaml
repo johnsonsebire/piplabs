@@ -1,3 +1,4 @@
+
 openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
@@ -858,6 +859,50 @@ paths:
         "204":
           description: Deleted
 
+  # ─── Datasets ────────────────────────────────────────────────────────────────
+
+  /datasets/backtests:
+    get:
+      operationId: listBacktestDatasets
+      tags: [datasets]
+      summary: List available CSV datasets for backtesting
+      responses:
+        "200":
+          description: List of dataset filenames
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /datasets/backtests/upload:
+    post:
+      operationId: uploadBacktestDataset
+      tags: [datasets]
+      summary: Upload a new CSV dataset for backtesting
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadDatasetInput"
+      responses:
+        "200":
+          description: Dataset uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+                  success:
+                    type: boolean
+                required:
+                  - filename
+                  - success
+
   # ─── Backtests ───────────────────────────────────────────────────────────────
 
   /backtests:
@@ -943,6 +988,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Backtest"
+    delete:
+      operationId: deleteBacktest
+      tags: [backtests]
+      summary: Delete a backtest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Backtest deleted
 
   # ─── AI Analysis ─────────────────────────────────────────────────────────────
 
@@ -1618,6 +1676,10 @@ components:
             Strike/barrier for vanilla options. Use "+0.00" for at-the-money,
             "+N" / "-N" for relative pips from spot, or an absolute price string.
             Required for VANILLALONGCALL / VANILLALONGPUT contract types.
+        multiplier:
+          type: ["number", "null"]
+          description: >
+            Multiplier value. Used only for Multiplier trade types. Acceptable values: 40, 100, 200, 300, 400.
       required:
         - symbol
         - type
@@ -2024,11 +2086,32 @@ components:
           type: ["number", "null"]
         stakePerTrade:
           type: ["number", "null"]
+        granularitySec:
+          type: ["integer", "null"]
+          description: "Candle granularity in seconds for the backtest data (60=1m, 300=5m, 900=15m, 3600=1h, 14400=4h, 86400=1d). If null, auto-derived from durationUnit."
+        sessions:
+          type: ["array", "null"]
+          items:
+            type: string
+            enum: [asian, london, newyork, overlap_london_ny]
+          description: "Restrict the backtest to trades initiated within the given trading sessions (UTC). If null or empty, all sessions are included."
+        datasetFile:
+          type: ["string", "null"]
+          description: "If provided, the backtest will run using this local CSV file instead of fetching from Deriv API."
       required:
         - strategyId
         - symbol
         - fromDate
         - toDate
+
+    UploadDatasetInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+      required:
+        - file
 
     # ─── AI Analysis ────────────────────────────────────────────────────────────
 
@@ -2187,9 +2270,22 @@ components:
           type: string
         stakeAmount:
           type: number
+        duration:
+          type: integer
+        durationUnit:
+          type: string
         maxTrades:
           type: ["integer", "null"]
         stopOnLoss:
+          type: ["number", "null"]
+        symbols:
+          type: array
+          items:
+            type: string
+        pairMode:
+          type: string
+          enum: [single, rotating, simultaneous]
+        profitTarget:
           type: ["number", "null"]
         totalTrades:
           type: integer
@@ -2216,6 +2312,8 @@ components:
         - mode
         - symbol
         - stakeAmount
+        - duration
+        - durationUnit
         - totalTrades
         - winTrades
         - totalPnl
@@ -2232,17 +2330,32 @@ components:
           enum: [demo, live]
         symbol:
           type: string
+        symbols:
+          type: array
+          items:
+            type: string
+        pairMode:
+          type: string
+          enum: [single, rotating, simultaneous]
         stakeAmount:
           type: number
+        duration:
+          type: integer
+        durationUnit:
+          type: string
         maxTrades:
           type: ["integer", "null"]
         stopOnLoss:
+          type: ["number", "null"]
+        profitTarget:
           type: ["number", "null"]
       required:
         - strategyId
         - mode
         - symbol
         - stakeAmount
+        - duration
+        - durationUnit
 
     AutoTradeSessionUpdate:
       type: object
@@ -2250,8 +2363,25 @@ components:
         status:
           type: string
           enum: [running, stopped, paused]
-      required:
-        - status
+        stakeAmount:
+          type: number
+        duration:
+          type: integer
+        durationUnit:
+          type: string
+        symbols:
+          type: array
+          items:
+            type: string
+        pairMode:
+          type: string
+          enum: [single, rotating, simultaneous]
+        maxTrades:
+          type: ["integer", "null"]
+        stopOnLoss:
+          type: ["number", "null"]
+        profitTarget:
+          type: ["number", "null"]
 
     # ─── Deriv Symbols ───────────────────────────────────────────────────────────
 

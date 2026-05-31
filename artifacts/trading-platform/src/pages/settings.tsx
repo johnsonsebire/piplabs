@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { swalSuccess, swalError, swalWarning } from "@/lib/swal";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function SettingsPage() {
@@ -16,7 +16,6 @@ export default function SettingsPage() {
   const connectDeriv = useConnectDeriv();
   const disconnectDeriv = useDisconnectDeriv();
   
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [displayName, setDisplayName] = useState("");
@@ -42,9 +41,12 @@ export default function SettingsPage() {
       } 
     }, {
       onSuccess: () => {
-        toast({ title: "Profile updated" });
-        setOpenAiApiKey(""); // Clear it after saving
+        swalSuccess("Profile updated", "Your identity settings have been saved.");
+        setOpenAiApiKey("");
         queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
+      },
+      onError: (err: any) => {
+        swalError("Update failed", err?.message);
       }
     });
   };
@@ -54,20 +56,16 @@ export default function SettingsPage() {
     const trimmedToken = apiToken.trim();
     const trimmedAppId = appId.trim();
     if (!trimmedToken) {
-      toast({ variant: "destructive", title: "PAT required", description: "Enter your Personal Access Token." });
+      swalWarning("PAT required", "Enter your Personal Access Token.");
       return;
     }
     if (!trimmedAppId) {
-      toast({
-        variant: "destructive",
-        title: "App ID required",
-        description: "Enter the App ID from your PAT-type app at developers.deriv.com (must match the app that issued your PAT).",
-      });
+      swalWarning("App ID required", "Enter the App ID from your PAT-type app at developers.deriv.com.");
       return;
     }
     connectDeriv.mutate({ data: { apiToken: trimmedToken, appId: trimmedAppId, accountId: accountId.trim() || null } }, {
       onSuccess: () => {
-        toast({ title: "API Connected successfully" });
+        swalSuccess("API Connected!", "Your Deriv account is now linked.");
         setApiToken("");
         setAppId("");
         setAccountId("");
@@ -76,7 +74,7 @@ export default function SettingsPage() {
       },
       onError: (err: unknown) => {
         const description = err instanceof Error ? err.message : "Connection failed";
-        toast({ variant: "destructive", title: "Connection failed", description });
+        swalError("Connection failed", description);
       }
     });
   };
@@ -84,9 +82,12 @@ export default function SettingsPage() {
   const handleDisconnectDeriv = () => {
     disconnectDeriv.mutate(undefined, {
       onSuccess: () => {
-        toast({ title: "API Disconnected" });
+        swalSuccess("API Disconnected", "Your Deriv account has been unlinked.");
         queryClient.invalidateQueries({ queryKey: ["/api/deriv/status"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+      },
+      onError: (err: any) => {
+        swalError("Disconnect failed", err?.message);
       }
     });
   };

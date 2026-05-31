@@ -112,11 +112,15 @@ export interface UserPermissionsUpdate {
 export interface DerivTokenInput {
   apiToken: string;
   /** @nullable */
+  appId?: string | null;
+  /** @nullable */
   accountId?: string | null;
 }
 
 export interface DerivStatus {
   connected: boolean;
+  /** @nullable */
+  appId?: string | null;
   /** @nullable */
   accountId?: string | null;
   /** @nullable */
@@ -301,6 +305,12 @@ export interface TradeInput {
      * @nullable
      */
   barrier?: string | null;
+  /**
+     * Multiplier value. Used only for Multiplier trade types. Acceptable values: 40, 100, 200, 300, 400.
+
+     * @nullable
+     */
+  multiplier?: number | null;
 }
 
 export interface TradeUpdate {
@@ -568,6 +578,16 @@ export const BacktestInputDurationUnit = {
   d: 'd',
 } as const;
 
+export type BacktestInputSessionsItem = typeof BacktestInputSessionsItem[keyof typeof BacktestInputSessionsItem];
+
+
+export const BacktestInputSessionsItem = {
+  asian: 'asian',
+  london: 'london',
+  newyork: 'newyork',
+  overlap_london_ny: 'overlap_london_ny',
+} as const;
+
 export interface BacktestInput {
   strategyId: number;
   symbol: string;
@@ -582,6 +602,25 @@ export interface BacktestInput {
   initialBalance?: number | null;
   /** @nullable */
   stakePerTrade?: number | null;
+  /**
+     * Candle granularity in seconds for the backtest data (60=1m, 300=5m, 900=15m, 3600=1h, 14400=4h, 86400=1d). If null, auto-derived from durationUnit.
+     * @nullable
+     */
+  granularitySec?: number | null;
+  /**
+     * Restrict the backtest to trades initiated within the given trading sessions (UTC). If null or empty, all sessions are included.
+     * @nullable
+     */
+  sessions?: BacktestInputSessionsItem[] | null;
+  /**
+     * If provided, the backtest will run using this local CSV file instead of fetching from Deriv API.
+     * @nullable
+     */
+  datasetFile?: string | null;
+}
+
+export interface UploadDatasetInput {
+  file: Blob;
 }
 
 export type AIAnalysisInputTradeType = typeof AIAnalysisInputTradeType[keyof typeof AIAnalysisInputTradeType];
@@ -733,6 +772,15 @@ export const AutoTradeSessionMode = {
   live: 'live',
 } as const;
 
+export type AutoTradeSessionPairMode = typeof AutoTradeSessionPairMode[keyof typeof AutoTradeSessionPairMode];
+
+
+export const AutoTradeSessionPairMode = {
+  single: 'single',
+  rotating: 'rotating',
+  simultaneous: 'simultaneous',
+} as const;
+
 export interface AutoTradeSession {
   id: number;
   userId: string;
@@ -743,10 +791,16 @@ export interface AutoTradeSession {
   mode: AutoTradeSessionMode;
   symbol: string;
   stakeAmount: number;
+  duration: number;
+  durationUnit: string;
   /** @nullable */
   maxTrades?: number | null;
   /** @nullable */
   stopOnLoss?: number | null;
+  symbols?: string[];
+  pairMode?: AutoTradeSessionPairMode;
+  /** @nullable */
+  profitTarget?: number | null;
   totalTrades: number;
   winTrades: number;
   totalPnl: number;
@@ -766,15 +820,30 @@ export const AutoTradeSessionInputMode = {
   live: 'live',
 } as const;
 
+export type AutoTradeSessionInputPairMode = typeof AutoTradeSessionInputPairMode[keyof typeof AutoTradeSessionInputPairMode];
+
+
+export const AutoTradeSessionInputPairMode = {
+  single: 'single',
+  rotating: 'rotating',
+  simultaneous: 'simultaneous',
+} as const;
+
 export interface AutoTradeSessionInput {
   strategyId: number;
   mode: AutoTradeSessionInputMode;
   symbol: string;
+  symbols?: string[];
+  pairMode?: AutoTradeSessionInputPairMode;
   stakeAmount: number;
+  duration: number;
+  durationUnit: string;
   /** @nullable */
   maxTrades?: number | null;
   /** @nullable */
   stopOnLoss?: number | null;
+  /** @nullable */
+  profitTarget?: number | null;
 }
 
 export type AutoTradeSessionUpdateStatus = typeof AutoTradeSessionUpdateStatus[keyof typeof AutoTradeSessionUpdateStatus];
@@ -786,8 +855,28 @@ export const AutoTradeSessionUpdateStatus = {
   paused: 'paused',
 } as const;
 
+export type AutoTradeSessionUpdatePairMode = typeof AutoTradeSessionUpdatePairMode[keyof typeof AutoTradeSessionUpdatePairMode];
+
+
+export const AutoTradeSessionUpdatePairMode = {
+  single: 'single',
+  rotating: 'rotating',
+  simultaneous: 'simultaneous',
+} as const;
+
 export interface AutoTradeSessionUpdate {
-  status: AutoTradeSessionUpdateStatus;
+  status?: AutoTradeSessionUpdateStatus;
+  stakeAmount?: number;
+  duration?: number;
+  durationUnit?: string;
+  symbols?: string[];
+  pairMode?: AutoTradeSessionUpdatePairMode;
+  /** @nullable */
+  maxTrades?: number | null;
+  /** @nullable */
+  stopOnLoss?: number | null;
+  /** @nullable */
+  profitTarget?: number | null;
 }
 
 export interface DerivActiveSymbol {
@@ -878,7 +967,6 @@ export interface OpenaiMessageInput {
 export interface OpenaiConversationWithMessages {
   id: number;
   title: string;
-  createdAt: string;
   messages: OpenaiMessage[];
 }
 
@@ -985,6 +1073,11 @@ export const GetTradeStatsPeriod = {
   month: 'month',
   all: 'all',
 } as const;
+
+export type UploadBacktestDataset200 = {
+  filename: string;
+  success: boolean;
+};
 
 export type ListBacktestsParams = {
 strategyId?: number;

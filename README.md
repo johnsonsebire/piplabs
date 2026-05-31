@@ -137,6 +137,20 @@ pnpm --filter @workspace/db run push
 
 > This runs `drizzle-kit push` which syncs your schema to the database. For development only — use migrations in production.
 
+If `push` fails while "Pulling schema from database" (common with remote Postgres / SSL), add the missing Deriv columns directly:
+
+```bash
+pnpm --filter @workspace/db run migrate:deriv
+```
+
+If you see **`ETIMEDOUT`**, your machine cannot reach the database host in `DATABASE_URL` (common when the URL is Replit-internal or the DB is paused). Test with:
+
+```bash
+pnpm --filter @workspace/db run db:check
+```
+
+**Workaround:** open your database provider’s **SQL editor** (Neon, Supabase, Replit Database, etc.) and run the statements in [`lib/db/migrations/0001_add_deriv_columns.sql`](lib/db/migrations/0001_add_deriv_columns.sql), then restart the API server.
+
 ### 5. Generate API Client Code
 
 The project uses a **contract-first API** approach. Zod schemas and React Query hooks are auto-generated from the OpenAPI spec:
@@ -315,7 +329,9 @@ If port `8080` is already in use, change the `PORT` variable in your `.env` file
 
 - Ensure your `DATABASE_URL` is correct and the database is accessible
 - If using Neon or another cloud provider, make sure `?sslmode=require` is included
-- Run `pnpm --filter @workspace/db run push` to ensure the schema is up to date
+- Run `pnpm --filter @workspace/db run db:check` to test connectivity from your machine
+- **`ETIMEDOUT`:** the host in `.env` is not reachable from your PC (Replit-internal URL, paused Neon project, firewall). Use the provider’s SQL editor + `lib/db/migrations/0001_add_deriv_columns.sql`, or run `migrate:deriv` inside Replit’s shell
+- Run `pnpm --filter @workspace/db run push` (or `migrate:deriv`) to ensure the schema is up to date
 
 ### Clerk authentication errors
 

@@ -140,15 +140,24 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: Oscil
           const aux = oscillator.additionalSeries[i];
           let ls = linesRef.current.get(key);
           if (!ls) {
-            ls = chart.addLineSeries({ 
-              color: aux.color, 
-              lineWidth: (aux.thickness ?? 1) as any, 
-              priceLineVisible: false, 
-              lastValueVisible: false 
-            });
-            linesRef.current.set(key, ls);
+            if (aux.type === "histogram") {
+              ls = chart.addHistogramSeries({
+                color: aux.color || '#26a69a',
+                priceFormat: { type: 'volume' },
+                priceLineVisible: false,
+                lastValueVisible: false,
+              }) as any;
+            } else {
+              ls = chart.addLineSeries({ 
+                color: aux.color, 
+                lineWidth: (aux.thickness ?? 1) as any, 
+                priceLineVisible: false, 
+                lastValueVisible: false 
+              }) as any;
+            }
+            linesRef.current.set(key, ls as any);
           }
-          ls.setData(aux.data as any);
+          ls?.setData(aux.data as any);
         }
       }
     } catch (err) {

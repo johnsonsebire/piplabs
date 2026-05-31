@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { usersTable, userPermissionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { dbErrorMessage } from "../lib/dbErrors";
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
@@ -54,8 +55,11 @@ export async function requireAuth(
     req.dbUser = user;
     next();
   } catch (err) {
-    logger.error({ err }, "Error in requireAuth middleware");
-    res.status(500).json({ error: "Internal server error" });
+    const hint = dbErrorMessage(err);
+    logger.error({ err, hint }, "Error in requireAuth middleware");
+    res.status(500).json({
+      error: hint ?? "Internal server error",
+    });
   }
 }
 

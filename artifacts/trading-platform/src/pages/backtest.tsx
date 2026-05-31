@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useMemo } from "react";
+import { useLocation, Link } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   useListStrategies,
@@ -7,20 +7,27 @@ import {
   useListBacktests,
   getListBacktestsQueryKey,
   BacktestInputTradeType,
+  useSearchDerivSymbols,
+  getSearchDerivSymbolsQueryKey,
+  useDeleteBacktest,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { swalSuccess, swalError, swalConfirm, swalWarning, swalInfo } from "@/lib/swal";
 import {
-  Download, FileText, ChevronDown, ChevronRight,
+  Download, FileText, ChevronRight,
   TrendingUp, TrendingDown, Activity, DollarSign, Target,
-  BarChart3, LineChart, Settings, Calendar, Wallet, Clock, Layers, Globe
+  BarChart3, LineChart, Settings, Calendar, Wallet, Clock, Layers, Globe,
+  Search, Check, ChevronsUpDown, Trash2
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { useDebounce } from "@/hooks/use-debounce";
 
 type SimTrade = {
   id: number; entryAt: string; exitAt: string; direction: string;
@@ -52,7 +59,6 @@ function sessionShort(value: SessionKey): string {
   return SESSIONS.find(s => s.value === value)?.short ?? value;
 }
 
-// Available timeframes for backtest (in seconds) - aligned with Deriv API granularities
 const TIMEFRAMES: Array<{ value: number; label: string; short: string }> = [
   { value: 60,    label: "1 Minute",   short: "1M" },
   { value: 120,   label: "2 Minutes",  short: "2M" },
@@ -147,7 +153,7 @@ function printPdf(title: string, rows: SimTrade[]) {
 export default function BacktestPage() {
   const { data: strategies } = useListStrategies({});
   const [selectedStrategy, setSelectedStrategy] = useState<string>("");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedBacktestId, setSelectedBacktestId] = useState<number | null>(null);
   const [, setLocation] = useLocation();
 
   const backtestParams = { strategyId: selectedStrategy ? parseInt(selectedStrategy) : undefined };
@@ -157,19 +163,55 @@ export default function BacktestPage() {
   );
 
   const runBacktest = useRunBacktest();
-  const { toast } = useToast();
+  const deleteBacktest = useDeleteBacktest();
+
+  const handleDeleteBacktest = async (id: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    const confirmed = await swalConfirm(
+      "Delete backtest run?",
+      `This will permanently remove backtest run #${id} and its cached replay data from the server.`,
+      "Yes, delete it"
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteBacktest.mutateAsync({ id });
+      swalSuccess("Deleted!", `Backtest run #${id} has been removed successfully.`);
+      queryClient.invalidateQueries({ queryKey: ["/api/backtests"] });
+      if (selectedBacktestId === id) {
+        setSelectedBacktestId(null);
+      }
+    } catch (err: any) {
+      swalError("Failed to delete", err.message || "An unexpected error occurred.");
+    }
+  };
+  
+  const [openSearch, setOpenSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  const { data: searchResults, isLoading: isSearching } = useSearchDerivSymbols(
+    { q: debouncedSearchQuery },
+    { query: { queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
+  );
   const queryClient = useQueryClient();
 
-  // Multi-timeframe mode toggle
-  const [multiTimeframeMode, setMultiTimeframeMode] = useState(false);
-  // Single timeframe value (default 5M = 300s)
-  const [selectedTimeframe, setSelectedTimeframe] = useState<number>(300);
-  // Multi-timeframe selection (set of granularity seconds)
-  const [selectedTimeframes, setSelectedTimeframes] = useState<Set<number>>(
-    new Set([60, 300, 900, 3600]) // Default: 1M, 5M, 15M, 1H
-  );
+  const { data: datasets } = useQuery({
+    queryKey: ["datasets", "backtests"],
+    queryFn: async () => {
+      const res = await fetch("/api/datasets/backtests");
+      if (!res.ok) return [];
+      return res.json() as Promise<string[]>;
+    }
+  });
 
-  // Session filter: empty Set => all sessions allowed
+  const [dataSource, setDataSource] = useState<"deriv" | "local">("deriv");
+  const [selectedDataset, setSelectedDataset] = useState<string>("");
+
+  const [multiTimeframeMode, setMultiTimeframeMode] = useState(false);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<number>(300);
+  const [selectedTimeframes, setSelectedTimeframes] = useState<Set<number>>(new Set([60, 300, 900, 3600]));
   const [selectedSessions, setSelectedSessions] = useState<Set<SessionKey>>(new Set());
 
   const [formData, setFormData] = useState({
@@ -205,27 +247,46 @@ export default function BacktestPage() {
     });
   };
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/datasets/backtests/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Upload failed");
+      }
+      const data = await res.json();
+      swalSuccess("Dataset Uploaded", "Your CSV dataset has been uploaded successfully.");
+      await queryClient.invalidateQueries({ queryKey: ["datasets", "backtests"] });
+      setSelectedDataset(data.filename);
+      e.target.value = "";
+    } catch (err: any) {
+      swalError("Upload Failed", err.message || "An unexpected error occurred during upload.");
+    }
+  };
+
   const handleRun = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStrategy) {
-      toast({ variant: "destructive", title: "Select a strategy first" });
+      swalWarning("Select Strategy", "Please select a strategy first before running a backtest.");
       return;
     }
 
-    const timeframesToRun = multiTimeframeMode
-      ? Array.from(selectedTimeframes).sort((a, b) => a - b)
-      : [selectedTimeframe];
-
+    const timeframesToRun = multiTimeframeMode ? Array.from(selectedTimeframes).sort((a, b) => a - b) : [selectedTimeframe];
     if (timeframesToRun.length === 0) {
-      toast({ variant: "destructive", title: "Select at least one timeframe" });
+      swalWarning("Select Timeframe", "Please select at least one timeframe.");
       return;
     }
 
     const sessionsArr = Array.from(selectedSessions);
-
     const baseData = {
       strategyId: parseInt(selectedStrategy),
-      symbol: formData.symbol,
+      symbol: dataSource === "local" ? (selectedDataset || "CSV") : formData.symbol,
       fromDate: formData.fromDate,
       toDate: formData.toDate,
       initialBalance: parseFloat(formData.initialBalance),
@@ -234,557 +295,474 @@ export default function BacktestPage() {
       duration: parseInt(formData.duration),
       durationUnit: formData.durationUnit as any,
       sessions: sessionsArr.length > 0 ? sessionsArr : null,
+      datasetFile: dataSource === "local" ? selectedDataset : null,
     };
 
-    // Show toast for multi-timeframe runs
     if (timeframesToRun.length > 1) {
-      toast({ title: `Running ${timeframesToRun.length} backtests in parallel`, description: `Timeframes: ${timeframesToRun.map(timeframeShort).join(", ")}` });
+      swalInfo("Simulating Backtests", `Running ${timeframesToRun.length} backtests in parallel for timeframes: ${timeframesToRun.map(timeframeShort).join(", ")}`);
     }
 
-    // Fire all backtests in parallel
     const promises = timeframesToRun.map(granularitySec =>
-      runBacktest.mutateAsync({
-        data: { ...baseData, granularitySec } as any,
-      }).catch((err: any) => {
-        toast({
-          variant: "destructive",
-          title: `Backtest failed for ${timeframeShort(granularitySec)}`,
-          description: err?.message
-        });
+      runBacktest.mutateAsync({ data: { ...baseData, granularitySec } as any })
+      .catch((err: any) => {
+        swalError("Simulation Failed", `Backtest failed for ${timeframeShort(granularitySec)}: ${err?.message || "Internal engine error"}`);
         return null;
       })
     );
 
     await Promise.all(promises);
     queryClient.invalidateQueries({ queryKey: ["/api/backtests"] });
-
-    if (timeframesToRun.length === 1) {
-      toast({ title: "Backtest initiated" });
-    } else {
-      toast({ title: "All backtests initiated", description: "Results will appear shortly" });
-    }
+    swalSuccess("Simulation Completed", timeframesToRun.length > 1 ? "All parallel backtest runs have finished successfully!" : "Backtest run has finished successfully!");
   };
+
+  const selectedBt = backtests?.find(b => b.id === selectedBacktestId);
+  const selectedBtResults = selectedBt ? parseResults(selectedBt.results) : null;
+  const selectedBtTrades = selectedBtResults?.trades ?? [];
+
+  const selectedBtStats = useMemo(() => {
+    let winBuyCount = 0; let winBuyPnl = 0;
+    let loseBuyCount = 0; let loseBuyPnl = 0;
+    let winSellCount = 0; let winSellPnl = 0;
+    let loseSellCount = 0; let loseSellPnl = 0;
+
+    for (const t of selectedBtTrades) {
+      const isWin = t.outcome === "win";
+      const isCall = t.direction === "CALL";
+      
+      if (isCall) {
+        if (isWin) { winBuyCount++; winBuyPnl += t.pnl; }
+        else { loseBuyCount++; loseBuyPnl += t.pnl; }
+      } else {
+        if (isWin) { winSellCount++; winSellPnl += t.pnl; }
+        else { loseSellCount++; loseSellPnl += t.pnl; }
+      }
+    }
+
+    return {
+      winBuyCount, winBuyPnl: Math.round(winBuyPnl * 100) / 100,
+      loseBuyCount, loseBuyPnl: Math.round(loseBuyPnl * 100) / 100,
+      winSellCount, winSellPnl: Math.round(winSellPnl * 100) / 100,
+      loseSellCount, loseSellPnl: Math.round(loseSellPnl * 100) / 100,
+    };
+  }, [selectedBtTrades]);
 
   return (
     <AppLayout>
-      <div className="h-[calc(100vh-3.5rem)] w-full overflow-auto bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Page Header */}
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20">
-                <BarChart3 className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">Backtest</h1>
-                <p className="text-sm text-muted-foreground font-mono mt-0.5">Test strategies against real historical market data</p>
-              </div>
+      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-[#0A0D14] text-foreground">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-0 divide-x divide-border/30">
+          
+          {/* COLUMN 1: CONFIGURATION (Span 3) */}
+          <div className="md:col-span-3 flex flex-col h-full bg-[#0E121B]/90 overflow-hidden backdrop-blur-sm">
+            <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0 flex items-center gap-2">
+              <Settings className="h-3.5 w-3.5 text-primary" />
+              <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-foreground">Configuration</h2>
             </div>
-          </div>
+            
+            <form onSubmit={handleRun} className="flex-1 overflow-y-auto p-3 space-y-3.5 hide-scrollbar text-xs">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] uppercase font-mono text-muted-foreground tracking-wider flex items-center gap-1.5">
+                  <Target className="h-3 w-3" /> Strategy
+                </Label>
+                <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
+                  <SelectTrigger className="w-full h-8 rounded-none border-border/40 bg-background/50 font-mono text-[11px] focus:ring-1 focus:ring-primary/40">
+                    <SelectValue placeholder="Select Strategy" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                    {Array.isArray(strategies) ? strategies.map(s => (
+                      <SelectItem key={s.id} value={s.id.toString()} className="font-mono text-xs uppercase hover:bg-primary/10">{s.name}</SelectItem>
+                    )) : null}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Main Grid: Configuration + Results */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Column - Configuration Panel */}
-            <div className="lg:col-span-4">
-              <Card className="border-border rounded-xl overflow-hidden sticky top-6">
-                <div className="p-5 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
-                  <div className="flex items-center gap-2">
-                    <Settings className="h-4 w-4 text-primary" />
-                    <h2 className="text-sm font-bold font-mono uppercase tracking-wider text-foreground">Configuration</h2>
+              {/* Timeframe section */}
+              <div className="p-2.5 bg-[#121824]/30 border border-border/20 relative">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3 text-primary" />
+                    <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Timeframe</h3>
                   </div>
+                  <button type="button" onClick={() => setMultiTimeframeMode(m => !m)} className={`px-1.5 py-0.5 text-[8px] font-mono uppercase font-bold tracking-wider border transition-all ${multiTimeframeMode ? "bg-primary text-primary-foreground border-primary" : "bg-background/40 text-muted-foreground border-border/40 hover:text-primary"}`}>
+                    Multi
+                  </button>
                 </div>
-
-                <form onSubmit={handleRun} className="p-5 space-y-5">
-                  {/* Strategy Selection */}
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider flex items-center gap-1.5">
-                      <Target className="h-3 w-3" />
-                      Strategy
-                    </Label>
-                    <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
-                      <SelectTrigger className="w-full h-10 rounded-lg border-border bg-background font-mono text-sm">
-                        <SelectValue placeholder="Select Strategy" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-lg border-border">
-                        {Array.isArray(strategies) ? strategies.map(s => (
-                          <SelectItem key={s.id} value={s.id.toString()} className="font-mono text-xs uppercase">{s.name}</SelectItem>
-                        )) : null}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Timeframe Selection */}
-                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3 w-3 text-primary" />
-                        <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Timeframe</h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setMultiTimeframeMode(m => !m)}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono uppercase font-bold tracking-wider transition-all ${
-                          multiTimeframeMode
-                            ? "bg-primary/15 text-primary border border-primary/30"
-                            : "bg-muted text-muted-foreground border border-border hover:border-primary/30 hover:text-primary"
-                        }`}
-                        title="Toggle multi-timeframe mode"
-                      >
-                        <Layers className="h-3 w-3" />
-                        Multi
+                {!multiTimeframeMode ? (
+                  <Select value={String(selectedTimeframe)} onValueChange={(v) => setSelectedTimeframe(parseInt(v))}>
+                    <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none border-border bg-[#0E121B] max-h-60">
+                      {TIMEFRAMES.map(tf => <SelectItem key={tf.value} value={String(tf.value)} className="font-mono text-xs uppercase">{tf.short} — {tf.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="grid grid-cols-4 gap-1">
+                    {TIMEFRAMES.map(tf => (
+                      <button key={tf.value} type="button" onClick={() => toggleTimeframe(tf.value)} className={`h-5 text-[8px] font-mono uppercase font-bold border ${selectedTimeframes.has(tf.value) ? "bg-primary text-primary-foreground border-primary" : "bg-background/20 text-muted-foreground border-border/30 hover:border-primary/30"}`}>
+                        {tf.short}
                       </button>
-                    </div>
-
-                    {!multiTimeframeMode ? (
-                      <>
-                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Candle Period</Label>
-                        <Select value={String(selectedTimeframe)} onValueChange={(v) => setSelectedTimeframe(parseInt(v))}>
-                          <SelectTrigger className="w-full h-10 rounded-lg border-border bg-background font-mono text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-lg border-border max-h-80">
-                            {TIMEFRAMES.map(tf => (
-                              <SelectItem key={tf.value} value={String(tf.value)} className="font-mono text-xs uppercase">
-                                {tf.short} — {tf.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
-                          The granularity of historical candles used during the backtest.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">
-                          Select Multiple ({selectedTimeframes.size} selected)
-                        </Label>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {TIMEFRAMES.map(tf => {
-                            const active = selectedTimeframes.has(tf.value);
-                            return (
-                              <button
-                                type="button"
-                                key={tf.value}
-                                onClick={() => toggleTimeframe(tf.value)}
-                                className={`h-9 rounded-md text-[10px] font-mono uppercase font-bold tracking-wider border transition-all ${
-                                  active
-                                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                    : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-primary"
-                                }`}
-                                title={tf.label}
-                              >
-                                {tf.short}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
-                          Will run {selectedTimeframes.size} parallel backtests, one per selected timeframe. Compare results to find the best.
-                        </p>
-                      </>
-                    )}
+                    ))}
                   </div>
-
-                  {/* Trade Settings */}
-                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
-                    <div className="flex items-center gap-1.5">
-                      <Activity className="h-3 w-3 text-primary" />
-                      <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Trade Settings</h3>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Trade Type</Label>
-                      <Select value={formData.tradeType} onValueChange={(v) => setFormData({ ...formData, tradeType: v })}>
-                        <SelectTrigger className="w-full h-10 rounded-lg border-border bg-background font-mono text-sm" data-testid="select-backtest-type">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-lg border-border">
-                          <SelectItem value="vanilla_options" className="font-mono text-xs uppercase">Vanilla Options</SelectItem>
-                          <SelectItem value="multiplier" className="font-mono text-xs uppercase">Multiplier</SelectItem>
-                          <SelectItem value="forex" className="font-mono text-xs uppercase">Forex</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Trade Duration</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          required
-                          value={formData.duration}
-                          onChange={e => setFormData({ ...formData, duration: e.target.value })}
-                          className="rounded-lg font-mono border-border bg-background flex-1"
-                          data-testid="input-backtest-duration"
-                        />
-                        <Select value={formData.durationUnit} onValueChange={(v) => setFormData({ ...formData, durationUnit: v })}>
-                          <SelectTrigger className="w-[100px] h-10 rounded-lg border-border bg-background font-mono text-sm" data-testid="select-backtest-duration-unit">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-lg border-border">
-                            <SelectItem value="m" className="font-mono text-xs">Min</SelectItem>
-                            <SelectItem value="t" className="font-mono text-xs">Ticks</SelectItem>
-                            <SelectItem value="s" className="font-mono text-xs">Sec</SelectItem>
-                            <SelectItem value="h" className="font-mono text-xs">Hours</SelectItem>
-                            <SelectItem value="d" className="font-mono text-xs">Days</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
-                        How long each simulated trade is held open.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Trading Sessions */}
-                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Globe className="h-3 w-3 text-primary" />
-                        <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Trading Sessions</h3>
-                      </div>
-                      <span className="text-[10px] font-mono text-muted-foreground">
-                        {selectedSessions.size === 0 ? "ALL" : `${selectedSessions.size} selected`}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {SESSIONS.map(s => {
-                        const active = selectedSessions.has(s.value);
-                        return (
-                          <button
-                            type="button"
-                            key={s.value}
-                            onClick={() => toggleSession(s.value)}
-                            title={`${s.label} (${s.hours})`}
-                            className={`flex flex-col items-start gap-0.5 px-2.5 py-2 rounded-md text-left border transition-all ${
-                              active
-                                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-primary"
-                            }`}
-                          >
-                            <span className="text-[10px] font-mono uppercase font-bold tracking-wider">
-                              {s.short}
-                            </span>
-                            <span className={`text-[9px] font-mono ${active ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>
-                              {s.hours}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <p className="text-[10px] text-muted-foreground/70 font-mono leading-relaxed">
-                      {selectedSessions.size === 0
-                        ? "All sessions included. Click to restrict entries to specific sessions."
-                        : "Only trades initiated within the selected sessions (UTC) will be opened."}
-                    </p>
-                  </div>
-
-                  {/* Market & Period */}
-                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="h-3 w-3 text-primary" />
-                      <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Market & Period</h3>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Symbol</Label>
-                      <Input
-                        required
-                        value={formData.symbol}
-                        onChange={e => setFormData({...formData, symbol: e.target.value})}
-                        className="rounded-lg font-mono border-border bg-background uppercase font-bold"
-                        placeholder="R_100"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">From</Label>
-                        <Input type="date" required value={formData.fromDate}
-                          onChange={e => setFormData({...formData, fromDate: e.target.value})}
-                          className="rounded-lg font-mono border-border bg-background text-xs" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">To</Label>
-                        <Input type="date" required value={formData.toDate}
-                          onChange={e => setFormData({...formData, toDate: e.target.value})}
-                          className="rounded-lg font-mono border-border bg-background text-xs" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Capital */}
-                  <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/60">
-                    <div className="flex items-center gap-1.5">
-                      <Wallet className="h-3 w-3 text-primary" />
-                      <h3 className="text-[11px] uppercase font-mono text-foreground font-bold tracking-wider">Capital</h3>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Initial $</Label>
-                        <Input type="number" required value={formData.initialBalance}
-                          onChange={e => setFormData({...formData, initialBalance: e.target.value})}
-                          className="rounded-lg font-mono border-border bg-background"
-                          placeholder="10000" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase font-mono text-muted-foreground tracking-wider">Stake $</Label>
-                        <Input type="number" step="0.01" required value={formData.stakePerTrade}
-                          onChange={e => setFormData({...formData, stakePerTrade: e.target.value})}
-                          className="rounded-lg font-mono border-border bg-background"
-                          placeholder="1.00" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Submit Button */}
-                  <Button
-                    type="submit"
-                    disabled={runBacktest.isPending}
-                    className="w-full rounded-lg font-bold uppercase font-mono tracking-wider h-11 text-sm shadow-md hover:shadow-lg transition-all"
-                  >
-                    {runBacktest.isPending ? (
-                      <>
-                        <Activity className="h-4 w-4 mr-2 animate-spin" />
-                        Simulating...
-                      </>
-                    ) : (
-                      <>
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        Execute Backtest{multiTimeframeMode && selectedTimeframes.size > 1 ? ` (${selectedTimeframes.size}x)` : ""}
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Card>
-            </div>
-
-            {/* Right Column - Results */}
-            <div className="lg:col-span-8">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  <h2 className="text-lg font-bold font-mono uppercase text-foreground tracking-wider">Results</h2>
-                </div>
-                {Array.isArray(backtests) && backtests.length > 0 && (
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {backtests.length} backtest{backtests.length !== 1 ? "s" : ""}
-                  </span>
                 )}
               </div>
 
-              {isResultsLoading ? (
-                <Card className="border-border rounded-xl p-12 flex flex-col items-center justify-center">
-                  <Activity className="h-8 w-8 text-primary animate-spin mb-4" />
-                  <div className="text-center text-muted-foreground font-mono uppercase text-sm">Loading results...</div>
-                </Card>
-              ) : !Array.isArray(backtests) || backtests.length === 0 ? (
-                <Card className="border-border rounded-xl p-12 flex flex-col items-center justify-center min-h-[400px]">
-                  <BarChart3 className="h-16 w-16 mb-4 text-muted-foreground/20" />
-                  <div className="font-mono uppercase text-sm text-muted-foreground">No backtests run yet</div>
-                  <p className="text-xs mt-2 text-muted-foreground/60 font-mono">Configure and execute a backtest to see results</p>
-                </Card>
-              ) : (
-                <div className="space-y-4">
-                  {backtests.map(bt => {
-                    const results = parseResults(bt.results);
-                    const trades = results.trades ?? [];
-                    const isOpen = expandedId === bt.id;
-                    return (
-                      <Card key={bt.id} className="border-border rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
-                        {/* Result Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-muted/30 to-transparent flex-wrap gap-2">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 rounded-lg bg-primary/10">
-                                <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                              </div>
-                              <span className="font-bold text-base font-mono text-primary uppercase">#{bt.id}</span>
-                            </div>
-                            <span className={`px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md font-bold ${
-                              bt.status === 'completed' ? 'bg-primary/15 text-primary border border-primary/20' :
-                              bt.status === 'failed' ? 'bg-destructive/15 text-destructive border border-destructive/20' :
-                              'bg-yellow-500/15 text-yellow-600 border border-yellow-500/20'
-                            }`}>
-                              {bt.status}
-                            </span>
-                            {/* Timeframe Badge */}
-                            <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md bg-primary/10 text-primary font-bold border border-primary/20 flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {timeframeShort(results.granularitySec)}
-                            </span>
-                            {results.tradeType && (
-                              <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md bg-muted text-muted-foreground font-semibold border border-border">
-                                {results.tradeType} · {results.duration}{results.durationUnit}
-                              </span>
-                            )}
-                            {results.sessions && results.sessions.length > 0 && (
-                              <span
-                                className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-md bg-primary/10 text-primary font-bold border border-primary/20 flex items-center gap-1"
-                                title={`Filtered to: ${results.sessions.map(sessionShort).join(", ")}`}
+              {/* Trade Settings */}
+              <div className="p-2.5 bg-[#121824]/30 border border-border/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Activity className="h-3 w-3 text-primary" />
+                  <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Trade Settings</h3>
+                </div>
+                <div className="space-y-1.5">
+                  <Select value={formData.tradeType} onValueChange={(v) => setFormData({ ...formData, tradeType: v })}>
+                    <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                      <SelectItem value="vanilla_options" className="font-mono text-[10px] uppercase">Options</SelectItem>
+                      <SelectItem value="multiplier" className="font-mono text-[10px] uppercase">Multiplier</SelectItem>
+                      <SelectItem value="forex" className="font-mono text-[10px] uppercase">Forex</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-1">
+                    <Input type="number" required value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[11px] w-12 px-1 text-center" />
+                    <Select value={formData.durationUnit} onValueChange={(v) => setFormData({ ...formData, durationUnit: v })}>
+                      <SelectTrigger className="flex-1 h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                        <SelectItem value="t" className="font-mono text-[10px] uppercase">Ticks</SelectItem>
+                        <SelectItem value="s" className="font-mono text-[10px] uppercase">Sec</SelectItem>
+                        <SelectItem value="m" className="font-mono text-[10px] uppercase">Min</SelectItem>
+                        <SelectItem value="h" className="font-mono text-[10px] uppercase">Hours</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Source & Market */}
+              <div className="p-2.5 bg-[#121824]/30 border border-border/20 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Globe className="h-3 w-3 text-primary" />
+                  <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Data & Market</h3>
+                </div>
+                <Select value={dataSource} onValueChange={(v: "deriv" | "local") => setDataSource(v)}>
+                  <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                    <SelectItem value="deriv" className="font-mono text-[10px] uppercase">Deriv API</SelectItem>
+                    <SelectItem value="local" className="font-mono text-[10px] uppercase">Local CSV</SelectItem>
+                  </SelectContent>
+                </Select>
+                {dataSource === "local" ? (
+                  <div className="space-y-1.5">
+                    <Select value={selectedDataset} onValueChange={setSelectedDataset}>
+                      <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
+                        <SelectValue placeholder="Select CSV File" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                        {Array.isArray(datasets) && datasets.map(d => <SelectItem key={d} value={d} className="font-mono text-[10px]">{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <div className="border border-dashed border-border/30 p-2 text-center relative bg-background/10 hover:bg-background/20 transition-all cursor-pointer">
+                      <Label className="cursor-pointer font-mono text-[9px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                        <Download className="h-3 w-3" /> Upload CSV
+                      </Label>
+                      <input type="file" accept=".csv" onChange={handleUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </div>
+                  </div>
+                ) : (
+                  <Popover open={openSearch} onOpenChange={setOpenSearch}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openSearch}
+                        className="w-full justify-between h-7 rounded-none border-border/40 bg-background/40 font-mono px-2 hover:bg-muted/50 text-[10px]"
+                      >
+                        <div className="flex items-center gap-1 truncate">
+                          <Search size={10} className="text-muted-foreground shrink-0" />
+                          <span className="truncate">{formData.symbol || "Select Market..."}</span>
+                        </div>
+                        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start" style={{ width: '260px', backgroundColor: '#0f1318', borderRadius: 0, border: '1px solid #1a2332' }}>
+                      <Command shouldFilter={false} className="bg-transparent">
+                        <CommandInput
+                          placeholder="Search symbols..."
+                          className="font-mono text-xs border-0 focus:ring-0"
+                          style={{ height: '30px', fontSize: '10px' }}
+                          value={searchQuery}
+                          onValueChange={setSearchQuery}
+                        />
+                        <CommandList style={{ maxHeight: '180px', overflowY: 'auto', borderTop: '1px solid #1a2332', backgroundColor: '#0f1318' }}>
+                          {isSearching && <div className="py-2 text-center text-[10px] font-mono text-muted-foreground animate-pulse">Searching...</div>}
+                          {!isSearching && (!searchResults || searchResults.length === 0) && (
+                            <CommandEmpty className="py-2 text-center text-[10px] font-mono text-muted-foreground">No symbols found.</CommandEmpty>
+                          )}
+                          <CommandGroup className="bg-[#0f1318]">
+                            {Array.isArray(searchResults) && searchResults.map((item) => (
+                              <CommandItem
+                                key={item.symbol}
+                                value={item.symbol}
+                                onSelect={() => {
+                                  setFormData({ ...formData, symbol: item.symbol });
+                                  setOpenSearch(false);
+                                  setSearchQuery("");
+                                }}
+                                className="font-mono text-[11px] cursor-pointer py-1 px-2 aria-selected:bg-primary/10 aria-selected:text-primary"
                               >
-                                <Globe className="h-3 w-3" />
-                                {results.sessions.map(sessionShort).join(" · ")}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs font-mono font-bold text-foreground bg-muted/60 px-2.5 py-1 rounded-md border border-border">
-                            {bt.symbol}
+                                <div className="flex items-center justify-between w-full">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold">{item.symbol}</span>
+                                    <span className="text-[8px] text-muted-foreground">{item.displayName}</span>
+                                  </div>
+                                  {formData.symbol === item.symbol && <Check className="h-3 w-3 text-primary" />}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+
+              {/* Capital & Period */}
+              <div className="p-2.5 bg-[#121824]/30 border border-border/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="h-3 w-3 text-primary" />
+                    <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Date Period</h3>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <Input type="date" required value={formData.fromDate} onChange={e => setFormData({...formData, fromDate: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[9px] px-1" />
+                  <Input type="date" required value={formData.toDate} onChange={e => setFormData({...formData, toDate: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[9px] px-1" />
+                </div>
+                
+                <div className="flex items-center gap-1.5 pt-1.5 border-t border-border/10">
+                  <Wallet className="h-3 w-3 text-primary" />
+                  <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Capital & Stake</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="relative">
+                    <Input type="number" required value={formData.initialBalance} onChange={e => setFormData({...formData, initialBalance: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[10px] pl-4" />
+                    <span className="absolute left-1.5 top-1.5 text-[9px] text-muted-foreground">$</span>
+                  </div>
+                  <div className="relative">
+                    <Input type="number" step="0.01" required value={formData.stakePerTrade} onChange={e => setFormData({...formData, stakePerTrade: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[10px] pl-4" />
+                    <span className="absolute left-1.5 top-1.5 text-[9px] text-muted-foreground">$</span>
+                  </div>
+                </div>
+              </div>
+            </form>
+            
+            <div className="p-3 border-t border-border/30 bg-[#0E121B] shrink-0">
+              <Button type="submit" onClick={handleRun} disabled={runBacktest.isPending} className="w-full rounded-none font-bold uppercase font-mono tracking-wider h-8 text-[10px] shadow-lg shadow-primary/10">
+                {runBacktest.isPending ? "Simulating..." : "Run Backtest"}
+              </Button>
+            </div>
+          </div>
+
+          {/* COLUMN 2: BACKTEST LIST (Span 4) */}
+          <div className="md:col-span-3 lg:col-span-4 flex flex-col h-full bg-[#0A0D14] overflow-hidden">
+            <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-foreground">History</h2>
+              </div>
+              <span className="text-[9px] font-mono text-muted-foreground bg-[#1E293B] px-1.5 py-0.5 border border-border/30">{backtests?.length || 0} Runs</span>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 hide-scrollbar">
+              {isResultsLoading ? (
+                <div className="p-8 text-center text-xs font-mono uppercase text-muted-foreground animate-pulse">Loading...</div>
+              ) : !backtests || backtests.length === 0 ? (
+                <div className="p-8 text-center text-xs font-mono uppercase text-muted-foreground">No backtests found</div>
+              ) : (
+                backtests.map(bt => {
+                  const isSelected = selectedBacktestId === bt.id;
+                  const res = parseResults(bt.results);
+                  return (
+                    <div 
+                      key={bt.id} 
+                      onClick={() => setSelectedBacktestId(bt.id)}
+                      className={`group relative p-2.5 border cursor-pointer transition-all rounded-none ${isSelected ? 'bg-primary/5 border-primary shadow-sm' : 'bg-[#111520]/60 border-border/30 hover:border-primary/40'}`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-bold text-[11px] font-mono text-primary uppercase">#{bt.id} · {bt.symbol}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-1 py-0.2 text-[8px] font-mono uppercase font-bold border ${bt.status === 'completed' ? 'text-primary border-primary/20 bg-primary/5' : bt.status === 'failed' ? 'text-destructive border-destructive/25 bg-destructive/5' : 'text-yellow-500 border-yellow-500/25 bg-yellow-500/5'}`}>
+                            {bt.status}
+                          </span>
+                          <button
+                            onClick={(e) => handleDeleteBacktest(bt.id, e)}
+                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5"
+                            title="Delete backtest"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="px-1.5 py-0.2 text-[8px] font-mono uppercase bg-muted/30 text-muted-foreground border border-border/30">
+                          {timeframeShort(res.granularitySec)}
+                        </span>
+                        <span className="text-[9px] font-mono uppercase text-muted-foreground truncate max-w-[160px]">{res.tradeType} · {res.duration}{res.durationUnit}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-border/10">
+                        <div className="flex justify-between items-center pr-2">
+                          <span className="text-[8px] uppercase font-mono text-muted-foreground">Win Rate</span>
+                          <span className="text-[10px] font-bold font-mono">{bt.winRate != null ? `${bt.winRate.toFixed(1)}%` : '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pl-2 border-l border-border/20">
+                          <span className="text-[8px] uppercase font-mono text-muted-foreground">P&L</span>
+                          <span className={`text-[10px] font-bold font-mono ${bt.totalPnl && bt.totalPnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                            {bt.totalPnl != null ? `${bt.totalPnl >= 0 ? '+' : ''}$${bt.totalPnl.toFixed(2)}` : '-'}
                           </span>
                         </div>
-
-                        {/* Metrics Grid - well-spaced, label above value with breathing room */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border">
-                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
-                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
-                              <Target className="h-3 w-3 shrink-0" />
-                              <span>Win Rate</span>
-                            </span>
-                            <span className="text-2xl font-bold font-mono text-foreground leading-none tabular-nums">
-                              {bt.winRate != null ? `${bt.winRate.toFixed(1)}%` : '---'}
-                            </span>
-                          </div>
-                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
-                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
-                              <DollarSign className="h-3 w-3 shrink-0" />
-                              <span>Net P&amp;L</span>
-                            </span>
-                            <span className={`text-2xl font-bold font-mono leading-none tabular-nums ${bt.totalPnl != null && bt.totalPnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                              {bt.totalPnl != null ? `${bt.totalPnl >= 0 ? '+' : ''}$${bt.totalPnl.toFixed(2)}` : '---'}
-                            </span>
-                          </div>
-                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
-                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
-                              <Activity className="h-3 w-3 shrink-0" />
-                              <span>Trades</span>
-                            </span>
-                            <span className="text-2xl font-bold font-mono text-foreground leading-none tabular-nums">
-                              {bt.totalTrades ?? '---'}
-                            </span>
-                          </div>
-                          <div className="px-5 py-4 bg-card flex flex-col gap-2 min-w-0">
-                            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
-                              <TrendingDown className="h-3 w-3 shrink-0" />
-                              <span>Max DD</span>
-                            </span>
-                            <span className="text-2xl font-bold font-mono text-destructive leading-none tabular-nums">
-                              {bt.maxDrawdown != null ? `${bt.maxDrawdown.toFixed(1)}%` : '---'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Trade List Toggle */}
-                        {trades.length > 0 && (
-                          <div className="border-t border-border">
-                            <div className="flex items-center justify-between p-3 bg-muted/10 gap-2 flex-wrap">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="rounded-lg text-[11px] uppercase font-mono h-8 px-3 font-semibold border-border hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
-                                onClick={() => setExpandedId(isOpen ? null : bt.id)}
-                                data-testid={`button-toggle-trades-${bt.id}`}
-                              >
-                                {isOpen ? <ChevronDown className="h-3.5 w-3.5 mr-1.5" /> : <ChevronRight className="h-3.5 w-3.5 mr-1.5" />}
-                                {isOpen ? "Hide" : "Show"} Trades ({trades.length})
-                              </Button>
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button" size="sm" variant="outline"
-                                  onClick={() => downloadCsv(`backtest-${bt.id}-${timeframeShort(results.granularitySec)}-trades.csv`, trades)}
-                                  className="rounded-lg text-[11px] uppercase font-mono h-8 px-3 font-semibold border-border hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
-                                  data-testid={`button-csv-${bt.id}`}
-                                >
-                                  <Download className="h-3.5 w-3.5 mr-1.5" /> CSV
-                                </Button>
-                                <Button
-                                  type="button" size="sm" variant="outline"
-                                  onClick={() => printPdf(`Backtest #${bt.id} — ${bt.symbol} @ ${timeframeShort(results.granularitySec)}`, trades)}
-                                  className="rounded-lg text-[11px] uppercase font-mono h-8 px-3 font-semibold border-border hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
-                                  data-testid={`button-pdf-${bt.id}`}
-                                >
-                                  <FileText className="h-3.5 w-3.5 mr-1.5" /> PDF
-                                </Button>
-                              </div>
-                            </div>
-
-                            {isOpen && (
-                              <div className="overflow-x-auto max-h-96 overflow-y-auto border-t border-border">
-                                <table className="w-full text-xs font-mono border-separate border-spacing-0 min-w-[760px]">
-                                  <thead className="bg-muted/40 sticky top-0 backdrop-blur-sm z-10">
-                                    <tr>
-                                      <th className="w-10 px-3 py-3 text-left text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">#</th>
-                                      <th className="px-4 py-3 text-left text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Entry Time</th>
-                                      <th className="w-20 px-3 py-3 text-left text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Dir</th>
-                                      <th className="px-4 py-3 text-right text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Entry</th>
-                                      <th className="px-4 py-3 text-right text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Exit</th>
-                                      <th className="px-4 py-3 text-right text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">P&amp;L</th>
-                                      <th className="w-20 px-3 py-3 text-center text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Result</th>
-                                      <th className="w-24 px-3 py-3 text-center text-[10px] uppercase text-muted-foreground font-bold tracking-wider border-b border-border">Action</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {trades.map(t => (
-                                      <tr key={t.id} className="hover:bg-muted/20 transition-colors">
-                                        <td className="px-3 py-3 text-muted-foreground font-semibold border-b border-border/40">{t.id}</td>
-                                        <td className="px-4 py-3 text-muted-foreground text-[11px] whitespace-nowrap border-b border-border/40">{new Date(t.entryAt).toLocaleString()}</td>
-                                        <td className="px-3 py-3 border-b border-border/40">
-                                          <span className={`inline-block px-2 py-0.5 rounded font-bold text-[10px] tracking-wider ${t.direction === "CALL" ? "bg-primary/15 text-primary border border-primary/20" : "bg-destructive/15 text-destructive border border-destructive/20"}`}>
-                                            {t.direction}
-                                          </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-right font-semibold tabular-nums border-b border-border/40">{t.entry.toFixed(4)}</td>
-                                        <td className="px-4 py-3 text-right font-semibold tabular-nums border-b border-border/40">{t.exit.toFixed(4)}</td>
-                                        <td className={`px-4 py-3 text-right font-bold tabular-nums border-b border-border/40 ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
-                                          {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
-                                        </td>
-                                        <td className="px-3 py-3 text-center border-b border-border/40">
-                                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${t.outcome === "win" ? "bg-primary/15 text-primary border border-primary/20" : "bg-destructive/15 text-destructive border border-destructive/20"}`}>
-                                            {t.outcome}
-                                          </span>
-                                        </td>
-                                        <td className="px-3 py-3 text-center border-b border-border/40">
-                                          <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleViewChart(t, bt.id)}
-                                            className="h-8 px-2.5 rounded-md text-[10px] font-mono uppercase font-semibold border-border hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all"
-                                            title="View trade on chart"
-                                          >
-                                            <LineChart className="h-3 w-3 mr-1" />
-                                            Chart
-                                          </Button>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {bt.errorMessage && (
-                          <div className="p-4 bg-destructive/5 border-t border-destructive/20 text-destructive font-mono text-xs flex items-start gap-2">
-                            <span className="font-bold">Error:</span>
-                            <span>{bt.errorMessage}</span>
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })}
-                </div>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
+
+          {/* COLUMN 3: RESULTS DETAIL (Span 5) */}
+          <div className="md:col-span-6 lg:col-span-5 flex flex-col h-full bg-[#0E121B]/90 overflow-hidden">
+            {!selectedBt ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-card/10">
+                <BarChart3 className="h-10 w-10 text-muted-foreground/30 mb-3 animate-pulse" />
+                <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-muted-foreground">Select a Backtest</h3>
+                <p className="text-[10px] font-mono text-muted-foreground/60 mt-1 max-w-[220px] mx-auto">Click on a backtest run from the history panel to view detailed metrics and executed trades.</p>
+              </div>
+            ) : (
+              <>
+                <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <Target className="h-3.5 w-3.5 text-primary" /> Details #{selectedBt.id}
+                    </h2>
+                    <div className="flex gap-1.5">
+                      <Link href={`/backtest/${selectedBt.id}/replay`}>
+                        <Button variant="outline" className="h-6.5 text-[9px] font-mono font-bold uppercase border-primary/40 text-primary hover:bg-primary/10 rounded-none px-2" title="Visual Replay">
+                          <Activity className="h-3 w-3 mr-1 animate-pulse" /> Replay
+                        </Button>
+                      </Link>
+                      <Button size="icon" variant="outline" onClick={() => downloadCsv(`bt-${selectedBt.id}.csv`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Download CSV">
+                        <Download className="h-3 w-3" />
+                      </Button>
+                      <Button size="icon" variant="outline" onClick={() => printPdf(`Backtest #${selectedBt.id}`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Print PDF">
+                        <FileText className="h-3 w-3" />
+                      </Button>
+                      <Button size="icon" variant="outline" onClick={(e) => handleDeleteBacktest(selectedBt.id, e)} className="h-6.5 w-6.5 rounded-none border-destructive/40 text-destructive hover:bg-destructive/10" title="Delete Backtest">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-1.5 mb-2.5">
+                    <div className="bg-[#111520] border border-border/20 p-2">
+                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Win Rate</span>
+                      <span className="text-xs font-bold font-mono text-primary">{selectedBt.winRate?.toFixed(1)}%</span>
+                    </div>
+                    <div className="bg-[#111520] border border-border/20 p-2">
+                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">P&L</span>
+                      <span className={`text-xs font-bold font-mono ${selectedBt.totalPnl! >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                        {selectedBt.totalPnl! >= 0 ? '+' : ''}${selectedBt.totalPnl?.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="bg-[#111520] border border-border/20 p-2">
+                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Trades</span>
+                      <span className="text-xs font-bold font-mono">{selectedBt.totalTrades}</span>
+                    </div>
+                    <div className="bg-[#111520] border border-border/20 p-2">
+                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Max DD</span>
+                      <span className="text-xs font-bold font-mono text-destructive">{selectedBt.maxDrawdown?.toFixed(1)}%</span>
+                    </div>
+                  </div>
+
+                  {/* Buy/Sell Breakdown Table */}
+                  {selectedBtTrades.length > 0 && (
+                    <div className="bg-[#111520] border border-border/20 p-2.5 mb-2.5 font-mono text-[9px] rounded-none">
+                      <div className="text-muted-foreground uppercase font-bold tracking-wider mb-1.5 border-b border-border/10 pb-1 text-[8px]">
+                        Buy/Sell Setup Performance Breakdown
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                        <div className="flex justify-between items-center border-r border-border/10 pr-4">
+                          <span className="text-[#10b981] font-bold">WINNING BUY (CALL):</span>
+                          <span className="text-white font-bold">{selectedBtStats.winBuyCount} trades (${selectedBtStats.winBuyPnl.toFixed(2)})</span>
+                        </div>
+                        <div className="flex justify-between items-center pl-2">
+                          <span className="text-[#10b981] font-bold">WINNING SELL (PUT):</span>
+                          <span className="text-white font-bold">{selectedBtStats.winSellCount} trades (${selectedBtStats.winSellPnl.toFixed(2)})</span>
+                        </div>
+                        <div className="flex justify-between items-center border-r border-border/10 pr-4">
+                          <span className="text-[#ef4444] font-bold">LOSING BUY (CALL):</span>
+                          <span className="text-white font-bold">{selectedBtStats.loseBuyCount} trades (${selectedBtStats.loseBuyPnl.toFixed(2)})</span>
+                        </div>
+                        <div className="flex justify-between items-center pl-2">
+                          <span className="text-[#ef4444] font-bold">LOSING SELL (PUT):</span>
+                          <span className="text-white font-bold">{selectedBtStats.loseSellCount} trades (${selectedBtStats.loseSellPnl.toFixed(2)})</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedBt.errorMessage && (
+                    <div className="p-2 bg-destructive/10 border border-destructive/20 text-destructive text-[9px] font-mono leading-relaxed">
+                      <span className="font-bold uppercase block mb-0.5">Error Details:</span> {selectedBt.errorMessage}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 overflow-auto bg-[#0A0D14]">
+                  {selectedBtTrades.length === 0 ? (
+                    <div className="p-8 text-center text-xs font-mono uppercase text-muted-foreground opacity-50">No trades executed</div>
+                  ) : (
+                    <table className="w-full text-[9px] font-mono text-left whitespace-nowrap">
+                      <thead className="bg-[#121824]/50 sticky top-0 border-b border-border/30 z-10 shadow-sm">
+                        <tr>
+                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">#</th>
+                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">Dir</th>
+                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">Entry</th>
+                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">P&L</th>
+                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-center">Chart</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/10">
+                        {selectedBtTrades.map(t => (
+                          <tr key={t.id} className="hover:bg-[#111520]/50 transition-colors">
+                            <td className="px-2.5 py-1.5 text-muted-foreground">{t.id}</td>
+                            <td className="px-2.5 py-1.5">
+                              <span className={`font-bold ${t.direction === "CALL" ? "text-primary bg-primary/5 px-1 py-0.1 border border-primary/10" : "text-destructive bg-destructive/5 px-1 py-0.1 border border-destructive/10"}`}>{t.direction}</span>
+                            </td>
+                            <td className="px-2.5 py-1.5 text-right">{t.entry.toFixed(4)}</td>
+                            <td className={`px-2.5 py-1.5 text-right font-bold ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
+                              {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
+                            </td>
+                            <td className="px-2.5 py-1.5 text-center">
+                              <Button size="icon" variant="ghost" className="h-5.5 w-5.5 text-muted-foreground hover:text-primary rounded-none" onClick={() => handleViewChart(t, selectedBt.id)}>
+                                <LineChart className="h-3 w-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          
         </div>
       </div>
-
     </AppLayout>
   );
 }

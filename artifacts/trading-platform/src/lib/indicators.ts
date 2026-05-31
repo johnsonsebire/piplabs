@@ -36,7 +36,7 @@ export interface IndicatorSeries {
   yMax?: number;
   guides?: { value: number; color: string }[];
   oscillatorKey?: string;
-  additionalSeries?: { name: string; color: string; data: LinePoint[]; thickness?: number }[];
+  additionalSeries?: { name: string; color: string; data: any[]; thickness?: number; type?: "line" | "histogram" }[];
 }
 
 function sma(values: number[], period: number): (number | null)[] {
@@ -240,13 +240,19 @@ export function computeIndicator(id: string, name: string, cfg: IndicatorConfig,
       const sigVals = ema(validVals, sig);
       for (let i = 0; i < sigVals.length; i++) signal[firstValid + i] = sigVals[i];
     }
+    const histogram: (number | null)[] = macd.map((m, i) => (m == null || signal[i] == null ? null : m - (signal[i] as number)));
+    const histData = toPoints(candles, histogram).map(p => ({
+      ...p,
+      color: p.value >= 0 ? "rgba(16, 185, 129, 0.6)" : "rgba(239, 68, 68, 0.6)"
+    }));
     return {
       id, name, pane: "oscillator", color, thickness,
       oscillatorKey: "MACD",
       data: toPoints(candles, macd),
       guides: [{ value: 0, color: "#555" }],
       additionalSeries: [
-        { name: `${name} Signal`, color: "#ffaa00", thickness: 1, data: toPoints(candles, signal) },
+        { name: `${name} Hist`, color: "", data: histData, type: "histogram" },
+        { name: `${name} Signal`, color: "#ffaa00", thickness: 1, data: toPoints(candles, signal), type: "line" },
       ],
     };
   }

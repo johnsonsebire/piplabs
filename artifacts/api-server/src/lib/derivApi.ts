@@ -1,23 +1,68 @@
 import WebSocket from "ws";
 
 const DERIV_REST_BASE = "https://api.derivws.com";
-const DERIV_PUBLIC_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+/** Public/market-data only — API v2 PAT flows must use a registered app id. */
+const DERIV_PUBLIC_APP_ID = "1089";
+const DERIV_PUBLIC_WS = `wss://ws.derivws.com/websockets/v3?app_id=${DERIV_PUBLIC_APP_ID}`;
 const TIMEOUT_MS = 15000;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getAppId(customAppId?: string | null): string {
-  return customAppId || process.env.DERIV_APP_ID || "1089";
+function resolveAuthAppId(customAppId?: string | null): string {
+  const id = (customAppId?.trim() || process.env.DERIV_APP_ID?.trim() || "").trim();
+  if (!id) {
+    throw new Error(
+      "App ID is required. Register a PAT-type app at developers.deriv.com, copy its App ID, " +
+      "and ensure your PAT was created under that same app. Legacy public App ID 1089 does not work with API v2."
+    );
+  }
+  return id;
 }
 
 function derivRestHeaders(pat: string, customAppId?: string | null): Record<string, string> {
   return {
-    "Authorization": `Bearer ${pat}`,
-    "Deriv-App-ID": getAppId(customAppId),
+    "Authorization": `Bearer ${pat.trim()}`,
+    "Deriv-App-ID": resolveAuthAppId(customAppId),
     "Content-Type": "application/json",
   };
+}
+
+function parseDerivErrorPayload(body: unknown, status: number): string {
+  if (typeof body === "string" && body.trim()) {
+    return body.trim().slice(0, 500);
+  }
+  if (!body || typeof body !== "object") {
+    return `HTTP ${status}`;
+  }
+  const record = body as Record<string, unknown>;
+  const errors = record.errors;
+  if (Array.isArray(errors) && errors.length > 0) {
+    const parts = errors
+      .map((e) => {
+        if (!e || typeof e !== "object") return null;
+        const item = e as Record<string, unknown>;
+        const msg = typeof item.message === "string" ? item.message.trim() : "";
+        const code = typeof item.code === "string" ? item.code.trim() : "";
+        return msg || code || null;
+      })
+      .filter((s): s is string => Boolean(s));
+    if (parts.length > 0) return parts.join("; ");
+  }
+  for (const key of ["message", "error", "detail"] as const) {
+    const val = record[key];
+    if (typeof val === "string" && val.trim()) return val.trim();
+  }
+  return `HTTP ${status}`;
+}
+
+function authFailureHint(status: number, appId: string): string {
+  if (status !== 401 && status !== 403) return "";
+  return (
+    " Check that your PAT and App ID belong to the same PAT-type application at developers.deriv.com " +
+    `(App ID sent: ${appId}). PAT needs the trade scope; create an Options account if you have none.`
+  );
 }
 
 function safeClose(ws: WebSocket): void {
@@ -86,47 +131,108 @@ type OptionsAccount = {
 // REST helpers
 // ---------------------------------------------------------------------------
 
-async function fetchAccounts(pat: string, customAppId?: string | null): Promise<OptionsAccount[]> {
+async function derivJsonRequest(
+  path: string,
+  pat: string,
+  customAppId: string | null | undefined,
+  init: RequestInit = {},
+): Promise<{ ok: boolean; status: number; json: unknown; appId: string }> {
+  const appId = resolveAuthAppId(customAppId);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const resp = await fetch(`${DERIV_REST_BASE}/trading/v1/options/accounts`, {
-      headers: derivRestHeaders(pat, customAppId),
+    const resp = await fetch(`${DERIV_REST_BASE}${path}`, {
+      ...init,
+      headers: {
+        ...derivRestHeaders(pat, customAppId),
+        ...(init.headers as Record<string, string> | undefined),
+      },
       signal: controller.signal,
     });
-    if (!resp.ok) {
-      const body = await resp.text().catch(() => "");
-      throw new Error(`Deriv GET accounts failed (HTTP ${resp.status}): ${body.slice(0, 300)}`);
+    let json: unknown = null;
+    try {
+      json = await resp.json();
+    } catch {
+      json = null;
     }
-    const json = await resp.json() as { data: OptionsAccount[] };
-    return Array.isArray(json.data) ? json.data : [];
+    return { ok: resp.ok, status: resp.status, json, appId };
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchOtpWsUrl(pat: string, accountId: string, customAppId?: string | null): Promise<string> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const resp = await fetch(
-      `${DERIV_REST_BASE}/trading/v1/options/accounts/${accountId}/otp`,
-      {
-        method: "POST",
-        headers: derivRestHeaders(pat, customAppId),
-        signal: controller.signal,
-      }
-    );
-    if (!resp.ok) {
-      const body = await resp.text().catch(() => "");
-      throw new Error(`Deriv OTP request failed (HTTP ${resp.status}): ${body.slice(0, 300)}`);
-    }
-    const json = await resp.json() as { data: { url: string } };
-    if (!json?.data?.url) throw new Error("Deriv OTP response missing WebSocket URL");
-    return json.data.url;
-  } finally {
-    clearTimeout(timer);
+async function createOptionsDemoAccount(pat: string, customAppId?: string | null): Promise<void> {
+  const { ok, status, json, appId } = await derivJsonRequest(
+    "/trading/v1/options/accounts",
+    pat,
+    customAppId,
+    {
+      method: "POST",
+      body: JSON.stringify({ currency: "USD", group: "row", account_type: "demo" }),
+    },
+  );
+  if (ok || status === 200 || status === 201) return;
+  const message = parseDerivErrorPayload(json, status);
+  throw new Error(`Deriv create demo account failed: ${message}${authFailureHint(status, appId)}`);
+}
+
+function normalizeOptionsAccount(raw: unknown): OptionsAccount | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const accountId = r.account_id ?? r.accountId;
+  if (accountId == null || String(accountId).trim() === "") return null;
+
+  const accountType = r.account_type ?? r.accountType;
+  const typeStr = accountType === "real" || accountType === "demo" ? accountType : "demo";
+
+  return {
+    account_id: String(accountId),
+    balance: Number(r.balance) || 0,
+    currency: typeof r.currency === "string" ? r.currency : "USD",
+    account_type: typeStr,
+    status: r.status === "inactive" ? "inactive" : "active",
+    email: typeof r.email === "string" ? r.email : undefined,
+    name: typeof r.name === "string" ? r.name : undefined,
+  };
+}
+
+function parseAccountsPayload(json: unknown): OptionsAccount[] {
+  if (!json || typeof json !== "object") return [];
+  const data = (json as { data?: unknown }).data;
+  if (Array.isArray(data)) {
+    return data.map(normalizeOptionsAccount).filter((a): a is OptionsAccount => a !== null);
   }
+  const single = normalizeOptionsAccount(data);
+  return single ? [single] : [];
+}
+
+async function fetchAccounts(pat: string, customAppId?: string | null): Promise<OptionsAccount[]> {
+  const { ok, status, json, appId } = await derivJsonRequest(
+    "/trading/v1/options/accounts",
+    pat,
+    customAppId,
+  );
+  if (!ok) {
+    const message = parseDerivErrorPayload(json, status);
+    throw new Error(`Deriv GET accounts failed: ${message}${authFailureHint(status, appId)}`);
+  }
+  return parseAccountsPayload(json);
+}
+
+async function fetchOtpWsUrl(pat: string, accountId: string, customAppId?: string | null): Promise<string> {
+  const { ok, status, json, appId } = await derivJsonRequest(
+    `/trading/v1/options/accounts/${encodeURIComponent(accountId)}/otp`,
+    pat,
+    customAppId,
+    { method: "POST" },
+  );
+  if (!ok) {
+    const message = parseDerivErrorPayload(json, status);
+    throw new Error(`Deriv OTP request failed: ${message}${authFailureHint(status, appId)}`);
+  }
+  const url = (json as { data?: { url?: string } })?.data?.url;
+  if (!url) throw new Error("Deriv OTP response missing WebSocket URL");
+  return url;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,13 +242,26 @@ async function fetchOtpWsUrl(pat: string, accountId: string, customAppId?: strin
 // ---------------------------------------------------------------------------
 
 export async function getAccountInfo(pat: string, customAppId?: string | null): Promise<DerivAccountInfo> {
-  const accounts = await fetchAccounts(pat, customAppId);
+  let accounts = await fetchAccounts(pat, customAppId);
+
+  if (accounts.length === 0) {
+    try {
+      await createOptionsDemoAccount(pat, customAppId);
+      accounts = await fetchAccounts(pat, customAppId);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Could not create demo account";
+      throw new Error(
+        "No Options trading accounts found for this PAT. " +
+        "Create a PAT with trade and account_manage scopes, or open an Options account at app.deriv.com. " +
+        `(${detail})`
+      );
+    }
+  }
 
   if (accounts.length === 0) {
     throw new Error(
-      "No Options trading accounts found for this PAT. " +
-      "Log in to app.deriv.com, then go to Deriv API → Tokens, " +
-      "create a PAT with the 'trade' scope, and make sure you have an Options demo or real account."
+      "No Options trading accounts found for this PAT after attempting to create a demo account. " +
+      "Ensure your PAT has trade and account_manage scopes from developers.deriv.com."
     );
   }
 
@@ -153,7 +272,7 @@ export async function getAccountInfo(pat: string, customAppId?: string | null): 
     accounts[0];
 
   return {
-    loginId: pick.account_id,
+    loginId: String(pick.account_id),
     email: pick.email ?? null,
     currency: pick.currency,
     balance: Number(pick.balance) || 0,
@@ -205,7 +324,7 @@ export async function getAccountForMode(
   }
 
   return {
-    accountId: match.account_id,
+    accountId: String(match.account_id),
     currency: match.currency,
     balance: Number(match.balance) || 0,
     isVirtual: match.account_type === "demo",
@@ -358,6 +477,154 @@ export async function buyContract(
           : { ok: false, uncertain: false, error: "Deriv WS closed before buy" }
       );
     });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Public API: sellContract (close an open contract at market)
+// ---------------------------------------------------------------------------
+
+export type DerivSellResult = {
+  contractId: string;
+  soldPrice: number;
+  transactionId: string;
+};
+
+export type DerivSellOutcome =
+  | { ok: true; result: DerivSellResult }
+  | { ok: false; error: string };
+
+export async function sellContract(
+  pat: string,
+  accountId: string,
+  contractId: string,
+  customAppId?: string | null,
+): Promise<DerivSellOutcome> {
+  let wsUrl: string;
+  try {
+    wsUrl = await fetchOtpWsUrl(pat, accountId, customAppId);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to obtain Deriv OTP for sell" };
+  }
+
+  return new Promise<DerivSellOutcome>((resolve) => {
+    const ws = new WebSocket(wsUrl);
+    let settled = false;
+
+    const settle = (outcome: DerivSellOutcome) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      safeClose(ws);
+      resolve(outcome);
+    };
+
+    const timeout = setTimeout(() => {
+      settle({ ok: false, error: "Deriv sell timed out" });
+    }, TIMEOUT_MS);
+
+    ws.on("open", () => {
+      try {
+        ws.send(JSON.stringify({ sell: contractId, price: 0 }));
+      } catch (err) {
+        settle({ ok: false, error: err instanceof Error ? err.message : "Failed to send sell" });
+      }
+    });
+
+    ws.on("message", (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString()) as DerivWsResponse;
+        if (msg.error) {
+          settle({ ok: false, error: msg.error.message });
+          return;
+        }
+        if (msg.msg_type === "sell" && msg.sell) {
+          const sell = msg.sell as Record<string, unknown>;
+          settle({
+            ok: true,
+            result: {
+              contractId: String(sell.contract_id ?? contractId),
+              soldPrice: Number(sell.sold_price ?? 0),
+              transactionId: String(sell.transaction_id ?? ""),
+            },
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    });
+
+    ws.on("error", (err) => settle({ ok: false, error: err.message }));
+    ws.on("close", () => settle({ ok: false, error: "Deriv WS closed during sell" }));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Public API: getOpenContractStatus
+// ---------------------------------------------------------------------------
+
+export type OpenContractStatus = {
+  contractId: string;
+  currentProfit: number;
+  currentSpot: number;
+  expiryTime: number;
+  isExpired: boolean;
+  isSold: boolean;
+  bid: number;
+};
+
+export async function getOpenContractStatus(
+  pat: string,
+  accountId: string,
+  contractId: string,
+  customAppId?: string | null,
+): Promise<OpenContractStatus | null> {
+  let wsUrl: string;
+  try {
+    wsUrl = await fetchOtpWsUrl(pat, accountId, customAppId);
+  } catch {
+    return null;
+  }
+
+  return new Promise<OpenContractStatus | null>((resolve) => {
+    const ws = new WebSocket(wsUrl);
+    let settled = false;
+
+    const settle = (result: OpenContractStatus | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      safeClose(ws);
+      resolve(result);
+    };
+
+    const timeout = setTimeout(() => settle(null), TIMEOUT_MS);
+
+    ws.on("open", () => {
+      try {
+        ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId }));
+      } catch {
+        settle(null);
+      }
+    });
+
+    ws.on("message", (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString()) as DerivWsResponse;
+        if (msg.error || msg.msg_type !== "proposal_open_contract") return;
+        const poc = msg.proposal_open_contract as Record<string, unknown>;
+        settle({
+          contractId: String(poc.contract_id ?? contractId),
+          currentProfit: Number(poc.profit ?? 0),
+          currentSpot: Number(poc.current_spot ?? 0),
+          expiryTime: Number(poc.date_expiry ?? 0),
+          isExpired: Boolean(poc.is_expired),
+          isSold: Boolean(poc.is_sold),
+          bid: Number(poc.bid_price ?? 0),
+        });
+      } catch { /* ignore */ }
+    });
+
+    ws.on("error", () => settle(null));
+    ws.on("close", () => settle(null));
   });
 }
 

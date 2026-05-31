@@ -9,5 +9,7 @@
 export interface DerivTokenInput {
   apiToken: string;
   /** @nullable */
+  appId?: string | null;
+  /** @nullable */
   accountId?: string | null;
 }

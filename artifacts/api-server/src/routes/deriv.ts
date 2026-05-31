@@ -2,113 +2,132 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
-import {
-  ConnectDerivBody,
-  ConnectDerivResponse,
-  DisconnectDerivResponse,
-  GetDerivStatusResponse,
-} from "@workspace/api-zod";
+import { ConnectDerivBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getAccountInfo, getAccountInfoCached, invalidateBalanceCache } from "../lib/derivApi";
+import { buildDerivStatusPayload } from "../lib/derivStatus";
+import { dbErrorMessage } from "../lib/dbErrors";
 
 const router: IRouter = Router();
 
 router.post("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const parsed = ConnectDerivBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const { apiToken, appId, accountId } = parsed.data;
-
-  // Validate the token by authorizing with Deriv and capturing account details.
-  let accountInfo;
   try {
-    accountInfo = await getAccountInfo(apiToken, appId);
+    const parsed = ConnectDerivBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const apiToken = parsed.data.apiToken.trim();
+    const appId = parsed.data.appId?.trim() || null;
+    const accountId = parsed.data.accountId?.trim() || null;
+
+    if (!apiToken) {
+      res.status(400).json({ error: "API token is required" });
+      return;
+    }
+
+    if (!appId) {
+      res.status(400).json({
+        error:
+          "App ID is required. Use the App ID from your PAT-type app at developers.deriv.com (must match the app that issued your PAT).",
+      });
+      return;
+    }
+
+    let accountInfo;
+    try {
+      accountInfo = await getAccountInfo(apiToken, appId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Invalid Deriv API token";
+      req.log.warn(
+        { err, derivMessage: message, tokenLen: apiToken.length, tokenPrefix: apiToken.slice(0, 4) },
+        "Deriv connect/authorize failed",
+      );
+      res.status(400).json({ error: message });
+      return;
+    }
+
+    invalidateBalanceCache(req.userId!);
+
+    const [user] = await db
+      .update(usersTable)
+      .set({
+        derivApiToken: apiToken,
+        derivAppId: appId,
+        derivAccountId: accountId ?? accountInfo.loginId,
+        derivLoginId: accountInfo.loginId,
+        derivCurrency: accountInfo.currency,
+        derivConnectedAt: new Date(),
+      })
+      .where(eq(usersTable.id, req.userId!))
+      .returning();
+
+    if (!user) {
+      req.log.error({ userId: req.userId }, "Deriv connect: user row not updated");
+      res.status(500).json({ error: "Could not save Deriv credentials for your account" });
+      return;
+    }
+
+    res.json(buildDerivStatusPayload(true, user, accountInfo.balance));
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Invalid Deriv API token";
-    // Log the *actual* Deriv rejection reason so we can debug token issues
-    // (e.g. DisabledClient, InvalidToken, AuthorizationRequired, scope errors).
-    req.log.warn({ err, derivMessage: message, tokenLen: apiToken.length, tokenPrefix: apiToken.slice(0, 4) }, "Deriv connect/authorize failed");
-    res.status(400).json({ error: message });
-    return;
+    const dbMsg = dbErrorMessage(err);
+    req.log.error({ err }, "Deriv connect unexpected error");
+    res.status(500).json({
+      error: dbMsg ?? (err instanceof Error ? err.message : "Failed to connect Deriv API"),
+    });
   }
-
-  invalidateBalanceCache(req.userId!);
-
-  const [user] = await db
-    .update(usersTable)
-    .set({
-      derivApiToken: apiToken,
-      derivAppId: appId ?? null,
-      derivAccountId: accountId ?? accountInfo.loginId,
-      derivLoginId: accountInfo.loginId,
-      derivCurrency: accountInfo.currency,
-      derivConnectedAt: new Date(),
-    })
-    .where(eq(usersTable.id, req.userId!))
-    .returning();
-
-  res.json(ConnectDerivResponse.parse({
-    connected: true,
-    appId: user.derivAppId,
-    accountId: user.derivAccountId,
-    loginId: user.derivLoginId,
-    currency: user.derivCurrency,
-    connectedAt: user.derivConnectedAt,
-  }));
 });
 
 router.delete("/deriv/connect", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  await db
-    .update(usersTable)
-    .set({
-      derivApiToken: null,
-      derivAppId: null,
-      derivAccountId: null,
-      derivLoginId: null,
-      derivCurrency: null,
-      derivConnectedAt: null,
-    })
-    .where(eq(usersTable.id, req.userId!));
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        derivApiToken: null,
+        derivAppId: null,
+        derivAccountId: null,
+        derivLoginId: null,
+        derivCurrency: null,
+        derivConnectedAt: null,
+      })
+      .where(eq(usersTable.id, req.userId!));
 
-  invalidateBalanceCache(req.userId!);
+    invalidateBalanceCache(req.userId!);
 
-  // DisconnectDerivResponse is the same DerivStatus schema — return a cleared
-  // status so the client zod parser doesn't 500 on a missing `connected` field.
-  res.json(DisconnectDerivResponse.parse({
-    connected: false,
-    appId: null,
-    accountId: null,
-    loginId: null,
-    currency: null,
-    connectedAt: null,
-  }));
+    res.json(buildDerivStatusPayload(false, null));
+  } catch (err) {
+    const dbMsg = dbErrorMessage(err);
+    req.log.error({ err }, "Deriv disconnect error");
+    res.status(500).json({
+      error: dbMsg ?? (err instanceof Error ? err.message : "Failed to disconnect Deriv API"),
+    });
+  }
 });
 
 router.get("/deriv/status", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const user = req.dbUser!;
+  try {
+    const user = req.dbUser!;
 
-  let balance: number | null = null;
-  if (user.derivApiToken) {
-    try {
-      const info = await getAccountInfoCached(user.id, user.derivApiToken, user.derivAppId);
-      balance = info.balance;
-    } catch {
-      // Non-fatal — return status without balance if the fetch fails
+    let balance: number | null = null;
+    if (user.derivApiToken) {
+      try {
+        const info = await getAccountInfoCached(user.id, user.derivApiToken, user.derivAppId);
+        balance = info.balance;
+      } catch {
+        // Non-fatal — return status without balance if the fetch fails
+      }
     }
-  }
 
-  res.json(GetDerivStatusResponse.parse({
-    connected: !!user.derivApiToken,
-    appId: user.derivAppId,
-    accountId: user.derivAccountId,
-    loginId: user.derivLoginId,
-    currency: user.derivCurrency,
-    balance,
-    connectedAt: user.derivConnectedAt,
-  }));
+    res.json(
+      buildDerivStatusPayload(!!user.derivApiToken, user, balance),
+    );
+  } catch (err) {
+    req.log.error({ err }, "Deriv status error");
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to load Deriv status",
+    });
+  }
 });
 
 let cachedSymbols: unknown[] | null = null;

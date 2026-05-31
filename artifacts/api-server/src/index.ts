@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import path from "path";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startAutoTraderWorker } from "./lib/autoTrader";
 
 // Load environment variables from root .env file
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
@@ -27,4 +28,5 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  startAutoTraderWorker();
 });

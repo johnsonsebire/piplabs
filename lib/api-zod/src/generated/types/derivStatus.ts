@@ -9,6 +9,8 @@
 export interface DerivStatus {
   connected: boolean;
   /** @nullable */
+  appId?: string | null;
+  /** @nullable */
   accountId?: string | null;
   /** @nullable */
   currency?: string | null;

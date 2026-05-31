@@ -23,6 +23,7 @@ export const tradesTable = pgTable("trades", {
   status: tradeStatusEnum("status").notNull().default("pending"),
   contractId: text("contract_id"),
   strategyId: integer("strategy_id"),
+  sessionId: integer("session_id"),
   notes: text("notes"),
   aiConfirmed: boolean("ai_confirmed").notNull().default(false),
   duration: integer("duration"),

@@ -19,6 +19,8 @@ import TradeChartPage from "@/pages/trade-chart";
 import NewsPage from "@/pages/news";
 import SettingsPage from "@/pages/settings";
 import AutoTradePage from "@/pages/autotrade";
+import BacktestReplayPage from "@/pages/backtest-replay";
+import AutoTradeChartPage from "@/pages/autotrade-chart";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -213,6 +215,9 @@ function ClerkProviderWithRoutes() {
             <Route path="/backtest">
               <ProtectedRoute component={BacktestPage} />
             </Route>
+            <Route path="/backtest/:id/replay">
+              <ProtectedRoute component={BacktestReplayPage} />
+            </Route>
             <Route path="/backtest/chart">
               <ProtectedRoute component={TradeChartPage} />
             </Route>
@@ -221,6 +226,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/autotrade">
               <ProtectedRoute component={AutoTradePage} />
+            </Route>
+            <Route path="/autotrade/chart">
+              <ProtectedRoute component={AutoTradeChartPage} />
             </Route>
             <Route path="/settings">
               <ProtectedRoute component={SettingsPage} />

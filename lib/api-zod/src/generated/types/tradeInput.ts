@@ -32,4 +32,10 @@ export interface TradeInput {
      * @nullable
      */
   barrier?: string | null;
+  /**
+     * Multiplier value. Used only for Multiplier trade types. Acceptable values: 40, 100, 200, 300, 400.
+
+     * @nullable
+     */
+  multiplier?: number | null;
 }

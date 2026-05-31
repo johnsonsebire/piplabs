@@ -73,6 +73,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@clerk/shared": "^4.11.0"
+    "@clerk/shared": "^4.11.0",
+    "sweetalert2": "^11.26.25"
   }
 }

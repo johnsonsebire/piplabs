@@ -68,6 +68,8 @@ import type {
   TradeLogInput,
   TradeStats,
   TradeUpdate,
+  UploadBacktestDataset200,
+  UploadDatasetInput,
   User,
   UserList,
   UserPermissions,
@@ -1015,7 +1017,7 @@ export const getListAssetsUrl = (params?: ListAssetsParams,) => {
 }
 
 /**
- * @summary List all available Deriv assets with human-readable names
+ * @summary List all available Deriv available assets with human-readable names
  */
 export const listAssets = async (params?: ListAssetsParams, options?: RequestInit): Promise<Asset[]> => {
 
@@ -1062,7 +1064,7 @@ export type ListAssetsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List all available Deriv assets with human-readable names
+ * @summary List all available Deriv available assets with human-readable names
  */
 
 export function useListAssets<TData = Awaited<ReturnType<typeof listAssets>>, TError = ErrorType<unknown>>(
@@ -3172,6 +3174,156 @@ export const useDeleteIndicator = <TError = ErrorType<unknown>,
       return useMutation(getDeleteIndicatorMutationOptions(options));
     }
 
+export const getListBacktestDatasetsUrl = () => {
+
+
+
+
+  return `/api/datasets/backtests`
+}
+
+/**
+ * @summary List available CSV datasets for backtesting
+ */
+export const listBacktestDatasets = async ( options?: RequestInit): Promise<string[]> => {
+
+  return customFetch<string[]>(getListBacktestDatasetsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBacktestDatasetsQueryKey = () => {
+    return [
+    `/api/datasets/backtests`
+    ] as const;
+    }
+
+
+export const getListBacktestDatasetsQueryOptions = <TData = Awaited<ReturnType<typeof listBacktestDatasets>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBacktestDatasets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBacktestDatasetsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBacktestDatasets>>> = ({ signal }) => listBacktestDatasets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBacktestDatasets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBacktestDatasetsQueryResult = NonNullable<Awaited<ReturnType<typeof listBacktestDatasets>>>
+export type ListBacktestDatasetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List available CSV datasets for backtesting
+ */
+
+export function useListBacktestDatasets<TData = Awaited<ReturnType<typeof listBacktestDatasets>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBacktestDatasets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBacktestDatasetsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUploadBacktestDatasetUrl = () => {
+
+
+
+
+  return `/api/datasets/backtests/upload`
+}
+
+/**
+ * @summary Upload a new CSV dataset for backtesting
+ */
+export const uploadBacktestDataset = async (uploadDatasetInput: UploadDatasetInput, options?: RequestInit): Promise<UploadBacktestDataset200> => {
+    const formData = new FormData();
+formData.append(`file`, uploadDatasetInput.file);
+
+  return customFetch<UploadBacktestDataset200>(getUploadBacktestDatasetUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body:
+      formData,
+  }
+);}
+
+
+
+
+export const getUploadBacktestDatasetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadBacktestDataset>>, TError,{data: BodyType<UploadDatasetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadBacktestDataset>>, TError,{data: BodyType<UploadDatasetInput>}, TContext> => {
+
+const mutationKey = ['uploadBacktestDataset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadBacktestDataset>>, {data: BodyType<UploadDatasetInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadBacktestDataset(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadBacktestDatasetMutationResult = NonNullable<Awaited<ReturnType<typeof uploadBacktestDataset>>>
+    export type UploadBacktestDatasetMutationBody = BodyType<UploadDatasetInput>
+    export type UploadBacktestDatasetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upload a new CSV dataset for backtesting
+ */
+export const useUploadBacktestDataset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadBacktestDataset>>, TError,{data: BodyType<UploadDatasetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadBacktestDataset>>,
+        TError,
+        {data: BodyType<UploadDatasetInput>},
+        TContext
+      > => {
+      return useMutation(getUploadBacktestDatasetMutationOptions(options));
+    }
+
 export const getListBacktestsUrl = (params?: ListBacktestsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3473,6 +3625,76 @@ export function useGetBacktest<TData = Awaited<ReturnType<typeof getBacktest>>, 
 
 
 
+
+export const getDeleteBacktestUrl = (id: number,) => {
+
+
+
+
+  return `/api/backtests/${id}`
+}
+
+/**
+ * @summary Delete a backtest
+ */
+export const deleteBacktest = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteBacktestUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteBacktestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBacktest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteBacktest>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteBacktest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteBacktest>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteBacktest(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteBacktestMutationResult = NonNullable<Awaited<ReturnType<typeof deleteBacktest>>>
+
+    export type DeleteBacktestMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a backtest
+ */
+export const useDeleteBacktest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBacktest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteBacktest>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteBacktestMutationOptions(options));
+    }
 
 export const getAnalyzeWithAIUrl = () => {
 

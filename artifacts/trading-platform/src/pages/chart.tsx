@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
+import { ChartOpenTradesPanel } from "@/components/chart/ChartOpenTrades";
 import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
 import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ export default function ChartPage() {
   const [duration, setDuration] = useState("5");
   const [durationUnit, setDurationUnit] = useState("m");
   const [barrier, setBarrier] = useState("+0.00");
+  const [multiplier, setMultiplier] = useState("100");
   const [takeProfit, setTakeProfit] = useState("");
   const [aiConfirmed, setAiConfirmed] = useState(false);
   const [tradeMode, setTradeMode] = useState<"demo" | "live">("demo");
@@ -48,7 +50,9 @@ export default function ChartPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   
   const [isTradePanelOpen, setIsTradePanelOpen] = useState(true);
+  const [isOpenTradesOpen, setIsOpenTradesOpen] = useState(false);
   const tradePanelRef = useRef<ImperativePanelHandle>(null);
+  const openTradesPanelRef = useRef<ImperativePanelHandle>(null);
   const isMobile = useIsMobile();
 
   const { data: searchResults, isLoading: isSearching } = useSearchDerivSymbols(
@@ -69,6 +73,7 @@ export default function ChartPage() {
         duration: parseInt(duration),
         durationUnit,
         barrier: contractType === TradeInputType.vanilla_options ? barrier : null,
+        multiplier: contractType === TradeInputType.multiplier ? parseInt(multiplier, 10) : null,
         targetProfit: takeProfit ? parseFloat(takeProfit) : null,
         aiConfirmed,
         mode: tradeMode
@@ -206,14 +211,12 @@ export default function ChartPage() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 position-relative border-r border-border">
-              <TradingChart
-                key={`${symbol}-${granularitySec}`}
-                symbol={symbol}
-                granularitySec={granularitySec}
-                indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
-              />
-            </div>
+            <TradingChart
+              key={`${symbol}-${granularitySec}`}
+              symbol={symbol}
+              granularitySec={granularitySec}
+              indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
+            />
           </Panel>
 
           <PanelResizeHandle className={cn(
@@ -372,6 +375,22 @@ export default function ChartPage() {
                 </div>
               )}
 
+              {contractType === TradeInputType.multiplier && (
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Multiplier</Label>
+                  <Select value={multiplier} onValueChange={setMultiplier}>
+                    <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono" data-testid="select-multiplier">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                      {["40", "100", "200", "300", "400"].map((u) => (
+                        <SelectItem key={u} value={u} className="font-mono text-xs">x{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-3">
                 <Label className="text-xs uppercase font-mono text-muted-foreground">Take Profit (Optional)</Label>
                 <Input
@@ -381,6 +400,14 @@ export default function ChartPage() {
                   placeholder="0.00"
                   className="rounded-none font-mono h-10 border-border bg-background"
                   data-testid="input-takeprofit"
+                />
+              </div>
+
+              <div className="border border-border">
+                <ChartOpenTradesPanel 
+                  symbol={symbol} 
+                  isExpanded={isOpenTradesOpen} 
+                  onToggle={() => setIsOpenTradesOpen(!isOpenTradesOpen)} 
                 />
               </div>
 

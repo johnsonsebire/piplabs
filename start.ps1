@@ -15,6 +15,7 @@
 #>
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Stop-ProcessOnPort {
     param ([int]$Port)

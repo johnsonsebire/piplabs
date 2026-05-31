@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { 
   useGetTrade, 
   useCloseTrade, 
+  useUpdateTrade,
   useListTradeLogs, 
   useListTradeComments, 
   useAddTradeComment, 
@@ -19,22 +20,46 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
+import { swalSuccess, swalError, swalConfirm } from "@/lib/swal";
 import { useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, differenceInSeconds } from "date-fns";
+import { Edit2, Check, X } from "lucide-react";
+
+function calculateTimeRemaining(openedAt: string, duration?: number | null, unit?: string | null): string | null {
+  if (!duration || !unit || unit === 't') return null;
+  const start = new Date(openedAt);
+  let durationSeconds = 0;
+  if (unit === 's') durationSeconds = duration;
+  if (unit === 'm') durationSeconds = duration * 60;
+  if (unit === 'h') durationSeconds = duration * 3600;
+  if (unit === 'd') durationSeconds = duration * 86400;
+
+  const end = new Date(start.getTime() + durationSeconds * 1000);
+  const now = new Date();
+  const diffSec = differenceInSeconds(end, now);
+  if (diffSec <= 0) return "Closing...";
+
+  const m = Math.floor(diffSec / 60);
+  const s = diffSec % 60;
+  if (m > 60) {
+    const h = Math.floor(m / 60);
+    const hm = m % 60;
+    return `${h}h ${hm}m`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 export default function TradeDetailPage() {
   const [, params] = useRoute("/trades/:id");
   const id = params?.id ? parseInt(params.id, 10) : 0;
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: trade, isLoading: isTradeLoading } = useGetTrade(id, {
-    query: { enabled: !!id, queryKey: getGetTradeQueryKey(id) }
+    query: { enabled: !!id, queryKey: getGetTradeQueryKey(id), refetchInterval: 5000 }
   });
 
   const { data: logs, isLoading: isLogsLoading } = useListTradeLogs(id, {
-    query: { enabled: !!id, queryKey: getListTradeLogsQueryKey(id) }
+    query: { enabled: !!id, queryKey: getListTradeLogsQueryKey(id), refetchInterval: 5000 }
   });
 
   const { data: comments, isLoading: isCommentsLoading } = useListTradeComments(id, {
@@ -47,19 +72,56 @@ export default function TradeDetailPage() {
   });
 
   const closeTrade = useCloseTrade();
+  const updateTrade = useUpdateTrade();
   const addComment = useAddTradeComment();
   const analyzeTrade = useAnalyzeWithAI();
 
   const [commentText, setCommentText] = useState("");
+  const [editingTp, setEditingTp] = useState(false);
+  const [tpValue, setTpValue] = useState("");
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
-  const handleClose = () => {
+  useEffect(() => {
+    if (trade && trade.status === 'open') {
+      const interval = setInterval(() => {
+        setTimeLeft(calculateTimeRemaining(trade.openedAt, trade.duration, trade.durationUnit));
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setTimeLeft(null);
+    }
+    return () => {};
+  }, [trade]);
+
+  const handleClose = async () => {
+    const confirmed = await swalConfirm("Close Trade?", "Are you sure you want to manually sell this contract at market price?", "Yes, sell it");
+    if (!confirmed) return;
+
     closeTrade.mutate({ id }, {
-      onSuccess: () => {
-        toast({ title: "Trade closed successfully" });
+      onSuccess: (res: any) => {
+        swalSuccess("Trade closed", `Contract sold for $${res.currentProfit + trade!.stake}.`);
         queryClient.invalidateQueries({ queryKey: getGetTradeQueryKey(id) });
       },
       onError: (err: any) => {
-        toast({ variant: "destructive", title: "Failed to close trade", description: err?.message });
+        swalError("Failed to close trade", err?.response?.data?.error || err?.message);
+      }
+    });
+  };
+
+  const handleSaveTp = () => {
+    const val = parseFloat(tpValue);
+    if (isNaN(val)) {
+      swalError("Invalid Input", "Target profit must be a number.");
+      return;
+    }
+    updateTrade.mutate({ id, data: { targetProfit: val } }, {
+      onSuccess: () => {
+        swalSuccess("Target Profit Updated", "Auto-sell target has been updated.");
+        setEditingTp(false);
+        queryClient.invalidateQueries({ queryKey: getGetTradeQueryKey(id) });
+      },
+      onError: (err: any) => {
+        swalError("Failed to update TP", err?.response?.data?.error || err?.message);
       }
     });
   };
@@ -86,11 +148,10 @@ export default function TradeDetailPage() {
       }
     }, {
       onSuccess: () => {
-        toast({ title: "Analysis complete" });
-        // Would invalidate list here if we exported the key helper for it
+        swalSuccess("Analysis complete", "AI has evaluated the trade.");
       },
       onError: (err: any) => {
-        toast({ variant: "destructive", title: "Analysis failed", description: err?.message });
+        swalError("Analysis failed", err?.response?.data?.error || err?.message);
       }
     });
   };
@@ -102,7 +163,12 @@ export default function TradeDetailPage() {
       <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden p-6 gap-6 max-w-5xl mx-auto">
         <div className="flex justify-between items-start shrink-0">
           <div>
-            <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">Trade #{id}</h1>
+            <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground flex items-center gap-4">
+              Trade #{id}
+              {trade?.status === 'open' && (
+                <span className="text-sm px-2 py-1 bg-primary/20 text-primary animate-pulse tracking-widest">LIVE</span>
+              )}
+            </h1>
             <p className="text-sm text-muted-foreground font-mono uppercase tracking-wider">{trade?.displayName || "---"}</p>
           </div>
           <div className="flex gap-2">
@@ -114,7 +180,7 @@ export default function TradeDetailPage() {
                 disabled={closeTrade.isPending}
                 data-testid="button-close-trade"
               >
-                {closeTrade.isPending ? "Closing..." : "Close Trade"}
+                {closeTrade.isPending ? "Selling..." : "Sell at Market"}
               </Button>
             )}
             <Button 
@@ -130,7 +196,7 @@ export default function TradeDetailPage() {
         </div>
 
         {/* Info Card */}
-        <div className="border border-border bg-card p-6 grid grid-cols-2 md:grid-cols-4 gap-6 shrink-0">
+        <div className="border border-border bg-card p-6 grid grid-cols-2 md:grid-cols-4 gap-6 shrink-0 relative">
           {isTradeLoading ? (
             Array(8).fill(0).map((_, i) => <Skeleton key={i} className="h-10 w-full bg-muted rounded-none" />)
           ) : trade ? (
@@ -146,12 +212,15 @@ export default function TradeDetailPage() {
                 <p className="font-mono font-bold">${trade.stake.toFixed(2)}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Status</p>
-                <p className="font-mono font-bold uppercase">{trade.status}</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Status / Time Left</p>
+                <p className="font-mono font-bold uppercase">
+                  {trade.status}
+                  {timeLeft && <span className="text-muted-foreground ml-2">({timeLeft})</span>}
+                </p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">P&L</p>
-                <p className={`font-mono font-bold ${trade.currentProfit && trade.currentProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Live P&L</p>
+                <p className={`font-mono font-bold text-lg ${trade.currentProfit && trade.currentProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
                   {trade.currentProfit !== null && trade.currentProfit !== undefined ? 
                     `${trade.currentProfit >= 0 ? '+' : ''}$${trade.currentProfit.toFixed(2)}` : '---'}
                 </p>
@@ -169,8 +238,31 @@ export default function TradeDetailPage() {
                 <p className="font-mono text-sm">{trade.entryPrice ? trade.entryPrice.toFixed(4) : '---'}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Exit Price</p>
-                <p className="font-mono text-sm">{trade.exitPrice ? trade.exitPrice.toFixed(4) : '---'}</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Target Profit (TP)</p>
+                {editingTp ? (
+                  <div className="flex gap-2 items-center">
+                    <Input 
+                      type="number" 
+                      className="h-7 w-20 rounded-none font-mono text-sm p-1" 
+                      value={tpValue} 
+                      onChange={e => setTpValue(e.target.value)} 
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:text-primary" onClick={handleSaveTp}>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setEditingTp(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="font-mono text-sm flex items-center gap-2 group">
+                    {trade.targetProfit ? `$${trade.targetProfit.toFixed(2)}` : 'None'}
+                    <button className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setTpValue(trade.targetProfit?.toString() || ""); setEditingTp(true); }}>
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  </p>
+                )}
               </div>
             </>
           ) : null}
@@ -191,7 +283,7 @@ export default function TradeDetailPage() {
         <div className="flex-1 min-h-0 flex flex-col border border-border bg-card">
           <Tabs defaultValue="logs" className="h-full flex flex-col">
             <TabsList className="rounded-none border-b border-border bg-muted/30 p-0 h-10 w-full justify-start shrink-0">
-              <TabsTrigger value="logs" className="rounded-none font-mono text-xs uppercase h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent shadow-none">Audit Log</TabsTrigger>
+              <TabsTrigger value="logs" className="rounded-none font-mono text-xs uppercase h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent shadow-none">Activity Log</TabsTrigger>
               <TabsTrigger value="comments" className="rounded-none font-mono text-xs uppercase h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent shadow-none">Comments</TabsTrigger>
             </TabsList>
             
@@ -200,7 +292,7 @@ export default function TradeDetailPage() {
                 {isLogsLoading ? (
                   <Skeleton className="h-10 w-full bg-muted rounded-none" />
                 ) : !Array.isArray(logs) || logs.length === 0 ? (
-                  <p className="text-muted-foreground font-mono text-sm">No logs found.</p>
+                  <p className="text-muted-foreground font-mono text-sm">No activity logs found.</p>
                 ) : (
                   logs.map(log => (
                     <div key={log.id} className="flex gap-4 text-sm font-mono border-b border-border pb-2 last:border-0">
