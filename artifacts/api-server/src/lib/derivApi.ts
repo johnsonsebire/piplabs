@@ -525,7 +525,7 @@ export async function sellContract(
 
     ws.on("open", () => {
       try {
-        ws.send(JSON.stringify({ sell: contractId, price: 0 }));
+        ws.send(JSON.stringify({ sell: Number(contractId), price: 0 }));
       } catch (err) {
         settle({ ok: false, error: err instanceof Error ? err.message : "Failed to send sell" });
       }
@@ -544,7 +544,7 @@ export async function sellContract(
             ok: true,
             result: {
               contractId: String(sell.contract_id ?? contractId),
-              soldPrice: Number(sell.sold_price ?? 0),
+              soldPrice: Number(sell.sold_for ?? 0),
               transactionId: String(sell.transaction_id ?? ""),
             },
           });

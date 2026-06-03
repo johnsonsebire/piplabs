@@ -257,18 +257,27 @@ function LegEditor({ side, leg, onChange }: LegEditorProps) {
  )}
  {leg.conditions.map((c, i) => (
  <div key={c.id} className="d-flex flex-column gap-2 p-3 border border-secondary position-relative group">
- {i > 0 && (
-  <div className="position-absolute px-2 font-mono text-secondary fw-bold border border-secondary">
-  {leg.logic}
-  </div>
- )}
- <Button
-  type="button" variant="ghost" size="icon"
-  className="position-absolute rounded-circle bg-danger "
-  onClick={() => removeCondition(c.id)}
- >
-  <X />
- </Button>
+ <div className="d-flex justify-content-between align-items-center w-100 mb-2">
+  {i > 0 ? (
+   <button 
+    type="button"
+    className="px-2 font-mono fw-bold border border-secondary text-secondary" 
+    style={{ backgroundColor: 'var(--background)', cursor: 'pointer' }}
+    onClick={() => onChange({ ...leg, logic: leg.logic === "AND" ? "OR" : "AND" })}
+    title="Click to toggle between AND / OR for this leg"
+   >
+   {leg.logic}
+   </button>
+  ) : <div />}
+  <Button
+   type="button" variant="ghost" size="icon"
+   className="rounded-circle bg-danger"
+   style={{ width: '28px', height: '28px' }}
+   onClick={() => removeCondition(c.id)}
+  >
+   <X size={16} />
+  </Button>
+ </div>
  <div className="row g-2 gap-2 align-items-center">
   <IndicatorOrValuePicker
   value={c.indicatorA}
@@ -469,7 +478,7 @@ export default function StrategiesPage() {
  return (
  <AppLayout>
  <div className="d-flex flex-column w-100 overflow-hidden p-4 gap-4 mx-auto">
- <div className="d-flex justify-content-between align-items-center flex-shrink-0">
+ <div className="d-flex justify-content-between align-items-center flex-shrink-0 mt-4">
  <h1 className="h4 fw-bold font-mono text-uppercase tracking-tight ">Algorithmic Strategies</h1>
  <Button
  className="rounded-none fw-bold text-uppercase letter-spacing-wider font-mono"

@@ -23,4 +23,7 @@ export interface AutoTradeSessionInput {
   stopOnLoss?: number | null;
   /** @nullable */
   profitTarget?: number | null;
+  /** @nullable */
+  tradeProfitTarget?: number | null;
+  alternateDirection?: boolean;
 }

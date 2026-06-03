@@ -550,6 +550,8 @@ export interface Backtest {
   results?: string | null;
   /** @nullable */
   errorMessage?: string | null;
+  /** @nullable */
+  progressLogs?: string | null;
   createdAt: string;
   /** @nullable */
   completedAt?: string | null;
@@ -617,6 +619,8 @@ export interface BacktestInput {
      * @nullable
      */
   datasetFile?: string | null;
+  /** If true, enforces strict alternation of signal directions during the backtest. */
+  alternateDirection?: boolean;
 }
 
 export interface UploadDatasetInput {
@@ -799,8 +803,12 @@ export interface AutoTradeSession {
   stopOnLoss?: number | null;
   symbols?: string[];
   pairMode?: AutoTradeSessionPairMode;
+  currentPairIdx: number;
   /** @nullable */
   profitTarget?: number | null;
+  /** @nullable */
+  tradeProfitTarget?: number | null;
+  alternateDirection?: boolean;
   totalTrades: number;
   winTrades: number;
   totalPnl: number;
@@ -844,6 +852,9 @@ export interface AutoTradeSessionInput {
   stopOnLoss?: number | null;
   /** @nullable */
   profitTarget?: number | null;
+  /** @nullable */
+  tradeProfitTarget?: number | null;
+  alternateDirection?: boolean;
 }
 
 export type AutoTradeSessionUpdateStatus = typeof AutoTradeSessionUpdateStatus[keyof typeof AutoTradeSessionUpdateStatus];
@@ -877,6 +888,9 @@ export interface AutoTradeSessionUpdate {
   stopOnLoss?: number | null;
   /** @nullable */
   profitTarget?: number | null;
+  /** @nullable */
+  tradeProfitTarget?: number | null;
+  alternateDirection?: boolean;
 }
 
 export interface DerivActiveSymbol {

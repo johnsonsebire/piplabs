@@ -61,6 +61,7 @@ export const backtestsTable = pgTable("backtests", {
   sharpeRatio: real("sharpe_ratio"),
   results: text("results"),
   errorMessage: text("error_message"),
+  progressLogs: text("progress_logs").default("[]"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });

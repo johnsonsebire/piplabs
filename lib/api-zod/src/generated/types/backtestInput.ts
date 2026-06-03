@@ -38,4 +38,6 @@ export interface BacktestInput {
      * @nullable
      */
   datasetFile?: string | null;
+  /** If true, enforces strict alternation of signal directions during the backtest. */
+  alternateDirection?: boolean;
 }

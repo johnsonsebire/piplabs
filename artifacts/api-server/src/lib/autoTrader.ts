@@ -42,17 +42,17 @@ function parseSymbols(session: { symbols: string; symbol: string }): string[] {
 }
 
 /**
- * Returns the direction the next trade should be for a given session+symbol.
- * When alternateDirection is on, flips the last trade's direction.
- * When a signal fires, if alternating: override direction regardless of which leg fired.
+ * Checks if the signal is allowed given the alternateDirection rule.
+ * When alternateDirection is on, we only accept a signal if it is the OPPOSITE
+ * of the last trade's direction for that symbol.
  */
-async function resolveDirection(
+async function isSignalAllowed(
   sessionId: number,
   symbol: string,
   signalSide: "buy" | "sell",
   alternateDirection: boolean,
-): Promise<"buy" | "sell"> {
-  if (!alternateDirection) return signalSide;
+): Promise<boolean> {
+  if (!alternateDirection) return true;
 
   // Find the most recent closed or open trade for this session+symbol
   const [lastTrade] = await db
@@ -62,11 +62,13 @@ async function resolveDirection(
     .orderBy(desc(tradesTable.openedAt))
     .limit(1);
 
-  if (!lastTrade) return signalSide; // No prior trade — use signal direction
+  if (!lastTrade) return true; // No prior trade — any signal is allowed
 
-  // Flip from last trade's direction
   const wasCall = lastTrade.direction === "call" || lastTrade.direction === "buy";
-  return wasCall ? "sell" : "buy";
+  const lastSide = wasCall ? "buy" : "sell";
+
+  // Only allow if it's the opposite side
+  return signalSide !== lastSide;
 }
 
 async function placeTrade(
@@ -82,11 +84,9 @@ async function placeTrade(
 ) {
   if (!user.derivApiToken) return false;
 
-  // Resolve actual direction (may be flipped if alternateDirection is on)
-  const side = await resolveDirection(session.id, symbol, signalSide, session.alternateDirection);
-
   const account = await getAccountForMode(user.derivApiToken, session.mode as "demo" | "live", user.derivAppId);
-  const contractType = side === "buy" ? "CALL" : "PUT";
+  const contractType = signalSide === "buy" ? "CALL" : "PUT";
+  const side = signalSide;
   const buyParams: DerivBuyParams = {
     symbol,
     contractType,
@@ -205,9 +205,17 @@ async function processAutoTradingSessions() {
           if (directions.length === 0) { signals[sym] = null; continue; }
           const map = buildSeries(candles, legs);
           const closes = candles.map(c => c.close);
+          const isBuy = directions.includes("buy") && evalLeg(legs.buy, evalIndex, map, closes);
+          const isSell = directions.includes("sell") && evalLeg(legs.sell, evalIndex, map, closes);
           let side: "buy" | "sell" | null = null;
-          if (directions.includes("buy") && evalLeg(legs.buy, evalIndex, map, closes)) side = "buy";
-          else if (directions.includes("sell") && evalLeg(legs.sell, evalIndex, map, closes)) side = "sell";
+          
+          if (isBuy && isSell) {
+            side = "buy";
+          } else if (isBuy) {
+            side = "buy";
+          } else if (isSell) {
+            side = "sell";
+          }
           signals[sym] = side;
         } catch (err) {
           logger.warn({ err, sym, sessionId: session.id }, "AutoTrader: Candle fetch failed for symbol");
@@ -225,6 +233,7 @@ async function processAutoTradingSessions() {
       if (pairMode === "simultaneous") {
         for (const [sym, side] of Object.entries(signals)) {
           if (!side) continue;
+          if (sessionForPlace.alternateDirection && !(await isSignalAllowed(session.id, sym, side, true))) continue;
           logger.info({ sessionId: session.id, sym, side }, "AutoTrader: Simultaneous signal triggered");
           await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
           if (await checkAndStopSession(session)) break;
@@ -234,19 +243,25 @@ async function processAutoTradingSessions() {
         const sym = symbols[idx];
         const side = signals[sym];
         if (side) {
-          logger.info({ sessionId: session.id, sym, side, idx }, "AutoTrader: Rotating signal triggered");
-          await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
-          const nextIdx = (idx + 1) % symbols.length;
-          await db.update(autoTradingSessionsTable)
-            .set({ currentPairIdx: nextIdx })
-            .where(eq(autoTradingSessionsTable.id, session.id));
+          const allowed = !sessionForPlace.alternateDirection || (await isSignalAllowed(session.id, sym, side, true));
+          if (allowed) {
+            logger.info({ sessionId: session.id, sym, side, idx }, "AutoTrader: Rotating signal triggered");
+            await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
+            const nextIdx = (idx + 1) % symbols.length;
+            await db.update(autoTradingSessionsTable)
+              .set({ currentPairIdx: nextIdx })
+              .where(eq(autoTradingSessionsTable.id, session.id));
+          }
         }
       } else {
         const sym = symbols[0];
         const side = signals[sym];
         if (side) {
-          logger.info({ sessionId: session.id, sym, side }, "AutoTrader: Single signal triggered");
-          await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
+          const allowed = !sessionForPlace.alternateDirection || (await isSignalAllowed(session.id, sym, side, true));
+          if (allowed) {
+            logger.info({ sessionId: session.id, sym, side }, "AutoTrader: Single signal triggered");
+            await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
+          }
         }
       }
     } catch (err) {

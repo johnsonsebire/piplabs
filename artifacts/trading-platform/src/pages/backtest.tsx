@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -84,6 +85,47 @@ function parseResults(raw: string | null | undefined): BacktestResults {
   if (!raw) return {};
   try { return JSON.parse(raw) as BacktestResults; } catch { return {}; }
 }
+
+const BacktestProgress = ({ bt }: { bt: any }) => {
+  const [elapsed, setElapsed] = useState("0s");
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const ms = Date.now() - new Date(bt.createdAt).getTime();
+      setElapsed(`${Math.max(0, Math.floor(ms / 1000))}s`);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [bt.createdAt]);
+
+  const logs = useMemo(() => {
+    try {
+      return bt.progressLogs ? JSON.parse(bt.progressLogs) : [];
+    } catch (e) {
+      return [];
+    }
+  }, [bt.progressLogs]);
+
+  // Naive estimate based on elapsed time vs stage. Just a placeholder for estimate.
+  // We can just show elapsed time.
+  return (
+    <div className="mt-2 p-2.5 rounded border border-primary/20 bg-primary/5 flex flex-col gap-1.5 font-mono text-[10px]">
+      <div className="flex justify-between items-center text-primary font-bold">
+        <span className="animate-pulse">RUNNING SIMULATION...</span>
+        <span>Time Spent: {elapsed}</span>
+      </div>
+      <div className="flex flex-col gap-1 mt-1 pl-1 border-l-2 border-primary/30">
+        {logs.map((log: any, i: number) => (
+          <div key={i} className={`flex items-start gap-2 ${i === logs.length - 1 ? "text-primary/90" : "text-muted-foreground opacity-60"}`}>
+            <span className="shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+            <span>{log.stage}</span>
+          </div>
+        ))}
+        {logs.length === 0 && (
+          <div className="text-muted-foreground opacity-60 italic">Waiting for engine to start...</div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 function downloadCsv(filename: string, rows: SimTrade[]) {
   const header = ["id","entryAt","exitAt","direction","type","duration","entry","exit","stake","pnl","outcome"];
@@ -157,10 +199,16 @@ export default function BacktestPage() {
   const [, setLocation] = useLocation();
 
   const backtestParams = { strategyId: selectedStrategy ? parseInt(selectedStrategy) : undefined };
-  const { data: backtests, isLoading: isResultsLoading } = useListBacktests(
-    backtestParams,
-    { query: { enabled: true, queryKey: getListBacktestsQueryKey(backtestParams) } }
-  );
+  const { data: backtests, isLoading: isResultsLoading } = useListBacktests({}, {
+    query: {
+      refetchInterval: (query) => {
+        const data = query.state?.data as any[];
+        const isRunning = Array.isArray(data) && data.some((b: any) => b.status === "running");
+        return isRunning ? 2000 : false;
+      },
+      queryKey: getListBacktestsQueryKey(backtestParams)
+    }
+  });
 
   const runBacktest = useRunBacktest();
   const deleteBacktest = useDeleteBacktest();
@@ -223,6 +271,7 @@ export default function BacktestPage() {
     tradeType: BacktestInputTradeType.vanilla_options as string,
     duration: "5",
     durationUnit: "m",
+    alternateDirection: false,
   });
 
   const handleViewChart = (trade: SimTrade, backtestId: number) => {
@@ -296,6 +345,7 @@ export default function BacktestPage() {
       durationUnit: formData.durationUnit as any,
       sessions: sessionsArr.length > 0 ? sessionsArr : null,
       datasetFile: dataSource === "local" ? selectedDataset : null,
+      alternateDirection: formData.alternateDirection,
     };
 
     if (timeframesToRun.length > 1) {
@@ -312,7 +362,7 @@ export default function BacktestPage() {
 
     await Promise.all(promises);
     queryClient.invalidateQueries({ queryKey: ["/api/backtests"] });
-    swalSuccess("Simulation Completed", timeframesToRun.length > 1 ? "All parallel backtest runs have finished successfully!" : "Backtest run has finished successfully!");
+    swalSuccess("Backtest Initiated", timeframesToRun.length > 1 ? "All parallel backtest processes have been successfully initiated!" : "The backtest process has been successfully initiated!");
   };
 
   const selectedBt = backtests?.find(b => b.id === selectedBacktestId);
@@ -348,23 +398,23 @@ export default function BacktestPage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-[#0A0D14] text-foreground">
-        <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-0 divide-x divide-border/30">
+      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden p-6 gap-6 mx-auto mt-4 bg-[#0A0D14] text-foreground" style={{ minWidth: '60vw', width: '85vw', maxWidth: '100%' }}>
+        <div className="flex-1 overflow-hidden grid grid-cols-12 gap-0 divide-x divide-border/30 rounded-xl border border-border/50 shadow-2xl">
           
-          {/* COLUMN 1: CONFIGURATION (Span 3) */}
-          <div className="md:col-span-3 flex flex-col h-full bg-[#0E121B]/90 overflow-hidden backdrop-blur-sm">
-            <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0 flex items-center gap-2">
-              <Settings className="h-3.5 w-3.5 text-primary" />
-              <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-foreground">Configuration</h2>
+          {/* COLUMN 1: CONFIGURATION (Span 4) */}
+          <div className="col-span-4 min-w-0 flex flex-col h-full bg-[#0E121B]/90 overflow-hidden backdrop-blur-sm">
+            <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0 gap-2" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+              <Settings className="h-3.5 w-3.5 text-primary shrink-0" style={{ display: 'block' }} />
+              <div className="text-xs font-bold font-mono uppercase tracking-wider text-foreground m-0 leading-none">Configuration</div>
             </div>
             
-            <form onSubmit={handleRun} className="flex-1 overflow-y-auto p-3 space-y-3.5 hide-scrollbar text-xs">
-              <div className="space-y-1.5">
-                <Label className="text-[9px] uppercase font-mono text-muted-foreground tracking-wider flex items-center gap-1.5">
-                  <Target className="h-3 w-3" /> Strategy
+            <form onSubmit={handleRun} className="flex-1 overflow-y-auto p-3 space-y-4 hide-scrollbar text-xs">
+              <div className="flex flex-col w-full" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+                <Label className="text-[9px] uppercase font-mono text-muted-foreground tracking-wider flex flex-row items-center gap-1.5" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+                  <Target className="h-3 w-3 shrink-0" style={{ display: 'block' }} /> <span className="mt-0.5" style={{ display: 'block' }}>Strategy</span>
                 </Label>
                 <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
-                  <SelectTrigger className="w-full h-8 rounded-none border-border/40 bg-background/50 font-mono text-[11px] focus:ring-1 focus:ring-primary/40">
+                  <SelectTrigger className="w-full h-12 rounded-none border-border/40 bg-background/50 font-mono text-[11px] focus:ring-1 focus:ring-primary/40" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }}>
                     <SelectValue placeholder="Select Strategy" />
                   </SelectTrigger>
                   <SelectContent className="rounded-none border-border bg-[#0E121B]">
@@ -377,18 +427,18 @@ export default function BacktestPage() {
 
               {/* Timeframe section */}
               <div className="p-2.5 bg-[#121824]/30 border border-border/20 relative">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="h-3 w-3 text-primary" />
-                    <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Timeframe</h3>
+                <div className="flex flex-row items-center justify-between mb-2" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div className="flex flex-row items-center gap-1.5" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+                    <Clock className="h-3 w-3 text-primary shrink-0" style={{ display: 'block' }} />
+                    <div className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider m-0 mt-0.5 leading-none">Timeframe</div>
                   </div>
-                  <button type="button" onClick={() => setMultiTimeframeMode(m => !m)} className={`px-1.5 py-0.5 text-[8px] font-mono uppercase font-bold tracking-wider border transition-all ${multiTimeframeMode ? "bg-primary text-primary-foreground border-primary" : "bg-background/40 text-muted-foreground border-border/40 hover:text-primary"}`}>
-                    Multi
-                  </button>
+                  <Button type="button" size="sm" variant={multiTimeframeMode ? "default" : "secondary"} onClick={() => setMultiTimeframeMode(m => !m)} className="h-6 text-[9px] px-2 font-mono uppercase tracking-wider rounded-sm">
+                    {multiTimeframeMode ? "Multi" : "Single"}
+                  </Button>
                 </div>
                 {!multiTimeframeMode ? (
                   <Select value={String(selectedTimeframe)} onValueChange={(v) => setSelectedTimeframe(parseInt(v))}>
-                    <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[11px]">
+                    <SelectTrigger className="w-full h-12 rounded-none border-border/40 bg-background/40 font-mono text-[11px]" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border bg-[#0E121B] max-h-60">
@@ -408,13 +458,13 @@ export default function BacktestPage() {
 
               {/* Trade Settings */}
               <div className="p-2.5 bg-[#121824]/30 border border-border/20">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Activity className="h-3 w-3 text-primary" />
-                  <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Trade Settings</h3>
+                <div className="flex flex-row items-center gap-1.5 mb-2" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.375rem' }}>
+                  <Activity className="h-3 w-3 text-primary shrink-0" style={{ display: 'block' }} />
+                  <div className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider m-0 mt-0.5 leading-none">Trade Settings</div>
                 </div>
                 <div className="space-y-1.5">
                   <Select value={formData.tradeType} onValueChange={(v) => setFormData({ ...formData, tradeType: v })}>
-                    <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
+                    <SelectTrigger className="w-full h-12 rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border bg-[#0E121B]">
@@ -423,10 +473,10 @@ export default function BacktestPage() {
                       <SelectItem value="forex" className="font-mono text-[10px] uppercase">Forex</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex gap-1">
-                    <Input type="number" required value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[11px] w-12 px-1 text-center" />
+                  <div className="flex flex-row items-center gap-1 flex-nowrap w-full" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.25rem', flexWrap: 'nowrap' }}>
+                    <Input type="number" required value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} className="rounded-none font-mono border-border/40 bg-background/40 text-[11px] px-2 text-left" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', width: '60%', boxSizing: 'border-box' }} />
                     <Select value={formData.durationUnit} onValueChange={(v) => setFormData({ ...formData, durationUnit: v })}>
-                      <SelectTrigger className="flex-1 h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
+                      <SelectTrigger className="rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', width: '40%', boxSizing: 'border-box' }}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="rounded-none border-border bg-[#0E121B]">
@@ -437,63 +487,75 @@ export default function BacktestPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex flex-row items-center justify-between w-full p-2 bg-background/20 border border-border/30 mt-2">
+                    <div className="flex flex-col gap-0.5">
+                      <Label htmlFor="alternateDirection" className="text-[10px] uppercase font-mono text-foreground cursor-pointer font-bold tracking-wider">Alternate Direction</Label>
+                      <span className="text-[8px] text-muted-foreground font-mono">Forces strict CALL/PUT alternation</span>
+                    </div>
+                    <Switch
+                      id="alternateDirection"
+                      checked={formData.alternateDirection}
+                      onCheckedChange={(checked) => setFormData({ ...formData, alternateDirection: checked })}
+                      className="data-[state=checked]:bg-primary"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Data Source & Market */}
               <div className="p-2.5 bg-[#121824]/30 border border-border/20 space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Globe className="h-3 w-3 text-primary" />
-                  <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Data & Market</h3>
+                <div className="flex flex-row items-center gap-1.5 mb-1" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.375rem' }}>
+                  <Globe className="h-3 w-3 text-primary shrink-0" style={{ display: 'block' }} />
+                  <div className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider m-0 mt-0.5 leading-none">Data & Market</div>
                 </div>
-                <Select value={dataSource} onValueChange={(v: "deriv" | "local") => setDataSource(v)}>
-                  <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-none border-border bg-[#0E121B]">
-                    <SelectItem value="deriv" className="font-mono text-[10px] uppercase">Deriv API</SelectItem>
-                    <SelectItem value="local" className="font-mono text-[10px] uppercase">Local CSV</SelectItem>
-                  </SelectContent>
-                </Select>
-                {dataSource === "local" ? (
-                  <div className="space-y-1.5">
-                    <Select value={selectedDataset} onValueChange={setSelectedDataset}>
-                      <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]">
-                        <SelectValue placeholder="Select CSV File" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-none border-border bg-[#0E121B]">
-                        {Array.isArray(datasets) && datasets.map(d => <SelectItem key={d} value={d} className="font-mono text-[10px]">{d}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <div className="border border-dashed border-border/30 p-2 text-center relative bg-background/10 hover:bg-background/20 transition-all cursor-pointer">
-                      <Label className="cursor-pointer font-mono text-[9px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                        <Download className="h-3 w-3" /> Upload CSV
-                      </Label>
-                      <input type="file" accept=".csv" onChange={handleUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                <div className="grid grid-cols-2 gap-1 w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.25rem' }}>
+                  <Select value={dataSource} onValueChange={(v: "deriv" | "local") => setDataSource(v)}>
+                    <SelectTrigger className="w-full h-12 rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                      <SelectItem value="deriv" className="font-mono text-[10px] uppercase">Deriv API</SelectItem>
+                      <SelectItem value="local" className="font-mono text-[10px] uppercase">Local CSV</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {dataSource === "local" ? (
+                    <div className="space-y-1.5 w-full">
+                      <Select value={selectedDataset} onValueChange={setSelectedDataset}>
+                        <SelectTrigger className="w-full h-7 rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '28px' }}>
+                          <SelectValue placeholder="Select CSV File" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                          {Array.isArray(datasets) && datasets.map(d => <SelectItem key={d} value={d} className="font-mono text-[10px]">{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <div className="border border-dashed border-border/30 p-2 text-center relative bg-background/10 hover:bg-background/20 transition-all cursor-pointer">
+                        <Label className="cursor-pointer font-mono text-[9px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                          <Download className="h-3 w-3" /> Upload CSV
+                        </Label>
+                        <input type="file" accept=".csv" onChange={handleUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <Popover open={openSearch} onOpenChange={setOpenSearch}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={openSearch}
-                        className="w-full justify-between h-7 rounded-none border-border/40 bg-background/40 font-mono px-2 hover:bg-muted/50 text-[10px]"
-                      >
-                        <div className="flex items-center gap-1 truncate">
-                          <Search size={10} className="text-muted-foreground shrink-0" />
-                          <span className="truncate">{formData.symbol || "Select Market..."}</span>
-                        </div>
-                        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start" style={{ width: '260px', backgroundColor: '#0f1318', borderRadius: 0, border: '1px solid #1a2332' }}>
+                  ) : (
+                    <Popover open={openSearch} onOpenChange={setOpenSearch}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openSearch}
+                          className="w-full justify-between h-12 rounded-none border-border/40 bg-background/40 font-mono px-2 hover:bg-muted/50 text-[10px]"
+                          style={{ height: '48px', minHeight: '48px', maxHeight: '48px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'nowrap', boxSizing: 'border-box' }}
+                        >
+                          <div className="flex items-center gap-1 truncate">
+                            <span className="truncate">{formData.symbol || "Select Market..."}</span>
+                          </div>
+                          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" style={{ display: 'block' }} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start" style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '80%', backgroundColor: '#0f1318', borderRadius: 0, border: '1px solid #1a2332' }}>
                       <Command shouldFilter={false} className="bg-transparent">
                         <CommandInput
-                          placeholder="Search symbols..."
-                          className="font-mono text-xs border-0 focus:ring-0"
-                          style={{ height: '30px', fontSize: '10px' }}
+                          placeholder="Search pairs..."
+                          className="font-mono text-[11px] h-9 focus:ring-0 focus:outline-none bg-transparent"
                           value={searchQuery}
                           onValueChange={setSearchQuery}
                         />
@@ -530,32 +592,45 @@ export default function BacktestPage() {
                   </Popover>
                 )}
               </div>
+            </div>
 
               {/* Capital & Period */}
               <div className="p-2.5 bg-[#121824]/30 border border-border/20 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-3 w-3 text-primary" />
-                    <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Date Period</h3>
+                <div className="flex flex-row items-center justify-between mb-1" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div className="flex flex-row items-center gap-1.5" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+                    <Calendar className="h-3 w-3 text-primary shrink-0" style={{ display: 'block' }} />
+                    <div className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider m-0 mt-0.5 leading-none">Date Period</div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-1">
-                  <Input type="date" required value={formData.fromDate} onChange={e => setFormData({...formData, fromDate: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[9px] px-1" />
-                  <Input type="date" required value={formData.toDate} onChange={e => setFormData({...formData, toDate: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[9px] px-1" />
+                <div className="grid grid-cols-2 gap-2 w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
+                  <div className="flex flex-col gap-1 w-full">
+                    <Label className="text-[9px] uppercase font-mono text-muted-foreground ml-1">From</Label>
+                    <Input type="date" required value={formData.fromDate} onChange={e => setFormData({...formData, fromDate: e.target.value})} className="h-12 w-full rounded-none font-mono border-border/40 bg-background/40 text-[9px] px-2" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }} />
+                  </div>
+                  <div className="flex flex-col gap-1 w-full">
+                    <Label className="text-[9px] uppercase font-mono text-muted-foreground ml-1">To</Label>
+                    <Input type="date" required value={formData.toDate} onChange={e => setFormData({...formData, toDate: e.target.value})} className="h-12 w-full rounded-none font-mono border-border/40 bg-background/40 text-[9px] px-2" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }} />
+                  </div>
                 </div>
                 
-                <div className="flex items-center gap-1.5 pt-1.5 border-t border-border/10">
-                  <Wallet className="h-3 w-3 text-primary" />
-                  <h3 className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider">Capital & Stake</h3>
+                <div className="flex flex-row items-center gap-1.5 pt-2 mb-1 border-t border-border/10" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.375rem' }}>
+                  <Wallet className="h-3 w-3 text-primary shrink-0" style={{ display: 'block' }} />
+                  <div className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider m-0 mt-0.5 leading-none">Capital & Stake</div>
                 </div>
-                <div className="grid grid-cols-2 gap-1">
-                  <div className="relative">
-                    <Input type="number" required value={formData.initialBalance} onChange={e => setFormData({...formData, initialBalance: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[10px] pl-4" />
-                    <span className="absolute left-1.5 top-1.5 text-[9px] text-muted-foreground">$</span>
+                <div className="grid grid-cols-2 gap-2 w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
+                  <div className="flex flex-col gap-1 w-full">
+                    <Label className="text-[9px] uppercase font-mono text-muted-foreground ml-1">Capital</Label>
+                    <div className="flex flex-row items-center justify-between bg-background/40 border border-border/40 h-12 w-full" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }}>
+                      <Input type="number" required value={formData.initialBalance} onChange={e => setFormData({...formData, initialBalance: e.target.value})} className="h-full w-full rounded-none font-mono border-0 bg-transparent text-[11px] focus:ring-0 focus-visible:ring-0 px-2 p-0 m-0" style={{ border: 'none', outline: 'none' }} />
+                      <span className="text-[9px] text-muted-foreground px-3 shrink-0 border-l border-border/20 h-full flex items-center justify-center" style={{ display: 'flex' }}>$</span>
+                    </div>
                   </div>
-                  <div className="relative">
-                    <Input type="number" step="0.01" required value={formData.stakePerTrade} onChange={e => setFormData({...formData, stakePerTrade: e.target.value})} className="h-7 rounded-none font-mono border-border/40 bg-background/40 text-[10px] pl-4" />
-                    <span className="absolute left-1.5 top-1.5 text-[9px] text-muted-foreground">$</span>
+                  <div className="flex flex-col gap-1 w-full">
+                    <Label className="text-[9px] uppercase font-mono text-muted-foreground ml-1">Stake</Label>
+                    <div className="flex flex-row items-center justify-between bg-background/40 border border-border/40 h-12 w-full" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }}>
+                      <Input type="number" step="0.01" required value={formData.stakePerTrade} onChange={e => setFormData({...formData, stakePerTrade: e.target.value})} className="h-full w-full rounded-none font-mono border-0 bg-transparent text-[11px] focus:ring-0 focus-visible:ring-0 px-2 p-0 m-0" style={{ border: 'none', outline: 'none' }} />
+                      <span className="text-[9px] text-muted-foreground px-3 shrink-0 border-l border-border/20 h-full flex items-center justify-center" style={{ display: 'flex' }}>$</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -568,12 +643,12 @@ export default function BacktestPage() {
             </div>
           </div>
 
-          {/* COLUMN 2: BACKTEST LIST (Span 4) */}
-          <div className="md:col-span-3 lg:col-span-4 flex flex-col h-full bg-[#0A0D14] overflow-hidden">
-            <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-foreground">History</h2>
+          {/* COLUMN 2: BACKTEST LIST (Span 8) */}
+          <div className="col-span-8 min-w-0 flex flex-col h-full bg-[#0A0D14] overflow-hidden">
+            <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0 flex flex-row items-center justify-between" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="flex flex-row items-center gap-2" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+                <BarChart3 className="h-3.5 w-3.5 text-primary shrink-0" style={{ display: 'block' }} />
+                <div className="text-xs font-bold font-mono uppercase tracking-wider text-foreground m-0 leading-none">History</div>
               </div>
               <span className="text-[9px] font-mono text-muted-foreground bg-[#1E293B] px-1.5 py-0.5 border border-border/30">{backtests?.length || 0} Runs</span>
             </div>
@@ -590,175 +665,170 @@ export default function BacktestPage() {
                   return (
                     <div 
                       key={bt.id} 
-                      onClick={() => setSelectedBacktestId(bt.id)}
-                      className={`group relative p-2.5 border cursor-pointer transition-all rounded-none ${isSelected ? 'bg-primary/5 border-primary shadow-sm' : 'bg-[#111520]/60 border-border/30 hover:border-primary/40'}`}
+                      className={`group relative border transition-all rounded-none ${isSelected ? 'bg-primary/5 border-primary shadow-sm' : 'bg-[#111520]/60 border-border/30 hover:border-primary/40'}`}
                     >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-bold text-[11px] font-mono text-primary uppercase">#{bt.id} · {bt.symbol}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-1 py-0.2 text-[8px] font-mono uppercase font-bold border ${bt.status === 'completed' ? 'text-primary border-primary/20 bg-primary/5' : bt.status === 'failed' ? 'text-destructive border-destructive/25 bg-destructive/5' : 'text-yellow-500 border-yellow-500/25 bg-yellow-500/5'}`}>
-                            {bt.status}
+                      <div className="p-2.5 cursor-pointer" onClick={() => setSelectedBacktestId(isSelected ? null : bt.id)}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-bold text-[11px] font-mono text-primary uppercase">#{bt.id} · {bt.symbol}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-1 py-0.2 text-[8px] font-mono uppercase font-bold border ${bt.status === 'completed' ? 'text-primary border-primary/20 bg-primary/5' : bt.status === 'failed' ? 'text-destructive border-destructive/25 bg-destructive/5' : 'text-yellow-500 border-yellow-500/25 bg-yellow-500/5'}`}>
+                              {bt.status}
+                            </span>
+                            <button
+                              onClick={(e) => handleDeleteBacktest(bt.id, e)}
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5"
+                              title="Delete backtest"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="px-1.5 py-0.2 text-[8px] font-mono uppercase bg-muted/30 text-muted-foreground border border-border/30">
+                            {timeframeShort(res.granularitySec)}
                           </span>
-                          <button
-                            onClick={(e) => handleDeleteBacktest(bt.id, e)}
-                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5"
-                            title="Delete backtest"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                          <span className="text-[9px] font-mono uppercase text-muted-foreground truncate max-w-[160px]">{res.tradeType} · {res.duration}{res.durationUnit}</span>
                         </div>
+                        {bt.status === "running" ? (
+                          <BacktestProgress bt={bt} />
+                        ) : (
+                          <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-border/10">
+                            <div className="flex justify-between items-center pr-2">
+                              <span className="text-[8px] uppercase font-mono text-muted-foreground">Win Rate</span>
+                              <span className="text-[10px] font-bold font-mono">{bt.winRate != null ? `${bt.winRate.toFixed(1)}%` : '-'}</span>
+                            </div>
+                            <div className="flex justify-between items-center pl-2 border-l border-border/20">
+                              <span className="text-[8px] uppercase font-mono text-muted-foreground">P&L</span>
+                              <span className={`text-[10px] font-bold font-mono ${bt.totalPnl && bt.totalPnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                                {bt.totalPnl != null ? `${bt.totalPnl >= 0 ? '+' : ''}$${bt.totalPnl.toFixed(2)}` : '-'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className="px-1.5 py-0.2 text-[8px] font-mono uppercase bg-muted/30 text-muted-foreground border border-border/30">
-                          {timeframeShort(res.granularitySec)}
-                        </span>
-                        <span className="text-[9px] font-mono uppercase text-muted-foreground truncate max-w-[160px]">{res.tradeType} · {res.duration}{res.durationUnit}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-border/10">
-                        <div className="flex justify-between items-center pr-2">
-                          <span className="text-[8px] uppercase font-mono text-muted-foreground">Win Rate</span>
-                          <span className="text-[10px] font-bold font-mono">{bt.winRate != null ? `${bt.winRate.toFixed(1)}%` : '-'}</span>
+                      
+                      {isSelected && selectedBt && (
+                        <div className="border-t border-primary/20 bg-[#0A0D14] flex flex-col">
+                          <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0">
+                            <div className="flex items-center justify-between mb-3">
+                              <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                                <Target className="h-3.5 w-3.5 text-primary" /> Details #{selectedBt.id}
+                              </h2>
+                              <div className="flex gap-1.5">
+                                <Link href={`/backtest/${selectedBt.id}/replay`}>
+                                  <Button variant="outline" className="h-6.5 text-[9px] font-mono font-bold uppercase border-primary/40 text-primary hover:bg-primary/10 rounded-none px-2" title="Visual Replay">
+                                    <Activity className="h-3 w-3 mr-1 animate-pulse" /> Replay
+                                  </Button>
+                                </Link>
+                                <Button size="icon" variant="outline" onClick={() => downloadCsv(`bt-${selectedBt.id}.csv`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Download CSV">
+                                  <Download className="h-3 w-3" />
+                                </Button>
+                                <Button size="icon" variant="outline" onClick={() => printPdf(`Backtest #${selectedBt.id}`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Print PDF">
+                                  <FileText className="h-3 w-3" />
+                                </Button>
+                                <Button size="icon" variant="outline" onClick={(e) => handleDeleteBacktest(selectedBt.id, e)} className="h-6.5 w-6.5 rounded-none border-destructive/40 text-destructive hover:bg-destructive/10" title="Delete Backtest">
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-4 gap-1.5 mb-2.5">
+                              <div className="bg-[#111520] border border-border/20 p-2">
+                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Win Rate</span>
+                                <span className="text-xs font-bold font-mono text-primary">{selectedBt.winRate?.toFixed(1)}%</span>
+                              </div>
+                              <div className="bg-[#111520] border border-border/20 p-2">
+                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">P&L</span>
+                                <span className={`text-xs font-bold font-mono ${selectedBt.totalPnl! >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                                  {selectedBt.totalPnl! >= 0 ? '+' : ''}${selectedBt.totalPnl?.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="bg-[#111520] border border-border/20 p-2">
+                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Trades</span>
+                                <span className="text-xs font-bold font-mono">{selectedBt.totalTrades}</span>
+                              </div>
+                              <div className="bg-[#111520] border border-border/20 p-2">
+                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Max DD</span>
+                                <span className="text-xs font-bold font-mono text-destructive">{selectedBt.maxDrawdown?.toFixed(1)}%</span>
+                              </div>
+                            </div>
+
+                            {selectedBtTrades.length > 0 && (
+                              <div className="bg-[#111520] border border-border/20 p-2.5 mb-2.5 font-mono text-[9px] rounded-none">
+                                <div className="text-muted-foreground uppercase font-bold tracking-wider mb-1.5 border-b border-border/10 pb-1 text-[8px]">
+                                  Buy/Sell Setup Performance Breakdown
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                                  <div className="flex justify-between items-center border-r border-border/10 pr-4">
+                                    <span className="text-[#10b981] font-bold">WINNING BUY (CALL):</span>
+                                    <span className="text-white font-bold">{selectedBtStats.winBuyCount} trades (${selectedBtStats.winBuyPnl.toFixed(2)})</span>
+                                  </div>
+                                  <div className="flex justify-between items-center pl-2">
+                                    <span className="text-[#10b981] font-bold">WINNING SELL (PUT):</span>
+                                    <span className="text-white font-bold">{selectedBtStats.winSellCount} trades (${selectedBtStats.winSellPnl.toFixed(2)})</span>
+                                  </div>
+                                  <div className="flex justify-between items-center border-r border-border/10 pr-4">
+                                    <span className="text-[#ef4444] font-bold">LOSING BUY (CALL):</span>
+                                    <span className="text-white font-bold">{selectedBtStats.loseBuyCount} trades (${selectedBtStats.loseBuyPnl.toFixed(2)})</span>
+                                  </div>
+                                  <div className="flex justify-between items-center pl-2">
+                                    <span className="text-[#ef4444] font-bold">LOSING SELL (PUT):</span>
+                                    <span className="text-white font-bold">{selectedBtStats.loseSellCount} trades (${selectedBtStats.loseSellPnl.toFixed(2)})</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {selectedBt.errorMessage && (
+                              <div className="p-2 bg-destructive/10 border border-destructive/20 text-destructive text-[9px] font-mono leading-relaxed">
+                                <span className="font-bold uppercase block mb-0.5">Error Details:</span> {selectedBt.errorMessage}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 overflow-auto bg-[#0A0D14] max-h-[400px]">
+                            {selectedBtTrades.length === 0 ? (
+                              <div className="p-8 text-center text-xs font-mono uppercase text-muted-foreground opacity-50">No trades executed</div>
+                            ) : (
+                              <table className="w-full text-[9px] font-mono text-left whitespace-nowrap">
+                                <thead className="bg-[#121824]/50 sticky top-0 border-b border-border/30 z-10 shadow-sm">
+                                  <tr>
+                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">#</th>
+                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">Dir</th>
+                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">Entry</th>
+                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">P&L</th>
+                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-center">Chart</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/10">
+                                  {selectedBtTrades.map(t => (
+                                    <tr key={t.id} className="hover:bg-[#111520]/50 transition-colors">
+                                      <td className="px-2.5 py-1.5 text-muted-foreground">{t.id}</td>
+                                      <td className="px-2.5 py-1.5">
+                                        <span className={`font-bold ${t.direction === "CALL" ? "text-primary bg-primary/5 px-1 py-0.1 border border-primary/10" : "text-destructive bg-destructive/5 px-1 py-0.1 border border-destructive/10"}`}>{t.direction}</span>
+                                      </td>
+                                      <td className="px-2.5 py-1.5 text-right">{t.entry.toFixed(4)}</td>
+                                      <td className={`px-2.5 py-1.5 text-right font-bold ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
+                                        {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
+                                      </td>
+                                      <td className="px-2.5 py-1.5 text-center">
+                                        <Button size="icon" variant="ghost" className="h-5.5 w-5.5 text-muted-foreground hover:text-primary rounded-none" onClick={() => handleViewChart(t, selectedBt.id)}>
+                                          <LineChart className="h-3 w-3" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center pl-2 border-l border-border/20">
-                          <span className="text-[8px] uppercase font-mono text-muted-foreground">P&L</span>
-                          <span className={`text-[10px] font-bold font-mono ${bt.totalPnl && bt.totalPnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                            {bt.totalPnl != null ? `${bt.totalPnl >= 0 ? '+' : ''}$${bt.totalPnl.toFixed(2)}` : '-'}
-                          </span>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   );
                 })
               )}
             </div>
-          </div>
-
-          {/* COLUMN 3: RESULTS DETAIL (Span 5) */}
-          <div className="md:col-span-6 lg:col-span-5 flex flex-col h-full bg-[#0E121B]/90 overflow-hidden">
-            {!selectedBt ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-card/10">
-                <BarChart3 className="h-10 w-10 text-muted-foreground/30 mb-3 animate-pulse" />
-                <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-muted-foreground">Select a Backtest</h3>
-                <p className="text-[10px] font-mono text-muted-foreground/60 mt-1 max-w-[220px] mx-auto">Click on a backtest run from the history panel to view detailed metrics and executed trades.</p>
-              </div>
-            ) : (
-              <>
-                <div className="p-3 border-b border-border/30 bg-[#121824]/40 shrink-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                      <Target className="h-3.5 w-3.5 text-primary" /> Details #{selectedBt.id}
-                    </h2>
-                    <div className="flex gap-1.5">
-                      <Link href={`/backtest/${selectedBt.id}/replay`}>
-                        <Button variant="outline" className="h-6.5 text-[9px] font-mono font-bold uppercase border-primary/40 text-primary hover:bg-primary/10 rounded-none px-2" title="Visual Replay">
-                          <Activity className="h-3 w-3 mr-1 animate-pulse" /> Replay
-                        </Button>
-                      </Link>
-                      <Button size="icon" variant="outline" onClick={() => downloadCsv(`bt-${selectedBt.id}.csv`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Download CSV">
-                        <Download className="h-3 w-3" />
-                      </Button>
-                      <Button size="icon" variant="outline" onClick={() => printPdf(`Backtest #${selectedBt.id}`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Print PDF">
-                        <FileText className="h-3 w-3" />
-                      </Button>
-                      <Button size="icon" variant="outline" onClick={(e) => handleDeleteBacktest(selectedBt.id, e)} className="h-6.5 w-6.5 rounded-none border-destructive/40 text-destructive hover:bg-destructive/10" title="Delete Backtest">
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-4 gap-1.5 mb-2.5">
-                    <div className="bg-[#111520] border border-border/20 p-2">
-                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Win Rate</span>
-                      <span className="text-xs font-bold font-mono text-primary">{selectedBt.winRate?.toFixed(1)}%</span>
-                    </div>
-                    <div className="bg-[#111520] border border-border/20 p-2">
-                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">P&L</span>
-                      <span className={`text-xs font-bold font-mono ${selectedBt.totalPnl! >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                        {selectedBt.totalPnl! >= 0 ? '+' : ''}${selectedBt.totalPnl?.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="bg-[#111520] border border-border/20 p-2">
-                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Trades</span>
-                      <span className="text-xs font-bold font-mono">{selectedBt.totalTrades}</span>
-                    </div>
-                    <div className="bg-[#111520] border border-border/20 p-2">
-                      <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Max DD</span>
-                      <span className="text-xs font-bold font-mono text-destructive">{selectedBt.maxDrawdown?.toFixed(1)}%</span>
-                    </div>
-                  </div>
-
-                  {/* Buy/Sell Breakdown Table */}
-                  {selectedBtTrades.length > 0 && (
-                    <div className="bg-[#111520] border border-border/20 p-2.5 mb-2.5 font-mono text-[9px] rounded-none">
-                      <div className="text-muted-foreground uppercase font-bold tracking-wider mb-1.5 border-b border-border/10 pb-1 text-[8px]">
-                        Buy/Sell Setup Performance Breakdown
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                        <div className="flex justify-between items-center border-r border-border/10 pr-4">
-                          <span className="text-[#10b981] font-bold">WINNING BUY (CALL):</span>
-                          <span className="text-white font-bold">{selectedBtStats.winBuyCount} trades (${selectedBtStats.winBuyPnl.toFixed(2)})</span>
-                        </div>
-                        <div className="flex justify-between items-center pl-2">
-                          <span className="text-[#10b981] font-bold">WINNING SELL (PUT):</span>
-                          <span className="text-white font-bold">{selectedBtStats.winSellCount} trades (${selectedBtStats.winSellPnl.toFixed(2)})</span>
-                        </div>
-                        <div className="flex justify-between items-center border-r border-border/10 pr-4">
-                          <span className="text-[#ef4444] font-bold">LOSING BUY (CALL):</span>
-                          <span className="text-white font-bold">{selectedBtStats.loseBuyCount} trades (${selectedBtStats.loseBuyPnl.toFixed(2)})</span>
-                        </div>
-                        <div className="flex justify-between items-center pl-2">
-                          <span className="text-[#ef4444] font-bold">LOSING SELL (PUT):</span>
-                          <span className="text-white font-bold">{selectedBtStats.loseSellCount} trades (${selectedBtStats.loseSellPnl.toFixed(2)})</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedBt.errorMessage && (
-                    <div className="p-2 bg-destructive/10 border border-destructive/20 text-destructive text-[9px] font-mono leading-relaxed">
-                      <span className="font-bold uppercase block mb-0.5">Error Details:</span> {selectedBt.errorMessage}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 overflow-auto bg-[#0A0D14]">
-                  {selectedBtTrades.length === 0 ? (
-                    <div className="p-8 text-center text-xs font-mono uppercase text-muted-foreground opacity-50">No trades executed</div>
-                  ) : (
-                    <table className="w-full text-[9px] font-mono text-left whitespace-nowrap">
-                      <thead className="bg-[#121824]/50 sticky top-0 border-b border-border/30 z-10 shadow-sm">
-                        <tr>
-                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">#</th>
-                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">Dir</th>
-                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">Entry</th>
-                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">P&L</th>
-                          <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-center">Chart</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/10">
-                        {selectedBtTrades.map(t => (
-                          <tr key={t.id} className="hover:bg-[#111520]/50 transition-colors">
-                            <td className="px-2.5 py-1.5 text-muted-foreground">{t.id}</td>
-                            <td className="px-2.5 py-1.5">
-                              <span className={`font-bold ${t.direction === "CALL" ? "text-primary bg-primary/5 px-1 py-0.1 border border-primary/10" : "text-destructive bg-destructive/5 px-1 py-0.1 border border-destructive/10"}`}>{t.direction}</span>
-                            </td>
-                            <td className="px-2.5 py-1.5 text-right">{t.entry.toFixed(4)}</td>
-                            <td className={`px-2.5 py-1.5 text-right font-bold ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
-                              {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
-                            </td>
-                            <td className="px-2.5 py-1.5 text-center">
-                              <Button size="icon" variant="ghost" className="h-5.5 w-5.5 text-muted-foreground hover:text-primary rounded-none" onClick={() => handleViewChart(t, selectedBt.id)}>
-                                <LineChart className="h-3 w-3" />
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </>
-            )}
           </div>
           
         </div>

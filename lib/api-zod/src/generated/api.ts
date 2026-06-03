@@ -908,6 +908,7 @@ export const ListBacktestsResponseItem = zod.object({
   "sharpeRatio": zod.number().nullish(),
   "results": zod.string().nullish(),
   "errorMessage": zod.string().nullish(),
+  "progressLogs": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish()
 })
@@ -929,7 +930,8 @@ export const RunBacktestBody = zod.object({
   "stakePerTrade": zod.number().nullish(),
   "granularitySec": zod.number().nullish().describe('Candle granularity in seconds for the backtest data (60=1m, 300=5m, 900=15m, 3600=1h, 14400=4h, 86400=1d). If null, auto-derived from durationUnit.'),
   "sessions": zod.array(zod.enum(['asian', 'london', 'newyork', 'overlap_london_ny'])).nullish().describe('Restrict the backtest to trades initiated within the given trading sessions (UTC). If null or empty, all sessions are included.'),
-  "datasetFile": zod.string().nullish().describe('If provided, the backtest will run using this local CSV file instead of fetching from Deriv API.')
+  "datasetFile": zod.string().nullish().describe('If provided, the backtest will run using this local CSV file instead of fetching from Deriv API.'),
+  "alternateDirection": zod.boolean().optional().describe('If true, enforces strict alternation of signal directions during the backtest.')
 })
 
 
@@ -969,6 +971,7 @@ export const GetBacktestResponse = zod.object({
   "sharpeRatio": zod.number().nullish(),
   "results": zod.string().nullish(),
   "errorMessage": zod.string().nullish(),
+  "progressLogs": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish()
 })
@@ -1060,6 +1063,7 @@ export const ListAutoTradeSessionsResponseItem = zod.object({
   "stopOnLoss": zod.number().nullish(),
   "symbols": zod.array(zod.string()).optional(),
   "pairMode": zod.enum(['single', 'rotating', 'simultaneous']).optional(),
+  "currentPairIdx": zod.number(),
   "profitTarget": zod.number().nullish(),
   "tradeProfitTarget": zod.number().nullish(),
   "alternateDirection": zod.boolean().optional(),
@@ -1130,6 +1134,7 @@ export const UpdateAutoTradeSessionResponse = zod.object({
   "stopOnLoss": zod.number().nullish(),
   "symbols": zod.array(zod.string()).optional(),
   "pairMode": zod.enum(['single', 'rotating', 'simultaneous']).optional(),
+  "currentPairIdx": zod.number(),
   "profitTarget": zod.number().nullish(),
   "tradeProfitTarget": zod.number().nullish(),
   "alternateDirection": zod.boolean().optional(),

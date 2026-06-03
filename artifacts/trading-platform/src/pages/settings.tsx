@@ -95,7 +95,7 @@ export default function SettingsPage() {
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-y-auto p-6 max-w-4xl mx-auto space-y-10">
-        <div>
+        <div className="mt-4">
           <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">System Configuration</h1>
           <p className="text-xs text-muted-foreground font-mono mt-1">Manage connection keys and identity</p>
         </div>

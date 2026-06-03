@@ -378,6 +378,7 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
           });
 
           setTimeout(() => {
+            if (isDisposed) return;
             try {
               const mainWidth = (chart.priceScale("right") as any).width?.() ?? 80;
               oscChart.applyOptions({ rightPriceScale: { minimumWidth: mainWidth } });
@@ -397,9 +398,13 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
         );
 
         indicatorSeriesMap.forEach((lineSeries, key) => {
-          const data = newCandles
-            .map((c: any) => ({ time: c.time as any, value: c.indicators?.[key] }))
-            .filter(d => d.value !== undefined && d.value !== null && Number.isFinite(d.value));
+          const data = newCandles.map((c: any) => {
+            const val = c.indicators?.[key];
+            if (val !== undefined && val !== null && Number.isFinite(val)) {
+              return { time: c.time as any, value: val };
+            }
+            return { time: c.time as any };
+          });
           lineSeries.setData(data as any);
         });
 
@@ -458,12 +463,29 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
           /* markers are nice-to-have */
         }
 
-        chart.timeScale().fitContent();
+        if (newCandles.length > 100) {
+          chart.timeScale().setVisibleLogicalRange({ from: newCandles.length - 100, to: newCandles.length - 1 });
+        } else {
+          chart.timeScale().fitContent();
+        }
+        
+        const chartMap = new Map<Element, any>();
+        chartMap.set(container, chart);
+        
+        oscillatorGroups.forEach(([groupName], idx) => {
+          const oscContainer = oscRefs.current[groupName];
+          if (oscContainer && oscChartsList[idx]) {
+            chartMap.set(oscContainer, oscChartsList[idx]);
+          }
+        });
 
         const ro = new ResizeObserver((entries) => {
           for (const entry of entries) {
             const { width: w, height: h } = entry.contentRect;
-            if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
+            const targetChart = chartMap.get(entry.target);
+            if (targetChart && w > 0 && h > 0) {
+               try { targetChart.applyOptions({ width: w, height: h }); } catch {}
+            }
           }
         });
         ro.observe(container);
@@ -501,7 +523,7 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
     <div className="flex flex-col w-full h-full border border-border/50 rounded-lg overflow-hidden">
       <div
         ref={containerRef}
-        className="w-full h-[500px] bg-muted/5"
+        className="w-full h-[500px] bg-muted/5 shrink-0"
       />
       {oscillatorGroups.map(([groupName]) => (
         <div 
@@ -573,7 +595,9 @@ export default function AutoTradeChartPage() {
     const buffer = Math.max(tradeDuration * 2, 300);
     const startSec = entrySec - buffer;
     const endSec = exitSec + buffer;
-    const granularity = pickGranularity(tradeDuration);
+    
+    // Auto-trader always uses 1-minute (60) granularity internally for evaluation
+    const granularity = 60;
 
     let cancelled = false;
     setCandleLoading(true);
@@ -675,7 +699,7 @@ export default function AutoTradeChartPage() {
   return (
     <AppLayout>
       <div className="h-[calc(100vh-3.5rem)] w-full overflow-auto bg-background">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 mt-4">
 
           {/* Page Header */}
           <div className="flex items-center justify-between flex-wrap gap-3">

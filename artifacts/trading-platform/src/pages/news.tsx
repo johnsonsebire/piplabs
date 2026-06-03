@@ -15,7 +15,7 @@ export default function NewsPage() {
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden max-w-5xl mx-auto p-6 gap-6">
-        <div className="shrink-0 space-y-4">
+        <div className="shrink-0 space-y-4 mt-4">
           <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">Market Feed</h1>
           
           <Tabs value={category} onValueChange={(v) => setCategory(v as any)} className="w-full">

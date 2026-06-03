@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
+import { parseIndicatorConfig, computeIndicator } from "@/lib/indicators";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  useListBacktests,
-  getListBacktestsQueryKey,
-} from "@workspace/api-client-react";
-import {
-  Activity, ArrowLeft, TrendingUp, TrendingDown, Clock, DollarSign, LineChart, AlertCircle,
-} from "lucide-react";
+import { useListBacktests, getListBacktestsQueryKey, useListStrategies, useListIndicators } from "@workspace/api-client-react";
+import { Activity, ArrowLeft, TrendingUp, TrendingDown, Clock, DollarSign, LineChart, AlertCircle } from "lucide-react";
 
 type SimTrade = {
   id: number;
@@ -26,6 +22,7 @@ type SimTrade = {
 };
 
 type BacktestResults = {
+  granularitySec?: number;
   trades?: SimTrade[];
 };
 
@@ -154,19 +151,143 @@ function parseQuery(search: string): Record<string, string> {
   return out;
 }
 
-function TradeChartRenderer({ trade, candles }: { trade: SimTrade; candles: Candle[] }) {
+
+function normaliseDirection(dir: string): "CALL" | "PUT" {
+  const d = dir.toUpperCase();
+  if (d === "CALL" || d === "BUY") return "CALL";
+  return "PUT";
+}
+
+function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trade: SimTrade; candles: Candle[]; strategy?: any; userIndicators?: any[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const oscRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [chartError, setChartError] = useState<string | null>(null);
+  const direction = normaliseDirection(trade.direction);
+  const entryPrice = trade.entry ?? 0;
+  const exitPrice = trade.exit ?? 0;
+  const pnl = trade.pnl ?? 0;
+  const outcome = pnl >= 0 ? "win" : "loss";
+
+  const { newCandles, overlayKeys, oscillatorKeys, oscillatorGroups } = useMemo(() => {
+    const empty = { newCandles: candles, overlayKeys: [] as string[], oscillatorKeys: [] as string[], oscillatorGroups: [] as [string, string[]][] };
+    if (!candles.length || !strategy) return empty;
+
+    const refs = new Set<string>();
+    const userIndMap = new Map<string, any>();
+    if (userIndicators) {
+      for (const ind of userIndicators) {
+        const cfg = parseIndicatorConfig(ind.parameters, ind.code);
+        if (cfg) userIndMap.set(ind.name.trim().toLowerCase(), cfg);
+      }
+    }
+
+    try {
+      const code = JSON.parse(strategy.code);
+      const allLegs = [code.legs?.buy, code.legs?.sell, code.buy, code.sell].filter(Boolean);
+      if (allLegs.length === 0 && Array.isArray(code.conditions)) allLegs.push(code);
+      allLegs.forEach((leg: any) => {
+        if (leg?.conditions) {
+          leg.conditions.forEach((cond: any) => {
+            const skip = ["PRICE", "CLOSE", "OPEN", "HIGH", "LOW"];
+            if (cond.indicatorA && !skip.includes(cond.indicatorA) && !isNaN(Number(cond.indicatorA)) === false) refs.add(cond.indicatorA.trim());
+            if (cond.indicatorB && !skip.includes(cond.indicatorB) && isNaN(Number(cond.indicatorB))) refs.add(cond.indicatorB.trim());
+          });
+        }
+      });
+    } catch (e) {}
+
+    const detectedRefs = Array.from(refs);
+    detectedRefs.forEach(ref => {
+      const upper = ref.toUpperCase();
+      if (upper.startsWith("STOCH_") || upper === "STOCH") { refs.add("STOCH_K"); refs.add("STOCH_D"); }
+      else if (upper.startsWith("MACD") || upper === "MACD_SIGNAL") { refs.add("MACD"); refs.add("MACD_SIGNAL"); }
+      else if (upper.startsWith("BB_") || upper === "BB") { refs.add("BB_UPPER"); refs.add("BB_LOWER"); refs.add("BB_MIDDLE"); }
+    });
+
+    const mappedCandles = candles.map(c => ({ ...c, indicators: {} as Record<string, number> }));
+
+    refs.forEach(ref => {
+      let config = userIndMap.get(ref.trim().toLowerCase()) ?? null;
+      if (!config) {
+        const matchMA = ref.match(/^(SMA|EMA|WMA|TMA)\((\d+)\)$/i);
+        if (matchMA) config = { type: "MA", subtype: matchMA[1].toUpperCase(), period: parseInt(matchMA[2], 10) };
+        const matchRSIn = ref.match(/^RSI\((\d+)\)$/i);
+        if (matchRSIn) config = { type: "RSI", period: parseInt(matchRSIn[1], 10) };
+        if (ref.toUpperCase() === "RSI") config = { type: "RSI", period: 14 };
+        const matchCCIn = ref.match(/^CCI\((\d+)\)$/i);
+        if (matchCCIn) config = { type: "CCI", period: parseInt(matchCCIn[1], 10) };
+        if (ref.toUpperCase() === "CCI") config = { type: "CCI", period: 20 };
+        if (ref.toUpperCase() === "MACD" || ref.toUpperCase() === "MACD_SIGNAL") config = { type: "MACD", fast: 12, slow: 26, signal: 9 };
+        if (["BB_UPPER","BB_LOWER","BB_MIDDLE"].includes(ref.toUpperCase())) config = { type: "BB", period: 20 };
+        if (["STOCH_K","STOCH_D"].includes(ref.toUpperCase())) config = { type: "STOCH", kPeriod: 14, dPeriod: 3 };
+        if (ref.toUpperCase() === "ATR") config = { type: "ATR", period: 14 };
+      }
+
+      if (config) {
+        try {
+          const indSeries = computeIndicator(ref, ref, config, mappedCandles as any);
+          if (indSeries) {
+            let targetData = indSeries.data;
+            const upperRef = ref.toUpperCase();
+            if (config.type === "STOCH" && upperRef === "STOCH_D") targetData = indSeries.additionalSeries?.[0]?.data || [];
+            else if (config.type === "MACD" && upperRef === "MACD_SIGNAL") targetData = indSeries.additionalSeries?.[1]?.data || [];
+            else if (config.type === "BB") {
+              if (upperRef === "BB_UPPER") targetData = indSeries.additionalSeries?.[0]?.data || [];
+              else if (upperRef === "BB_LOWER") targetData = indSeries.additionalSeries?.[1]?.data || [];
+            }
+            if (targetData) {
+              const timeIndex = new Map(mappedCandles.map((c, i) => [c.time, i]));
+              for (const pt of targetData) {
+                const idx = timeIndex.get(pt.time);
+                if (idx !== undefined) mappedCandles[idx].indicators![ref] = pt.value;
+              }
+            }
+          }
+        } catch {}
+      }
+    });
+
+    const OSCILLATOR_TYPES = new Set(["RSI", "MACD", "STOCH", "CCI", "ATR"]);
+    const ovKeys: string[] = [];
+    const osKeys: string[] = [];
+
+    refs.forEach(ref => {
+      const cfg = userIndMap.get(ref.trim().toLowerCase());
+      let isOsc = false;
+      if (cfg) { isOsc = OSCILLATOR_TYPES.has((cfg.type || "").toUpperCase()); }
+      else {
+        const upper = ref.toUpperCase();
+        isOsc = upper.startsWith("RSI") || upper.startsWith("CCI") || upper.startsWith("MACD") || upper.startsWith("STOCH") || upper.startsWith("ATR");
+      }
+      (isOsc ? osKeys : ovKeys).push(ref);
+    });
+
+    const groups: Record<string, string[]> = {};
+    osKeys.forEach(key => {
+      const upper = key.toUpperCase();
+      let groupName = key;
+      if (upper.startsWith("STOCH")) groupName = "Stochastic";
+      else if (upper.startsWith("MACD")) groupName = "MACD";
+      else if (upper.startsWith("CCI")) groupName = "CCI";
+      else if (upper.startsWith("RSI")) groupName = "RSI";
+      else if (upper.startsWith("ATR")) groupName = "ATR";
+      if (!groups[groupName]) groups[groupName] = [];
+      groups[groupName].push(key);
+    });
+
+    return { newCandles: mappedCandles, overlayKeys: ovKeys, oscillatorKeys: osKeys, oscillatorGroups: Object.entries(groups) };
+  }, [candles, strategy, userIndicators]);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || candles.length === 0) return;
+    if (!container || newCandles.length === 0) return;
 
     let cleanup: (() => void) | null = null;
     let cancelled = false;
     setChartError(null);
 
     (async () => {
+      let isDisposed = false;
       let lib: typeof import("lightweight-charts");
       try {
         lib = await import("lightweight-charts");
@@ -189,7 +310,7 @@ function TradeChartRenderer({ trade, candles }: { trade: SimTrade; candles: Cand
           },
           width,
           height,
-          timeScale: { timeVisible: true, secondsVisible: false, borderColor: "rgba(120, 120, 120, 0.3)" },
+          timeScale: { timeVisible: true, secondsVisible: true, borderColor: "rgba(120, 120, 120, 0.3)" },
           rightPriceScale: { borderColor: "rgba(120, 120, 120, 0.3)" },
           crosshair: { mode: CrosshairMode.Normal },
         });
@@ -203,8 +324,76 @@ function TradeChartRenderer({ trade, candles }: { trade: SimTrade; candles: Cand
           wickDownColor: "#ef4444",
         });
 
+        const overlayColors = ["#f59e0b", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6"];
+        const indicatorSeriesMap = new Map<string, any>();
+
+        overlayKeys.forEach((key, i) => {
+          const lineSeries = chart.addLineSeries({
+            color: overlayColors[i % overlayColors.length],
+            lineWidth: 2,
+            title: key,
+            priceScaleId: "right",
+            lastValueVisible: true,
+            priceLineVisible: false,
+          });
+          indicatorSeriesMap.set(key, lineSeries);
+        });
+
+        const oscChartsList: any[] = [];
+        const oscColors = ["#06b6d4", "#f97316", "#a855f7", "#22c55e"];
+
+        oscillatorGroups.forEach(([groupName, keys], groupIdx) => {
+          const oscContainer = oscRefs.current[groupName];
+          if (!oscContainer) return;
+
+          const oscChart = lib.createChart(oscContainer, {
+            width: oscContainer.clientWidth || 800,
+            height: oscContainer.clientHeight || 120,
+            layout: { background: { color: "transparent" }, textColor: "#888" },
+            grid: { vertLines: { color: "rgba(120, 120, 120, 0.1)" }, horzLines: { color: "rgba(120, 120, 120, 0.1)" } },
+            timeScale: { 
+              timeVisible: false, secondsVisible: false, 
+              borderColor: "rgba(120,120,120,0.2)", rightOffset: 0,
+            },
+            rightPriceScale: { borderColor: "rgba(120,120,120,0.2)", minimumWidth: 80 },
+            leftPriceScale: { visible: false },
+            crosshair: { mode: 1 },
+          });
+          oscChartsList.push(oscChart);
+
+          keys.forEach((key, keyIdx) => {
+            const lineSeries = oscChart.addLineSeries({
+              color: oscColors[(groupIdx + keyIdx) % oscColors.length],
+              lineWidth: 2, title: key, priceScaleId: "right",
+              lastValueVisible: true, priceLineVisible: false,
+            });
+            indicatorSeriesMap.set(key, lineSeries);
+          });
+
+          let syncingMain = false; let syncingOsc = false;
+          chart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
+            if (syncingOsc || isDisposed) return; syncingMain = true;
+            try { if (range && oscChart) oscChart.timeScale().setVisibleLogicalRange(range); } catch {}
+            syncingMain = false;
+          });
+          oscChart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
+            if (syncingMain || isDisposed) return; syncingOsc = true;
+            try { if (range) chart.timeScale().setVisibleLogicalRange(range); } catch {}
+            syncingOsc = false;
+          });
+
+          setTimeout(() => {
+            if (isDisposed) return;
+            try {
+              const mainWidth = (chart.priceScale("right") as any).width?.() ?? 80;
+              oscChart.applyOptions({ rightPriceScale: { minimumWidth: mainWidth } });
+              chart.applyOptions({ rightPriceScale: { minimumWidth: mainWidth } });
+            } catch {}
+          }, 200);
+        });
+
         candleSeries.setData(
-          candles.map(c => ({
+          newCandles.map(c => ({
             time: c.time as any,
             open: c.open,
             high: c.high,
@@ -213,63 +402,108 @@ function TradeChartRenderer({ trade, candles }: { trade: SimTrade; candles: Cand
           }))
         );
 
-        candleSeries.createPriceLine({
-          price: trade.entry,
-          color: trade.direction === "CALL" ? "#10b981" : "#ef4444",
-          lineWidth: 2,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: `Entry: ${trade.entry.toFixed(4)}`,
+        indicatorSeriesMap.forEach((lineSeries, key) => {
+          const data = newCandles.map((c: any) => {
+            const val = c.indicators?.[key];
+            if (val !== undefined && val !== null && Number.isFinite(val)) {
+              return { time: c.time as any, value: val };
+            }
+            return { time: c.time as any };
+          });
+          lineSeries.setData(data as any);
         });
 
-        candleSeries.createPriceLine({
-          price: trade.exit,
-          color: trade.outcome === "win" ? "#10b981" : "#ef4444",
-          lineWidth: 2,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: `Exit: ${trade.exit.toFixed(4)}`,
-        });
+        // Entry price line
+        if (entryPrice > 0) {
+          candleSeries.createPriceLine({
+            price: entryPrice,
+            color: direction === "CALL" ? "#10b981" : "#ef4444",
+            lineWidth: 2,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: `Entry: ${entryPrice.toFixed(4)}`,
+          });
+        }
 
+        // Exit price line (only if trade is closed)
+        if (exitPrice > 0 && trade.exitAt) {
+          candleSeries.createPriceLine({
+            price: exitPrice,
+            color: outcome === "win" ? "#10b981" : "#ef4444",
+            lineWidth: 2,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: `Exit: ${exitPrice.toFixed(4)}`,
+          });
+        }
+
+        // Entry / exit markers
         const entrySec = Math.floor(new Date(trade.entryAt).getTime() / 1000);
-        const exitSec = Math.floor(new Date(trade.exitAt).getTime() / 1000);
+        const markers: any[] = [
+          {
+            time: entrySec as any,
+            position: direction === "CALL" ? "belowBar" : "aboveBar",
+            color: direction === "CALL" ? "#10b981" : "#ef4444",
+            shape: direction === "CALL" ? "arrowUp" : "arrowDown",
+            text: `ENTRY ${direction}`,
+            size: 2,
+          },
+        ];
+
+        if (trade.exitAt) {
+          const exitSec = Math.floor(new Date(trade.exitAt).getTime() / 1000);
+          markers.push({
+            time: exitSec as any,
+            position: outcome === "win" ? "aboveBar" : "belowBar",
+            color: outcome === "win" ? "#10b981" : "#ef4444",
+            shape: "circle",
+            text: `EXIT ${outcome.toUpperCase()} ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}`,
+            size: 2,
+          });
+        }
 
         try {
-          candleSeries.setMarkers([
-            {
-              time: entrySec as any,
-              position: trade.direction === "CALL" ? "belowBar" : "aboveBar",
-              color: trade.direction === "CALL" ? "#10b981" : "#ef4444",
-              shape: trade.direction === "CALL" ? "arrowUp" : "arrowDown",
-              text: `ENTRY ${trade.direction}`,
-              size: 2,
-            },
-            {
-              time: exitSec as any,
-              position: trade.outcome === "win" ? "aboveBar" : "belowBar",
-              color: trade.outcome === "win" ? "#10b981" : "#ef4444",
-              shape: "circle",
-              text: `EXIT ${trade.outcome.toUpperCase()}`,
-              size: 2,
-            },
-          ]);
+          candleSeries.setMarkers(markers);
         } catch {
           /* markers are nice-to-have */
         }
 
-        chart.timeScale().fitContent();
+        if (newCandles.length > 100) {
+          chart.timeScale().setVisibleLogicalRange({ from: newCandles.length - 100, to: newCandles.length - 1 });
+        } else {
+          chart.timeScale().fitContent();
+        }
+        
+        const chartMap = new Map<Element, any>();
+        chartMap.set(container, chart);
+        
+        oscillatorGroups.forEach(([groupName], idx) => {
+          const oscContainer = oscRefs.current[groupName];
+          if (oscContainer && oscChartsList[idx]) {
+            chartMap.set(oscContainer, oscChartsList[idx]);
+          }
+        });
 
         const ro = new ResizeObserver((entries) => {
           for (const entry of entries) {
             const { width: w, height: h } = entry.contentRect;
-            if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
+            const targetChart = chartMap.get(entry.target);
+            if (targetChart && w > 0 && h > 0) {
+               try { targetChart.applyOptions({ width: w, height: h }); } catch {}
+            }
           }
         });
         ro.observe(container);
+        oscillatorGroups.forEach(([groupName]) => {
+          const oscContainer = oscRefs.current[groupName];
+          if (oscContainer) ro.observe(oscContainer);
+        });
 
         cleanup = () => {
+          isDisposed = true;
           ro.disconnect();
           try { chart.remove(); } catch { /* noop */ }
+          oscChartsList.forEach(oc => { try { oc.remove(); } catch {} });
         };
       } catch (err) {
         if (!cancelled) setChartError(err instanceof Error ? err.message : "Failed to render chart");
@@ -280,7 +514,7 @@ function TradeChartRenderer({ trade, candles }: { trade: SimTrade; candles: Cand
       cancelled = true;
       if (cleanup) cleanup();
     };
-  }, [trade, candles]);
+  }, [trade.id, newCandles.length > 0 ? newCandles[0].time : 0, overlayKeys.join(","), oscillatorKeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (chartError) {
     return (
@@ -291,10 +525,19 @@ function TradeChartRenderer({ trade, candles }: { trade: SimTrade; candles: Cand
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-[500px] rounded-lg bg-muted/5 border border-border/50"
-    />
+    <div className="flex flex-col w-full h-full border border-border/50 rounded-lg overflow-hidden">
+      <div
+        ref={containerRef}
+        className="w-full h-[500px] bg-muted/5 shrink-0"
+      />
+      {oscillatorGroups.map(([groupName]) => (
+        <div 
+          key={groupName}
+          className="h-[120px] shrink-0 border-t border-border/50 relative bg-background/50 w-full"
+          ref={el => { oscRefs.current[groupName] = el; }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -320,7 +563,11 @@ export default function TradeChartPage() {
     { query: { enabled: hasValidParams, queryKey: getListBacktestsQueryKey(params) } }
   );
 
+  const { data: strategies } = useListStrategies({});
+  const { data: userIndicators } = useListIndicators({});
+
   const backtest = Array.isArray(backtests) ? backtests.find(b => b.id === backtestId) : undefined;
+  const strategy = strategies?.find(s => s.id === backtest?.strategyId);
   const results = parseResults(backtest?.results);
   const trade = results.trades?.find(t => t.id === tradeId);
   const symbol = backtest?.symbol ?? "";
@@ -344,7 +591,7 @@ export default function TradeChartPage() {
     const buffer = Math.max(tradeDuration * 2, 300);
     const startSec = entrySec - buffer;
     const endSec = exitSec + buffer;
-    const granularity = pickGranularity(tradeDuration);
+    const granularity = results?.granularitySec || pickGranularity(tradeDuration);
 
     let cancelled = false;
     setCandleLoading(true);
@@ -533,7 +780,7 @@ export default function TradeChartPage() {
               )}
               {!candleLoading && !candleError && candles.length > 0 && (
                 <>
-                  <TradeChartRenderer trade={trade} candles={candles} />
+                  <TradeChartRenderer trade={trade} candles={candles} strategy={strategy} userIndicators={userIndicators} />
                   <div className="mt-4 flex flex-wrap items-center gap-4 text-xs font-mono">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-primary"></div>

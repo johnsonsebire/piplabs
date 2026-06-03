@@ -31,7 +31,7 @@ export default function Dashboard() {
     <AppLayout>
       <div className="p-4 overflow-auto w-100 h-100 d-flex flex-column gap-4">
         {/* Header */}
-        <div className="d-flex align-items-center justify-content-between">
+        <div className="d-flex align-items-center justify-content-between mt-4">
           <div>
             <h1 className="h5 fw-bold text-uppercase mb-0" style={{ letterSpacing: '-0.02em' }}>System Status</h1>
             <div className="d-flex align-items-center gap-2 mt-1">

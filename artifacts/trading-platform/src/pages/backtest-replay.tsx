@@ -367,8 +367,16 @@ export default function BacktestReplayPage() {
     fetch(`/api/backtests/${backtestId}/candles`)
       .then(async (res) => {
         if (!res.ok) {
-          const err = await res.text();
-          throw new Error(err || "Failed to fetch candles");
+          const errText = await res.text();
+          try {
+            const parsed = JSON.parse(errText);
+            throw new Error(parsed.error || "Failed to fetch candles");
+          } catch (e: any) {
+            if (e.message !== "Failed to fetch candles" && !e.message.startsWith("Unexpected token")) {
+              throw e;
+            }
+            throw new Error(errText || "Failed to fetch candles");
+          }
         }
         return res.json();
       })
@@ -792,7 +800,9 @@ export default function BacktestReplayPage() {
           {/* Indicator refs parsed from strategy */}
           <div className="flex flex-col gap-0.5 flex-1">
             <span className="text-muted-foreground uppercase tracking-widest">Indicators Detected from Strategy</span>
-            {indicatorRefs.size === 0 ? (
+            {candlesError ? (
+              <span className="text-yellow-400">Not available (No candle data)</span>
+            ) : indicatorRefs.size === 0 ? (
               <span className="text-yellow-400">None found – strategy may have no indicator conditions, or strategy not loaded</span>
             ) : (
               <div className="flex flex-wrap gap-2 mt-0.5">

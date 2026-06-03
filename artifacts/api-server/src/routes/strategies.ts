@@ -357,6 +357,7 @@ router.post("/backtests", requireAuth, async (req: AuthenticatedRequest, res): P
       ? ((parsed.data as any).sessions as string[])
       : null,
     datasetFile: (parsed.data as any).datasetFile ?? null,
+    alternateDirection: (parsed.data as any).alternateDirection ?? false,
   };
 
   void executeBacktestJob(runInput).catch((err) => {
@@ -382,9 +383,20 @@ type BacktestJobInput = {
   granularitySec?: number | null;
   sessions?: string[] | null;
   datasetFile?: string | null;
+  alternateDirection?: boolean;
 };
 
 async function executeBacktestJob(input: BacktestJobInput): Promise<void> {
+  const progressLogs: any[] = [];
+  const addProgress = async (stage: string) => {
+    progressLogs.push({ stage, timestamp: new Date().toISOString() });
+    try {
+      await db.update(backtestsTable)
+        .set({ progressLogs: JSON.stringify(progressLogs) })
+        .where(eq(backtestsTable.id, input.backtestId));
+    } catch (err) { logger.warn({ err }, "Failed to update progress"); }
+  };
+
   const fromSec = Math.floor(new Date(input.fromDate).getTime() / 1000);
   const toSec = Math.floor(new Date(input.toDate).getTime() / 1000);
   // Use explicit granularity if provided; otherwise auto-derive from duration unit.
@@ -393,12 +405,16 @@ async function executeBacktestJob(input: BacktestJobInput): Promise<void> {
     : pickBacktestGranularity(input.durationUnit);
 
   try {
+    await addProgress("Downloading historical data");
     let candles;
     if (input.datasetFile) {
       candles = await readCsvCandles(input.datasetFile);
     } else {
       candles = await fetchDerivCandles(input.symbol, fromSec, toSec, granularity);
     }
+
+    await addProgress(`Download complete, ${candles?.length || 0} candles downloaded`);
+    await addProgress("Historical data health: Validating candles");
 
     if (!candles || candles.length === 0) {
       throw new Error("No valid candlestick data found in the selected date range. Please ensure your dataset has valid OHLC data or try a different date range.");
@@ -426,6 +442,8 @@ async function executeBacktestJob(input: BacktestJobInput): Promise<void> {
 
     logger.info({ backtestId: input.backtestId, indicatorCount: userIndicators.length, indicators: userIndicators.map(i => i.name) }, "Loaded user indicators for backtest");
 
+    await addProgress("Backtesting with strategy");
+
     const result = runBacktestOnCandles(
       candles,
       input.strategyCode,
@@ -438,12 +456,14 @@ async function executeBacktestJob(input: BacktestJobInput): Promise<void> {
         sessions: (input.sessions ?? undefined) as
           | undefined
           | Array<"asian" | "london" | "newyork" | "overlap_london_ny">,
+        alternateDirection: input.alternateDirection,
       },
       granularity,
       userIndicators,
     );
 
     const totalTrades = result.trades.length;
+    await addProgress(`Trades executed: ${totalTrades}`);
     const winRate = totalTrades > 0 ? (result.wins / totalTrades) * 100 : 0;
     const totalPnl = result.trades.reduce((acc, t) => acc + t.pnl, 0);
     const maxDrawdown = computeMaxDrawdown(input.initialBalance, result.trades);

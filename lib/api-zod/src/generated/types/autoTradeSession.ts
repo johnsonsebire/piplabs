@@ -27,8 +27,12 @@ export interface AutoTradeSession {
   stopOnLoss?: number | null;
   symbols?: string[];
   pairMode?: AutoTradeSessionPairMode;
+  currentPairIdx: number;
   /** @nullable */
   profitTarget?: number | null;
+  /** @nullable */
+  tradeProfitTarget?: number | null;
+  alternateDirection?: boolean;
   totalTrades: number;
   winTrades: number;
   totalPnl: number;

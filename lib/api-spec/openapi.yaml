@@ -2045,6 +2045,8 @@ components:
           type: ["string", "null"]
         errorMessage:
           type: ["string", "null"]
+        progressLogs:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -2098,6 +2100,9 @@ components:
         datasetFile:
           type: ["string", "null"]
           description: "If provided, the backtest will run using this local CSV file instead of fetching from Deriv API."
+        alternateDirection:
+          type: boolean
+          description: "If true, enforces strict alternation of signal directions during the backtest."
       required:
         - strategyId
         - symbol
@@ -2285,8 +2290,14 @@ components:
         pairMode:
           type: string
           enum: [single, rotating, simultaneous]
+        currentPairIdx:
+          type: integer
         profitTarget:
           type: ["number", "null"]
+        tradeProfitTarget:
+          type: ["number", "null"]
+        alternateDirection:
+          type: boolean
         totalTrades:
           type: integer
         winTrades:
@@ -2314,6 +2325,7 @@ components:
         - stakeAmount
         - duration
         - durationUnit
+        - currentPairIdx
         - totalTrades
         - winTrades
         - totalPnl
@@ -2349,6 +2361,10 @@ components:
           type: ["number", "null"]
         profitTarget:
           type: ["number", "null"]
+        tradeProfitTarget:
+          type: ["number", "null"]
+        alternateDirection:
+          type: boolean
       required:
         - strategyId
         - mode
@@ -2382,6 +2398,10 @@ components:
           type: ["number", "null"]
         profitTarget:
           type: ["number", "null"]
+        tradeProfitTarget:
+          type: ["number", "null"]
+        alternateDirection:
+          type: boolean
 
     # ─── Deriv Symbols ───────────────────────────────────────────────────────────
 

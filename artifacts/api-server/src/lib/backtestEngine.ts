@@ -31,6 +31,7 @@ export type BacktestRunParams = {
    *   overlap_london_ny: 13:00 – 17:00
    */
   sessions?: TradingSession[];
+  alternateDirection?: boolean;
 };
 
 const SESSION_HOURS_UTC: Record<TradingSession, { start: number; end: number }> = {
@@ -125,7 +126,8 @@ export function parseStrategyLegs(rawCode: string | null | undefined): { buy: St
 
   if (Array.isArray(parsed.conditions)) {
     const leg = toLeg(parsed);
-    const action = typeof parsed.action === "string" ? parsed.action.toLowerCase() : "";
+    const action = typeof parsed.action === "string" ? parsed.action.toLowerCase() : 
+                   typeof parsed.direction === "string" ? parsed.direction.toLowerCase() : "";
     return action === "sell" ? { buy: empty, sell: leg } : { buy: leg, sell: empty };
   }
 
@@ -493,7 +495,7 @@ function compareValues(a: number, b: number, op: string): boolean {
     case "=":
       return a === b;
     default:
-      return a > b;
+      return false;
   }
 }
 
@@ -575,6 +577,7 @@ export function runBacktestOnCandles(
   const hold = holdSeconds(params.duration, params.durationUnit);
   const trades: SimTrade[] = [];
   let lastExitIdx = 0;
+  let lastTradeSide: "buy" | "sell" | null = null;
 
   for (let i = 1; i < candles.length - 1; i++) {
     if (i <= lastExitIdx) continue;
@@ -583,10 +586,29 @@ export function runBacktestOnCandles(
     // falls inside one of the requested sessions.
     if (!isWithinSessions(candles[i].time, params.sessions)) continue;
 
+    const isBuy = directions.includes("buy") && evalLeg(legs.buy, i, map, closes);
+    const isSell = directions.includes("sell") && evalLeg(legs.sell, i, map, closes);
+    
     let side: "buy" | "sell" | null = null;
-    if (directions.includes("buy") && evalLeg(legs.buy, i, map, closes)) side = "buy";
-    else if (directions.includes("sell") && evalLeg(legs.sell, i, map, closes)) side = "sell";
+    
+    if (isBuy && isSell) {
+      if (params.alternateDirection && lastTradeSide) {
+         side = lastTradeSide === "buy" ? "sell" : "buy";
+      } else {
+         side = "buy";
+      }
+    } else if (isBuy) {
+      side = "buy";
+    } else if (isSell) {
+      side = "sell";
+    }
+
     if (!side) continue;
+
+    // Filter using alternateDirection logic
+    if (params.alternateDirection && lastTradeSide && side === lastTradeSide) {
+      continue;
+    }
 
     const exitIdx = findExitIndex(candles, i, hold);
     if (exitIdx <= i) continue;
@@ -615,6 +637,7 @@ export function runBacktestOnCandles(
     });
 
     lastExitIdx = exitIdx;
+    lastTradeSide = side;
   }
 
   const wins = trades.filter((t) => t.outcome === "win").length;

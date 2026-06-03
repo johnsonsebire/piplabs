@@ -520,7 +520,7 @@ export default function IndicatorsPage() {
         className="d-flex flex-column w-100 overflow-hidden p-4 gap-4 mx-auto"
         style={{ height: "calc(100vh - 3.5rem)", maxWidth: 1400 }}
       >
-        <div className="d-flex justify-content-between align-items-center flex-shrink-0">
+        <div className="d-flex justify-content-between align-items-center flex-shrink-0 mt-4">
           <div>
             <h1 className="h4 fw-bold font-mono text-uppercase tracking-tight mb-1">Indicator Library</h1>
             <p className="small font-mono text-muted-foreground mb-0">

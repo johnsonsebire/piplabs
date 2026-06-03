@@ -78,7 +78,7 @@ export default function TradesPage() {
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden">
         {/* Stats Bar */}
-        <div className="h-16 border-b border-border bg-card shrink-0 flex items-center px-6 gap-8 overflow-x-auto hide-scrollbar">
+        <div className="h-16 mt-4 border-b border-border bg-card shrink-0 flex items-center px-6 gap-8 overflow-x-auto hide-scrollbar">
           <div className="flex flex-col">
             <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Total Trades</span>
             <span className="font-mono font-bold text-foreground">{stats?.totalTrades || 0}</span>

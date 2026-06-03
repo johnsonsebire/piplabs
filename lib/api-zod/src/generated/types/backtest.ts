@@ -29,6 +29,8 @@ export interface Backtest {
   results?: string | null;
   /** @nullable */
   errorMessage?: string | null;
+  /** @nullable */
+  progressLogs?: string | null;
   createdAt: Date;
   /** @nullable */
   completedAt?: Date | null;

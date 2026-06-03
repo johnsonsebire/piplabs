@@ -84,10 +84,14 @@ function SessionExpandedPanel({ session }: { session: any }) {
   const isActive = session.status === "running" || session.status === "paused";
   
   let symbols: string[] = [session.symbol];
-  try {
-    const arr = JSON.parse(session.symbols);
-    if (Array.isArray(arr) && arr.length > 0) symbols = arr.map(String);
-  } catch {}
+  if (Array.isArray(session.symbols) && session.symbols.length > 0) {
+    symbols = session.symbols;
+  }
+  
+  if (session.pairMode === "rotating" && symbols.length > 0) {
+    const idx = (session.currentPairIdx || 0) % symbols.length;
+    symbols = [symbols[idx]];
+  }
 
   // If not active, only show trades
   if (!isActive) {
@@ -128,8 +132,14 @@ function SessionExpandedPanel({ session }: { session: any }) {
 }
 
 export default function AutoTradePage() {
-  // Use a faster refetch interval so live updates show up
-  const { data: sessions, isLoading } = useListAutoTradeSessions({ query: { queryKey: getListAutoTradeSessionsQueryKey(), refetchInterval: 5000 } });
+  // Use a faster refetch interval so live updates show up, even in background
+  const { data: sessions, isLoading } = useListAutoTradeSessions({ 
+    query: { 
+      queryKey: getListAutoTradeSessionsQueryKey(), 
+      refetchInterval: 5000,
+      refetchIntervalInBackground: true
+    } 
+  });
   const { data: strategies } = useListStrategies({});
   
   const createSession = useCreateAutoTradeSession();
@@ -290,9 +300,9 @@ export default function AutoTradePage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden px-6 py-10 gap-6 max-w-6xl mx-auto">
-        <div className="flex justify-between items-center shrink-0">
-          <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">Auto Trading Sessions</h1>
+      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden p-6 gap-6 max-w-7xl mx-auto mt-4">
+        <div className="flex justify-between items-center shrink-0 mt-8">
+          <h1 className="text-3xl font-bold font-mono uppercase tracking-tight text-foreground">Auto Trading Sessions</h1>
           <Button 
             className="rounded-none font-bold uppercase tracking-wider font-mono"
             onClick={() => showForm ? setShowForm(false) : openNewForm()}

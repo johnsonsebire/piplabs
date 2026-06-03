@@ -248,6 +248,7 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
 
         chart.applyOptions({ rightPriceScale: { minimumWidth: 80 } });
         setTimeout(() => {
+          if (isDisposed) return;
           try {
             const mainWidth = (chart.priceScale("right") as any).width?.() ?? 80;
             oscChart.applyOptions({ rightPriceScale: { minimumWidth: mainWidth } });
@@ -270,14 +271,28 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
         lineSeries.setData(data as any);
       });
       oscChartsList.forEach(oc => { try { oc.timeScale().fitContent(); } catch {} });
-      chart.timeScale().fitContent();
+      if (newCandles.length > 100) {
+        chart.timeScale().setVisibleLogicalRange({ from: newCandles.length - 100, to: newCandles.length - 1 });
+      } else {
+        chart.timeScale().fitContent();
+      }
+
+      const chartMap = new Map<Element, any>();
+      chartMap.set(container, chart);
+      
+      oscillatorGroups.forEach(([groupName], idx) => {
+        const oscContainer = oscRefs.current[groupName];
+        if (oscContainer && oscChartsList[idx]) {
+          chartMap.set(oscContainer, oscChartsList[idx]);
+        }
+      });
 
       const ro = new ResizeObserver(entries => {
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
-          if (width > 0 && height > 0) {
-            if (entry.target === container) chart.applyOptions({ width, height });
-            else oscChartsList.forEach(oc => { try { oc.applyOptions({ width, height }); } catch {} });
+          const targetChart = chartMap.get(entry.target);
+          if (targetChart && width > 0 && height > 0) {
+            try { targetChart.applyOptions({ width, height }); } catch {}
           }
         }
       });
