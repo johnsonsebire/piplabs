@@ -1,10 +1,55 @@
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { autoTradingSessionsTable, usersTable, strategiesTable, tradesTable } from "@workspace/db";
+import { autoTradingSessionsTable, usersTable, strategiesTable, tradesTable, autoTradingLogsTable } from "@workspace/db";
 import { getAccountForMode, buyContract, sellContract, getOpenContractStatus, type DerivBuyParams } from "./derivApi";
 import { fetchDerivCandles } from "./derivHistory";
 import { parseStrategyLegs, enabledDirections, buildSeries, evalLeg } from "./backtestEngine";
 import { logger } from "./logger";
+import OpenAI from "openai";
+
+async function logAutoTradeEvent(sessionId: number, symbol: string, action: string, message: string, details?: any) {
+  try {
+    await db.insert(autoTradingLogsTable).values({
+      sessionId,
+      symbol,
+      action,
+      message,
+      details: details ? JSON.stringify(details) : null,
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to insert auto trade log");
+  }
+}
+
+function getOpenAIClient(): OpenAI {
+  return new OpenAI({
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
+  });
+}
+
+async function confirmTradeWithAI(sym: string, side: string, strategyName: string): Promise<boolean> {
+  try {
+    const client = getOpenAIClient();
+    const prompt = `You are a Deriv AI Trading Assistant.
+A trading signal has been generated:
+Symbol: ${sym}
+Direction: ${side.toUpperCase()}
+Strategy: ${strategyName}
+
+Do you confirm this trade? Reply strictly with a JSON object: {"recommendation": "confirm"} or {"recommendation": "reject"}.`;
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+    const res = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
+    return res.recommendation === "confirm";
+  } catch (err) {
+    logger.error({ err, sym, side }, "AI Confirmation Failed, defaulting to reject");
+    return false;
+  }
+}
 
 export function startAutoTraderWorker() {
   const SIGNAL_INTERVAL_MS = 60 * 1000;    // 1 minute — evaluate signals
@@ -128,6 +173,7 @@ async function placeTrade(
     .where(eq(autoTradingSessionsTable.id, session.id));
 
   logger.info({ sessionId: session.id, side, signalSide, symbol, contractId: outcome.result.contractId, alternated: side !== signalSide }, "AutoTrader: Trade placed");
+  await logAutoTradeEvent(session.id, symbol, "trade", `Successfully placed ${side.toUpperCase()} trade.`, { contractId: outcome.result.contractId, stake: session.stakeAmount });
   return true;
 }
 
@@ -197,16 +243,96 @@ async function processAutoTradingSessions() {
 
       for (const sym of symbols) {
         try {
+          const legs = parseStrategyLegs(strategy.code);
+          const { riskManagement } = legs;
+
+          // --- Evaluate Risk Management Cooldown ---
+          let cooldownActive = false;
+          if (riskManagement && (riskManagement.winCooldown || riskManagement.lossCooldown)) {
+            const maxN = Math.max(riskManagement.winCooldown?.consecutive || 0, riskManagement.lossCooldown?.consecutive || 0);
+            if (maxN > 0) {
+              const recentTrades = await db.select({ outcome: tradesTable.currentProfit, closedAt: tradesTable.closedAt })
+                .from(tradesTable)
+                .where(and(eq(tradesTable.sessionId, session.id), eq(tradesTable.symbol, sym), eq(tradesTable.status, "closed")))
+                .orderBy(desc(tradesTable.closedAt))
+                .limit(maxN);
+
+              if (recentTrades.length > 0 && recentTrades[0].closedAt) {
+                const lastTradeTimeMs = new Date(recentTrades[0].closedAt).getTime();
+                const currentTimeMs = Date.now();
+                
+                // check win cooldown
+                if (riskManagement.winCooldown && riskManagement.winCooldown.duration > 0 && riskManagement.winCooldown.consecutive > 0) {
+                  const lastN = recentTrades.slice(0, riskManagement.winCooldown.consecutive);
+                  if (lastN.length === riskManagement.winCooldown.consecutive && lastN.every(t => (t.outcome || 0) > 0)) {
+                    if (currentTimeMs - lastTradeTimeMs < riskManagement.winCooldown.duration * 60 * 1000) {
+                      cooldownActive = true;
+                    }
+                  }
+                }
+
+                // check loss cooldown
+                if (!cooldownActive && riskManagement.lossCooldown && riskManagement.lossCooldown.duration > 0 && riskManagement.lossCooldown.consecutive > 0) {
+                  const lastN = recentTrades.slice(0, riskManagement.lossCooldown.consecutive);
+                  // outcome <= 0 implies a loss (or break-even)
+                  if (lastN.length === riskManagement.lossCooldown.consecutive && lastN.every(t => (t.outcome || 0) <= 0)) {
+                    if (currentTimeMs - lastTradeTimeMs < riskManagement.lossCooldown.duration * 60 * 1000) {
+                      cooldownActive = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          if (cooldownActive) {
+            await logAutoTradeEvent(session.id, sym, "cooldown", "Risk Management cooldown is active. Skipping evaluation.");
+            signals[sym] = null;
+            continue;
+          }
+
           const candles = await fetchDerivCandles(sym, fromSec, nowSec, 60);
           if (candles.length < 2) { signals[sym] = null; continue; }
           const evalIndex = candles.length - 2;
-          const legs = parseStrategyLegs(strategy.code);
           const directions = enabledDirections(legs);
           if (directions.length === 0) { signals[sym] = null; continue; }
           const map = buildSeries(candles, legs);
           const closes = candles.map(c => c.close);
-          const isBuy = directions.includes("buy") && evalLeg(legs.buy, evalIndex, map, closes);
-          const isSell = directions.includes("sell") && evalLeg(legs.sell, evalIndex, map, closes);
+          const curTime = candles[evalIndex].time;
+
+          // --- Fetch HTF ---
+          const htfTimeframes = new Set<number>();
+          if (legs.buy.htf?.enabled) htfTimeframes.add(legs.buy.htf.timeframe);
+          if (legs.sell.htf?.enabled) htfTimeframes.add(legs.sell.htf.timeframe);
+          
+          const htfData: Record<number, { candles: any[], map: any, closes: number[] }> = {};
+          for (const tf of htfTimeframes) {
+             const htfFromSec = nowSec - (tf * 300); // Need ~300 HTF candles to compute EMA200 etc.
+             const htfC = await fetchDerivCandles(sym, htfFromSec, nowSec, tf);
+             if (htfC.length < 2) continue;
+             const hMap = buildSeries(htfC, legs);
+             htfData[tf] = { candles: htfC, map: hMap, closes: htfC.map(c => c.close) };
+          }
+
+          const htfIndexBuy = legs.buy.htf?.enabled && htfData[legs.buy.htf.timeframe]
+            ? htfData[legs.buy.htf.timeframe].candles.findIndex(c => c.time <= curTime && c.time + legs.buy.htf!.timeframe > curTime)
+            : undefined;
+          const htfIndexSell = legs.sell.htf?.enabled && htfData[legs.sell.htf.timeframe]
+            ? htfData[legs.sell.htf.timeframe].candles.findIndex(c => c.time <= curTime && c.time + legs.sell.htf!.timeframe > curTime)
+            : undefined;
+
+          const isBuy = directions.includes("buy") && evalLeg(
+            legs.buy, evalIndex, map, closes, curTime,
+            legs.buy.htf?.enabled ? htfData[legs.buy.htf.timeframe]?.map : undefined,
+            legs.buy.htf?.enabled ? htfData[legs.buy.htf.timeframe]?.closes : undefined,
+            htfIndexBuy !== -1 ? htfIndexBuy : undefined
+          );
+          const isSell = directions.includes("sell") && evalLeg(
+            legs.sell, evalIndex, map, closes, curTime,
+            legs.sell.htf?.enabled ? htfData[legs.sell.htf.timeframe]?.map : undefined,
+            legs.sell.htf?.enabled ? htfData[legs.sell.htf.timeframe]?.closes : undefined,
+            htfIndexSell !== -1 ? htfIndexSell : undefined
+          );
           let side: "buy" | "sell" | null = null;
           
           if (isBuy && isSell) {
@@ -216,6 +342,23 @@ async function processAutoTradingSessions() {
           } else if (isSell) {
             side = "sell";
           }
+
+          if (side) {
+             await logAutoTradeEvent(session.id, sym, "evaluate", `Technical conditions met for ${side.toUpperCase()} signal.`);
+          }
+
+          if (side && legs[side].useAIConfirmation) {
+            await logAutoTradeEvent(session.id, sym, "ai_request", `AI Confirmation requested for ${side.toUpperCase()} signal.`);
+            const confirmed = await confirmTradeWithAI(sym, side, strategy.name);
+            if (!confirmed) {
+              logger.info({ sym, side }, "AutoTrader: AI rejected trade signal");
+              await logAutoTradeEvent(session.id, sym, "ai_result", `AI rejected ${side.toUpperCase()} signal.`);
+              side = null;
+            } else {
+              await logAutoTradeEvent(session.id, sym, "ai_result", `AI approved ${side.toUpperCase()} signal.`);
+            }
+          }
+          
           signals[sym] = side;
         } catch (err) {
           logger.warn({ err, sym, sessionId: session.id }, "AutoTrader: Candle fetch failed for symbol");
@@ -233,7 +376,10 @@ async function processAutoTradingSessions() {
       if (pairMode === "simultaneous") {
         for (const [sym, side] of Object.entries(signals)) {
           if (!side) continue;
-          if (sessionForPlace.alternateDirection && !(await isSignalAllowed(session.id, sym, side, true))) continue;
+          if (sessionForPlace.alternateDirection && !(await isSignalAllowed(session.id, sym, side, true))) {
+            await logAutoTradeEvent(session.id, sym, "blocked", `Alternate Direction rule blocked ${side.toUpperCase()} signal.`);
+            continue;
+          }
           logger.info({ sessionId: session.id, sym, side }, "AutoTrader: Simultaneous signal triggered");
           await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
           if (await checkAndStopSession(session)) break;
@@ -251,6 +397,8 @@ async function processAutoTradingSessions() {
             await db.update(autoTradingSessionsTable)
               .set({ currentPairIdx: nextIdx })
               .where(eq(autoTradingSessionsTable.id, session.id));
+          } else {
+            await logAutoTradeEvent(session.id, sym, "blocked", `Alternate Direction rule blocked ${side.toUpperCase()} signal.`);
           }
         }
       } else {
@@ -261,6 +409,8 @@ async function processAutoTradingSessions() {
           if (allowed) {
             logger.info({ sessionId: session.id, sym, side }, "AutoTrader: Single signal triggered");
             await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
+          } else {
+            await logAutoTradeEvent(session.id, sym, "blocked", `Alternate Direction rule blocked ${side.toUpperCase()} signal.`);
           }
         }
       }

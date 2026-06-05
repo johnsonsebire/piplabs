@@ -5,11 +5,34 @@ export type StrategyCondition = {
   operator: string;
   indicatorB: string;
 };
+export type HTFConfig = {
+  enabled: boolean;
+  timeframe: number; // Granularity in seconds
+  marketFilters?: StrategyCondition[];
+  confirmations?: StrategyCondition[];
+};
+
+export type RangingFilterConfig = {
+  enabled: boolean;
+  threshold: number;
+  adx: { enabled: boolean; weight: number; period: number; value: number; };
+  bb: { enabled: boolean; weight: number; period: number; percentile: number; };
+  atr: { enabled: boolean; weight: number; period: number; smaPeriod: number; ratio: number; };
+  rsi: { enabled: boolean; weight: number; period: number; min: number; max: number; };
+};
 
 export type StrategyLeg = {
   enabled: boolean;
-  logic: "AND" | "OR";
-  conditions: StrategyCondition[];
+  logic?: "AND" | "OR";
+  conditions?: StrategyCondition[];
+  marketFilters?: StrategyCondition[];
+  triggers?: StrategyCondition[];
+  confirmations?: StrategyCondition[];
+  minConfidence?: number;
+  useAIConfirmation?: boolean;
+  sessions?: TradingSession[];
+  htf?: HTFConfig;
+  rangingFilter?: RangingFilterConfig;
 };
 
 export type TradingSession = "asian" | "london" | "newyork" | "overlap_london_ny";
@@ -84,36 +107,106 @@ export type BacktestRunResult = {
 };
 
 
+export type RiskManagement = {
+  winCooldown?: { duration: number; consecutive: number };
+  lossCooldown?: { duration: number; consecutive: number };
+};
+
 // ─── Strategy parsing (mirrors trading-platform strategies page) ───────────
 
-export function parseStrategyLegs(rawCode: string | null | undefined): { buy: StrategyLeg; sell: StrategyLeg } {
+export function parseStrategyLegs(rawCode: string | null | undefined): { buy: StrategyLeg; sell: StrategyLeg; riskManagement?: RiskManagement } {
   const empty: StrategyLeg = { enabled: false, logic: "AND", conditions: [] };
   if (!rawCode) return { buy: empty, sell: empty };
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(rawCode) as Record<string, unknown>;
-  } catch {
+    parsed = JSON.parse(rawCode);
+  } catch (e) {
     return { buy: empty, sell: empty };
   }
+
+  const toCondArray = (arr: unknown) => {
+    if (!Array.isArray(arr)) return undefined;
+    return arr.map((c) => {
+      const row = c as Record<string, unknown>;
+      return {
+        indicatorA: String(row.indicatorA ?? ""),
+        operator: String(row.operator ?? ""),
+        indicatorB: String(row.indicatorB ?? ""),
+      };
+    });
+  };
 
   const toLeg = (src: unknown): StrategyLeg => {
     if (!src || typeof src !== "object") return empty;
     const s = src as Record<string, unknown>;
-    const conditions = Array.isArray(s.conditions)
-      ? s.conditions.map((c) => {
-          const row = c as Record<string, unknown>;
-          return {
-            indicatorA: String(row.indicatorA ?? ""),
-            operator: String(row.operator ?? ""),
-            indicatorB: String(row.indicatorB ?? ""),
-          };
-        })
-      : [];
+    
+    // For backwards compatibility: if new fields are missing, parse legacy conditions
+    const conditions = toCondArray(s.conditions);
+    const marketFilters = toCondArray(s.marketFilters);
+    const triggers = toCondArray(s.triggers);
+    const confirmations = toCondArray(s.confirmations);
+    
+    const sessions = Array.isArray(s.sessions) ? s.sessions.map(String) as TradingSession[] : undefined;
+
+    let htf: HTFConfig | undefined = undefined;
+    if (s.htf && typeof s.htf === "object") {
+      const htfObj = s.htf as Record<string, unknown>;
+      htf = {
+        enabled: htfObj.enabled === true,
+        timeframe: typeof htfObj.timeframe === "number" ? htfObj.timeframe : 900,
+        marketFilters: toCondArray(htfObj.marketFilters),
+        confirmations: toCondArray(htfObj.confirmations),
+      };
+    }
+
+    let rangingFilter: RangingFilterConfig | undefined = undefined;
+    if (s.rangingFilter && typeof s.rangingFilter === "object") {
+      const rf = s.rangingFilter as Record<string, any>;
+      rangingFilter = {
+        enabled: rf.enabled === true,
+        threshold: typeof rf.threshold === "number" ? rf.threshold : 70,
+        adx: {
+          enabled: rf.adx?.enabled === true,
+          weight: typeof rf.adx?.weight === "number" ? rf.adx.weight : 35,
+          period: typeof rf.adx?.period === "number" ? rf.adx.period : 14,
+          value: typeof rf.adx?.value === "number" ? rf.adx.value : 22,
+        },
+        bb: {
+          enabled: rf.bb?.enabled === true,
+          weight: typeof rf.bb?.weight === "number" ? rf.bb.weight : 25,
+          period: typeof rf.bb?.period === "number" ? rf.bb.period : 20,
+          percentile: typeof rf.bb?.percentile === "number" ? rf.bb.percentile : 25,
+        },
+        atr: {
+          enabled: rf.atr?.enabled === true,
+          weight: typeof rf.atr?.weight === "number" ? rf.atr.weight : 20,
+          period: typeof rf.atr?.period === "number" ? rf.atr.period : 14,
+          smaPeriod: typeof rf.atr?.smaPeriod === "number" ? rf.atr.smaPeriod : 50,
+          ratio: typeof rf.atr?.ratio === "number" ? rf.atr.ratio : 0.8,
+        },
+        rsi: {
+          enabled: rf.rsi?.enabled === true,
+          weight: typeof rf.rsi?.weight === "number" ? rf.rsi.weight : 10,
+          period: typeof rf.rsi?.period === "number" ? rf.rsi.period : 14,
+          min: typeof rf.rsi?.min === "number" ? rf.rsi.min : 42,
+          max: typeof rf.rsi?.max === "number" ? rf.rsi.max : 58,
+        },
+      };
+    }
+
     return {
       enabled: s.enabled !== false,
       logic: s.logic === "OR" ? "OR" : "AND",
       conditions,
+      marketFilters,
+      triggers,
+      confirmations,
+      minConfidence: typeof s.minConfidence === "number" ? s.minConfidence : 50,
+      useAIConfirmation: s.useAIConfirmation === true,
+      sessions,
+      htf,
+      rangingFilter,
     };
   };
 
@@ -121,6 +214,7 @@ export function parseStrategyLegs(rawCode: string | null | undefined): { buy: St
     return {
       buy: parsed.buy ? toLeg(parsed.buy) : empty,
       sell: parsed.sell ? toLeg(parsed.sell) : empty,
+      riskManagement: parsed.riskManagement as RiskManagement | undefined,
     };
   }
 
@@ -128,16 +222,22 @@ export function parseStrategyLegs(rawCode: string | null | undefined): { buy: St
     const leg = toLeg(parsed);
     const action = typeof parsed.action === "string" ? parsed.action.toLowerCase() : 
                    typeof parsed.direction === "string" ? parsed.direction.toLowerCase() : "";
-    return action === "sell" ? { buy: empty, sell: leg } : { buy: leg, sell: empty };
+    return action === "sell" ? { buy: empty, sell: leg, riskManagement: parsed.riskManagement as RiskManagement | undefined } : { buy: leg, sell: empty, riskManagement: parsed.riskManagement as RiskManagement | undefined };
   }
 
-  return { buy: empty, sell: empty };
+  return { buy: empty, sell: empty, riskManagement: parsed.riskManagement as RiskManagement | undefined };
+}
+
+function hasRules(leg: StrategyLeg): boolean {
+  if (!leg.enabled) return false;
+  const count = (leg.conditions?.length ?? 0) + (leg.marketFilters?.length ?? 0) + (leg.triggers?.length ?? 0) + (leg.confirmations?.length ?? 0);
+  return count > 0;
 }
 
 export function enabledDirections(legs: { buy: StrategyLeg; sell: StrategyLeg }): Array<"buy" | "sell"> {
   const out: Array<"buy" | "sell"> = [];
-  if (legs.buy.enabled && legs.buy.conditions.length > 0) out.push("buy");
-  if (legs.sell.enabled && legs.sell.conditions.length > 0) out.push("sell");
+  if (hasRules(legs.buy)) out.push("buy");
+  if (hasRules(legs.sell)) out.push("sell");
   return out;
 }
 
@@ -199,6 +299,105 @@ function rsi(values: number[], period: number): (number | null)[] {
   return out;
 }
 
+export function atr(candles: HistCandle[], period: number): (number | null)[] {
+  const out: (number | null)[] = new Array(candles.length).fill(null);
+  const tr: number[] = new Array(candles.length).fill(0);
+  if (candles.length <= period) return out;
+  
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i].high;
+    const low = candles[i].low;
+    const prevClose = candles[i-1].close;
+    tr[i] = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+  }
+  
+  let trSum = 0;
+  for (let i = 1; i <= period; i++) {
+    trSum += tr[i];
+  }
+  let prevAtr = trSum / period;
+  out[period] = prevAtr;
+  
+  for (let i = period + 1; i < candles.length; i++) {
+    const currentAtr = (prevAtr * (period - 1) + tr[i]) / period; // Wilder's smoothing
+    out[i] = currentAtr;
+    prevAtr = currentAtr;
+  }
+  return out;
+}
+
+export function adx(candles: HistCandle[], period: number): { adx: (number | null)[], plusDI: (number | null)[], minusDI: (number | null)[] } {
+  const outAdx: (number | null)[] = new Array(candles.length).fill(null);
+  const outPlusDI: (number | null)[] = new Array(candles.length).fill(null);
+  const outMinusDI: (number | null)[] = new Array(candles.length).fill(null);
+  if (candles.length <= period * 2) return { adx: outAdx, plusDI: outPlusDI, minusDI: outMinusDI };
+
+  const tr: number[] = new Array(candles.length).fill(0);
+  const plusDM: number[] = new Array(candles.length).fill(0);
+  const minusDM: number[] = new Array(candles.length).fill(0);
+
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i].high;
+    const low = candles[i].low;
+    const prevHigh = candles[i-1].high;
+    const prevLow = candles[i-1].low;
+    const prevClose = candles[i-1].close;
+
+    tr[i] = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    
+    const upMove = high - prevHigh;
+    const downMove = prevLow - low;
+
+    if (upMove > downMove && upMove > 0) plusDM[i] = upMove;
+    if (downMove > upMove && downMove > 0) minusDM[i] = downMove;
+  }
+
+  const smooth = (prev: number, current: number) => prev - (prev / period) + current;
+
+  let trSmoothed = 0;
+  let plusDmSmoothed = 0;
+  let minusDmSmoothed = 0;
+
+  for (let i = 1; i <= period; i++) {
+    trSmoothed += tr[i];
+    plusDmSmoothed += plusDM[i];
+    minusDmSmoothed += minusDM[i];
+  }
+
+  const dx: number[] = new Array(candles.length).fill(0);
+
+  for (let i = period; i < candles.length; i++) {
+    if (i > period) {
+      trSmoothed = smooth(trSmoothed, tr[i]);
+      plusDmSmoothed = smooth(plusDmSmoothed, plusDM[i]);
+      minusDmSmoothed = smooth(minusDmSmoothed, minusDM[i]);
+    }
+
+    const plusDI = trSmoothed === 0 ? 0 : (plusDmSmoothed / trSmoothed) * 100;
+    const minusDI = trSmoothed === 0 ? 0 : (minusDmSmoothed / trSmoothed) * 100;
+    outPlusDI[i] = plusDI;
+    outMinusDI[i] = minusDI;
+
+    const diff = Math.abs(plusDI - minusDI);
+    const sum = plusDI + minusDI;
+    dx[i] = sum === 0 ? 0 : (diff / sum) * 100;
+  }
+
+  let adxSum = 0;
+  for (let i = period; i < period * 2; i++) {
+    adxSum += dx[i];
+  }
+  let prevAdx = adxSum / period;
+  outAdx[period * 2 - 1] = prevAdx;
+
+  for (let i = period * 2; i < candles.length; i++) {
+    prevAdx = ((prevAdx * (period - 1)) + dx[i]) / period;
+    outAdx[i] = prevAdx;
+  }
+
+  return { adx: outAdx, plusDI: outPlusDI, minusDI: outMinusDI };
+}
+
 function cci(candles: HistCandle[], period: number): (number | null)[] {
   const tp = candles.map((c) => (c.high + c.low + c.close) / 3);
   const out: (number | null)[] = new Array(candles.length).fill(null);
@@ -229,8 +428,8 @@ const DEFAULT_PERIODS: Record<string, number> = {
 function resolveRef(ref: string): { key: string; kind: string; period: number } | null {
   const r = ref.trim().toUpperCase();
 
-  // Parameterised: EMA(14), SMA(20), RSI(14), CCI(20), WMA(5)
-  const mParam = r.match(/^(EMA|SMA|WMA|RSI|CCI|ATR)\((\d+)\)$/);
+  // Parameterised: EMA(14), SMA(20), RSI(14), CCI(20), WMA(5), EMA 200, EMA200
+  const mParam = r.match(/^(EMA|SMA|WMA|RSI|CCI|ATR)\s*\(?\s*(\d+)\s*\)?$/i);
   if (mParam) {
     const kind = mParam[1];
     const period = parseInt(mParam[2], 10);
@@ -248,9 +447,27 @@ function resolveRef(ref: string): { key: string; kind: string; period: number } 
 function collectRefs(legs: { buy: StrategyLeg; sell: StrategyLeg }): Set<string> {
   const refs = new Set<string>();
   for (const leg of [legs.buy, legs.sell]) {
-    for (const c of leg.conditions) {
+    const allConds = [
+      ...(leg.conditions || []),
+      ...(leg.marketFilters || []),
+      ...(leg.triggers || []),
+      ...(leg.confirmations || []),
+    ];
+    for (const c of allConds) {
       refs.add(c.indicatorA.trim());
       refs.add(c.indicatorB.trim());
+    }
+    
+    if (leg.rangingFilter?.enabled) {
+      const rf = leg.rangingFilter;
+      if (rf.adx.enabled) refs.add(`ADX(${rf.adx.period})`);
+      if (rf.bb.enabled) {
+        refs.add(`BB_UPPER`);
+        refs.add(`BB_LOWER`);
+        refs.add(`BB_MIDDLE`);
+      }
+      if (rf.atr.enabled) refs.add(`ATR(${rf.atr.period})`);
+      if (rf.rsi.enabled) refs.add(`RSI(${rf.rsi.period})`);
     }
   }
   return refs;
@@ -285,6 +502,7 @@ export function buildSeries(
   const map: SeriesMap = new Map([
     ["CLOSE", closes],
     ["PRICE", closes],
+    ["CURRENT PRICE", closes],
     ["OPEN", opens],
     ["HIGH", highs],
     ["LOW", lows],
@@ -394,6 +612,13 @@ export function buildSeries(
     else if (kind === "WMA") map.set(key, sma(closes, period));
     else if (kind === "RSI") map.set(key, rsi(closes, period));
     else if (kind === "CCI") map.set(key, cci(candles, period));
+    else if (kind === "ATR") map.set(key, atr(candles, period));
+    else if (kind === "ADX") {
+      const res = adx(candles, period);
+      map.set(key, res.adx);
+      map.set(key + "_PLUS_DI", res.plusDI);
+      map.set(key + "_MINUS_DI", res.minusDI);
+    }
     else if (kind === "BB_UPPER" || kind === "BB_LOWER" || kind === "BB_MIDDLE") {
       const mid = sma(closes, 20);
       if (!map.has("BB_MIDDLE")) map.set("BB_MIDDLE", mid);
@@ -473,7 +698,7 @@ function seriesValue(ref: string, i: number, map: SeriesMap, closes: number[]): 
     return v == null || !Number.isFinite(v) ? null : v;
   }
 
-  if (r.toUpperCase() === "CLOSE" || r.toUpperCase() === "PRICE") return closes[i];
+  if (r.toUpperCase() === "CLOSE" || r.toUpperCase() === "PRICE" || r.toUpperCase() === "CURRENT PRICE") return closes[i];
   return null;
 }
 
@@ -506,12 +731,24 @@ function evalCondition(
   closes: number[],
 ): boolean {
   const a0 = seriesValue(cond.indicatorA, i - 1, map, closes);
-  const b0 = seriesValue(cond.indicatorB, i - 1, map, closes);
   const a1 = seriesValue(cond.indicatorA, i, map, closes);
+
+  const op = cond.operator.trim().toLowerCase();
+
+  if (op === "rising" || op === "is rising") {
+    if (a0 == null || a1 == null) return false;
+    return a1 > a0;
+  }
+  if (op === "declining" || op === "is declining") {
+    if (a0 == null || a1 == null) return false;
+    return a1 < a0;
+  }
+
+  const b0 = seriesValue(cond.indicatorB, i - 1, map, closes);
   const b1 = seriesValue(cond.indicatorB, i, map, closes);
   if (a1 == null || b1 == null) return false;
 
-  const op = cond.operator.trim().toLowerCase();
+
   if (op === "crosses above") {
     if (a0 == null || b0 == null) return false;
     return a0 <= b0 && a1 > b1;
@@ -524,12 +761,158 @@ function evalCondition(
   return compareValues(a1, b1, op);
 }
 
-export function evalLeg(leg: StrategyLeg, i: number, map: SeriesMap, closes: number[]): boolean {
-  if (!leg.enabled || leg.conditions.length === 0) return false;
-  if (leg.logic === "OR") {
-    return leg.conditions.some((c) => evalCondition(c, i, map, closes));
+function isRanging(rf: RangingFilterConfig, i: number, map: SeriesMap, closes: number[]): boolean {
+  if (!rf.enabled) return false;
+  let score = 0;
+
+  if (rf.adx.enabled) {
+    const adxKey = `ADX_${rf.adx.period}`;
+    const adxVal = map.get(adxKey)?.[i];
+    const adxPrev = map.get(adxKey)?.[i - 1];
+    if (adxVal != null && adxVal < rf.adx.value) {
+      if (adxPrev != null && adxVal <= adxPrev) {
+        score += rf.adx.weight;
+      }
+    }
   }
-  return leg.conditions.every((c) => evalCondition(c, i, map, closes));
+
+  if (rf.bb.enabled) {
+    const upper = map.get("BB_UPPER")?.[i];
+    const lower = map.get("BB_LOWER")?.[i];
+    const middle = map.get("BB_MIDDLE")?.[i];
+    
+    if (upper != null && lower != null && middle != null && middle !== 0) {
+      const currentWidth = (upper - lower) / middle;
+      
+      const lookback = 50;
+      let count = 0;
+      let valid = 0;
+      for (let j = Math.max(0, i - lookback); j <= i; j++) {
+        const u = map.get("BB_UPPER")?.[j];
+        const l = map.get("BB_LOWER")?.[j];
+        const m = map.get("BB_MIDDLE")?.[j];
+        if (u != null && l != null && m != null && m !== 0) {
+          valid++;
+          if ((u - l) / m < currentWidth) count++;
+        }
+      }
+      if (valid > 10) {
+        const percentile = (count / valid) * 100;
+        if (percentile < rf.bb.percentile) {
+          score += rf.bb.weight;
+        }
+      }
+    }
+  }
+
+  if (rf.atr.enabled) {
+    const atrKey = `ATR_${rf.atr.period}`;
+    const currentAtr = map.get(atrKey)?.[i];
+    if (currentAtr != null) {
+      let sum = 0;
+      let valid = 0;
+      for (let j = Math.max(0, i - rf.atr.smaPeriod + 1); j <= i; j++) {
+        const a = map.get(atrKey)?.[j];
+        if (a != null) {
+          sum += a;
+          valid++;
+        }
+      }
+      if (valid > 0) {
+        const smaAtr = sum / valid;
+        if (smaAtr > 0 && currentAtr / smaAtr < rf.atr.ratio) {
+          score += rf.atr.weight;
+        }
+      }
+    }
+  }
+
+  if (rf.rsi.enabled) {
+    const rsiKey = `RSI_${rf.rsi.period}`;
+    const currentRsi = map.get(rsiKey)?.[i];
+    if (currentRsi != null && currentRsi > rf.rsi.min && currentRsi < rf.rsi.max) {
+      score += rf.rsi.weight;
+    }
+  }
+
+  return score >= rf.threshold;
+}
+
+export function evalLeg(
+  leg: StrategyLeg, 
+  i: number, 
+  map: SeriesMap, 
+  closes: number[], 
+  epochSec: number,
+  htfMap?: SeriesMap,
+  htfCloses?: number[],
+  htfIndex?: number
+): boolean {
+  if (!leg.enabled) return false;
+
+  if (leg.rangingFilter?.enabled) {
+    if (isRanging(leg.rangingFilter, i, map, closes)) {
+      return false; // Block entry if ranging market
+    }
+  }
+
+  // 1. Session Filter (Leg-level)
+  if (!isWithinSessions(epochSec, leg.sessions)) return false;
+
+  // Handle Legacy / Fallback Mode
+  if (!leg.marketFilters && !leg.triggers && !leg.confirmations) {
+    if (!leg.conditions || leg.conditions.length === 0) return false;
+    if (leg.logic === "OR") {
+      return leg.conditions.some((c) => evalCondition(c, i, map, closes));
+    }
+    return leg.conditions.every((c) => evalCondition(c, i, map, closes));
+  }
+
+  const filters = leg.marketFilters || [];
+  const triggers = leg.triggers || [];
+  const confs = leg.confirmations || [];
+
+  const totalRules = filters.length + triggers.length + confs.length;
+  if (totalRules === 0) return false;
+
+  // 1.5 HTF Evaluation (HARD AND)
+  if (leg.htf?.enabled && htfMap && htfCloses && htfIndex !== undefined && htfIndex >= 0) {
+    const htfFilters = leg.htf.marketFilters || [];
+    if (htfFilters.length > 0) {
+      const allHtfFiltersPass = htfFilters.every((c) => evalCondition(c, htfIndex, htfMap, htfCloses));
+      if (!allHtfFiltersPass) return false;
+    }
+    const htfConfs = leg.htf.confirmations || [];
+    if (htfConfs.length > 0) {
+      const allHtfConfsPass = htfConfs.every((c) => evalCondition(c, htfIndex, htfMap, htfCloses));
+      if (!allHtfConfsPass) return false;
+    }
+  }
+
+  // 2. Market Filters (HARD AND)
+  if (filters.length > 0) {
+    const allFiltersPass = filters.every((c) => evalCondition(c, i, map, closes));
+    if (!allFiltersPass) return false;
+  }
+
+  // 3. Triggers (HARD OR)
+  let passingTriggers = 0;
+  if (triggers.length > 0) {
+    passingTriggers = triggers.filter((c) => evalCondition(c, i, map, closes)).length;
+    if (passingTriggers === 0) return false;
+  }
+
+  // 4. Confirmations (SOFT)
+  const passingConfs = confs.filter((c) => evalCondition(c, i, map, closes)).length;
+
+  // 5. Score Calculation
+  const minConfidence = leg.minConfidence ?? 0;
+  if (minConfidence <= 0) return true;
+
+  const passingRules = filters.length + passingTriggers + passingConfs;
+  const score = (passingRules / totalRules) * 100;
+
+  return score >= minConfidence;
 }
 
 function holdSeconds(duration: number, unit: string): number {
@@ -565,8 +948,10 @@ export function runBacktestOnCandles(
   params: BacktestRunParams,
   granularitySec: number,
   userIndicators: UserIndicator[] = [],
+  htfData: Record<number, { candles: HistCandle[], map: SeriesMap, closes: number[] }> = {},
 ): BacktestRunResult {
-  const legs = parseStrategyLegs(strategyCode);
+  const { buy, sell, riskManagement } = parseStrategyLegs(strategyCode);
+  const legs = { buy, sell };
   const directions = enabledDirections(legs);
   if (directions.length === 0) {
     throw new Error("Strategy has no enabled BUY or SELL leg with conditions");
@@ -586,8 +971,57 @@ export function runBacktestOnCandles(
     // falls inside one of the requested sessions.
     if (!isWithinSessions(candles[i].time, params.sessions)) continue;
 
-    const isBuy = directions.includes("buy") && evalLeg(legs.buy, i, map, closes);
-    const isSell = directions.includes("sell") && evalLeg(legs.sell, i, map, closes);
+    // Evaluate Risk Management Cooldowns
+    if (riskManagement && trades.length > 0 && lastExitIdx > 0) {
+      let cooldownActive = false;
+      const lastTradeTimeMs = candles[lastExitIdx].time * 1000;
+      const currentTimeMs = candles[i].time * 1000;
+
+      // check win cooldown
+      if (riskManagement.winCooldown && riskManagement.winCooldown.duration > 0 && riskManagement.winCooldown.consecutive > 0) {
+        const lastN = trades.slice(-riskManagement.winCooldown.consecutive);
+        if (lastN.length === riskManagement.winCooldown.consecutive && lastN.every(t => t.outcome === "win")) {
+          const cooldownDurationMs = riskManagement.winCooldown.duration * 60 * 1000;
+          if (currentTimeMs - lastTradeTimeMs < cooldownDurationMs) {
+            cooldownActive = true;
+          }
+        }
+      }
+
+      // check loss cooldown
+      if (!cooldownActive && riskManagement.lossCooldown && riskManagement.lossCooldown.duration > 0 && riskManagement.lossCooldown.consecutive > 0) {
+        const lastN = trades.slice(-riskManagement.lossCooldown.consecutive);
+        if (lastN.length === riskManagement.lossCooldown.consecutive && lastN.every(t => t.outcome === "loss")) {
+          const cooldownDurationMs = riskManagement.lossCooldown.duration * 60 * 1000;
+          if (currentTimeMs - lastTradeTimeMs < cooldownDurationMs) {
+            cooldownActive = true;
+          }
+        }
+      }
+
+      if (cooldownActive) continue;
+    }
+    
+    // Find HTF indices matching the current candle time
+    const htfIndexBuy = legs.buy.htf?.enabled && htfData[legs.buy.htf.timeframe] 
+      ? htfData[legs.buy.htf.timeframe].candles.findIndex(c => c.time <= candles[i].time && c.time + legs.buy.htf!.timeframe > candles[i].time)
+      : undefined;
+    const htfIndexSell = legs.sell.htf?.enabled && htfData[legs.sell.htf.timeframe]
+      ? htfData[legs.sell.htf.timeframe].candles.findIndex(c => c.time <= candles[i].time && c.time + legs.sell.htf!.timeframe > candles[i].time)
+      : undefined;
+
+    const isBuy = directions.includes("buy") && evalLeg(
+      legs.buy, i, map, closes, candles[i].time, 
+      legs.buy.htf?.enabled ? htfData[legs.buy.htf.timeframe]?.map : undefined,
+      legs.buy.htf?.enabled ? htfData[legs.buy.htf.timeframe]?.closes : undefined,
+      htfIndexBuy !== -1 ? htfIndexBuy : undefined
+    );
+    const isSell = directions.includes("sell") && evalLeg(
+      legs.sell, i, map, closes, candles[i].time,
+      legs.sell.htf?.enabled ? htfData[legs.sell.htf.timeframe]?.map : undefined,
+      legs.sell.htf?.enabled ? htfData[legs.sell.htf.timeframe]?.closes : undefined,
+      htfIndexSell !== -1 ? htfIndexSell : undefined
+    );
     
     let side: "buy" | "sell" | null = null;
     

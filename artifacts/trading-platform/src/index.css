@@ -617,3 +617,558 @@ input[type="search"]::-webkit-search-cancel-button {
 .swal-dt-hide { animation: swalDtHide 0.15s ease forwards; }
 /* Timer progress bar */
 .swal2-timer-progress-bar { background: #10b981 !important; }
+
+/* ============================
+   Session Expanded Panel
+   ============================ */
+.session-expanded-panel {
+  display: flex;
+  flex-direction: column;
+  background-color: rgba(15, 19, 24, 0.6);
+  border-bottom: 2px solid rgba(16, 185, 129, 0.15);
+}
+
+/* Tab Bar */
+.session-tab-bar {
+  display: flex;
+  align-items: center;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid #1a2332;
+  background: linear-gradient(180deg, #0f1318 0%, #0c1017 100%);
+}
+
+.session-tab-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 3px;
+  border-radius: 0;
+  background-color: rgba(10, 13, 17, 0.8);
+  border: 1px solid #1a2332;
+}
+
+/* Tab Button */
+.session-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.875rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  white-space: nowrap;
+}
+
+.session-tab-btn:hover {
+  color: #94a3b8;
+  background-color: rgba(30, 41, 59, 0.3);
+}
+
+.session-tab-btn--active {
+  color: #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.25) !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.08), inset 0 1px 0 rgba(16, 185, 129, 0.1);
+}
+
+.session-tab-btn--active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #10b981, transparent);
+}
+
+/* ============================
+   Session Logs Panel (Full Width)
+   ============================ */
+.session-logs-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.04) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.12);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+.session-logs-header-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #334155;
+  flex-shrink: 0;
+}
+
+.session-logs-header-dot--active {
+  background-color: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.session-logs-header-sub {
+  margin-left: auto;
+  color: #475569;
+  font-weight: 400;
+}
+
+.session-logs-body {
+  background-color: #080b0e;
+  height: 420px;
+  overflow-y: auto;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem;
+  width: 100%;
+}
+
+.session-logs-empty {
+  padding: 2rem 1.25rem;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.6875rem;
+}
+
+/* Log Row */
+.session-log-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.5rem 1.25rem;
+  width: 100%;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid rgba(26, 35, 50, 0.3);
+}
+
+.session-log-row:hover {
+  background-color: rgba(16, 185, 129, 0.03);
+}
+
+.session-log-row--even {
+  background-color: rgba(15, 19, 24, 0.5);
+}
+
+.session-log-row--even:hover {
+  background-color: rgba(16, 185, 129, 0.05);
+}
+
+/* Log Columns */
+.session-log-time {
+  color: #475569;
+  flex-shrink: 0;
+  width: 5.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-log-symbol {
+  color: #10b981;
+  font-weight: 700;
+  flex-shrink: 0;
+  width: 5rem;
+}
+
+.session-log-action {
+  text-transform: uppercase;
+  flex-shrink: 0;
+  width: 6rem;
+  font-weight: 700;
+  font-size: 0.625rem;
+  padding: 0.1rem 0.375rem;
+  text-align: center;
+  border-radius: 0;
+  letter-spacing: 0.04em;
+}
+
+.session-log-action-trade {
+  color: #60a5fa;
+  background-color: rgba(96, 165, 250, 0.1);
+  border: 1px solid rgba(96, 165, 250, 0.15);
+}
+
+.session-log-action-ai {
+  color: #fbbf24;
+  background-color: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+.session-log-action-blocked {
+  color: #f87171;
+  background-color: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.15);
+}
+
+.session-log-action-error {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.session-log-action-evaluate {
+  color: #34d399;
+  background-color: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.15);
+}
+
+.session-log-action-default {
+  color: #64748b;
+  background-color: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.15);
+}
+
+.session-log-message {
+  color: #e2e8f0;
+  flex: 1;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* ============================
+   Economy Calendar Page
+   ============================ */
+
+/* Filter bar */
+.economy-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.625rem 1rem;
+  background: linear-gradient(180deg, #0f1318 0%, #0c1017 100%);
+  border: 1px solid #1a2332;
+  flex-wrap: wrap;
+}
+
+.economy-tab-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 3px;
+  background-color: rgba(10, 13, 17, 0.8);
+  border: 1px solid #1a2332;
+}
+
+.economy-tab-high.session-tab-btn--active {
+  color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.08), inset 0 1px 0 rgba(239, 68, 68, 0.1);
+}
+
+.economy-tab-high.session-tab-btn--active::after {
+  background: linear-gradient(90deg, transparent, #ef4444, transparent) !important;
+}
+
+.economy-country-filter {
+  margin-left: auto;
+}
+
+.economy-country-select {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  background-color: #0a0d11;
+  border: 1px solid #1a2332;
+  padding: 0.375rem 0.75rem;
+  cursor: pointer;
+  appearance: auto;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.economy-country-select:focus {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.economy-event-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.625rem;
+  color: #475569;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Refresh button */
+.economy-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.875rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.economy-refresh-btn:hover {
+  background-color: rgba(16, 185, 129, 0.14);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.1);
+}
+
+.economy-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Events container */
+.economy-events-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Date group */
+.economy-date-group {
+  border: 1px solid #1a2332;
+  background-color: rgba(15, 19, 24, 0.5);
+}
+
+.economy-date-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.04) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.12);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #10b981;
+}
+
+.economy-date-count {
+  margin-left: auto;
+  color: #475569;
+  font-weight: 400;
+}
+
+/* Table header */
+.economy-table-header {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: rgba(30, 41, 59, 0.2);
+  border-bottom: 1px solid #1a2332;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5625rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+/* Event row */
+.economy-event-row {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid rgba(26, 35, 50, 0.3);
+}
+
+.economy-event-row:last-child {
+  border-bottom: none;
+}
+
+.economy-event-row:hover {
+  background-color: rgba(16, 185, 129, 0.03);
+}
+
+.economy-event-row--even {
+  background-color: rgba(15, 19, 24, 0.4);
+}
+
+.economy-event-row--even:hover {
+  background-color: rgba(16, 185, 129, 0.05);
+}
+
+/* Column widths */
+.economy-col-time {
+  flex-shrink: 0;
+  width: 5.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.economy-col-country {
+  flex-shrink: 0;
+  width: 5rem;
+}
+
+.economy-col-impact {
+  flex-shrink: 0;
+  width: 4.5rem;
+}
+
+.economy-col-event {
+  flex: 1;
+  color: #e2e8f0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 1rem;
+}
+
+.economy-col-actual,
+.economy-col-forecast,
+.economy-col-previous {
+  flex-shrink: 0;
+  width: 5.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+
+.economy-col-actual {
+  font-weight: 700;
+}
+
+/* Impact badges */
+.economy-impact-badge {
+  display: inline-block;
+  padding: 0.1rem 0.375rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+  min-width: 2.5rem;
+}
+
+.economy-impact-high {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.economy-impact-medium {
+  color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.economy-impact-low {
+  color: #64748b;
+  background-color: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.15);
+}
+
+/* Country badge */
+.economy-country-badge {
+  display: inline-block;
+  padding: 0.1rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #60a5fa;
+  background-color: rgba(96, 165, 250, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.15);
+}
+
+/* Value colors */
+.economy-val-positive {
+  color: #10b981 !important;
+}
+
+.economy-val-negative {
+  color: #ef4444 !important;
+}
+
+/* States */
+.economy-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.economy-loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.economy-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ef4444;
+}
+
+.economy-retry-btn {
+  padding: 0.3rem 0.75rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.economy-retry-btn:hover {
+  background-color: rgba(16, 185, 129, 0.14);
+}
+
+.economy-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}

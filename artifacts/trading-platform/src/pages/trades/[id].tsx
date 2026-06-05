@@ -160,8 +160,8 @@ export default function TradeDetailPage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden p-6 gap-6 max-w-5xl mx-auto">
-        <div className="flex justify-between items-start shrink-0">
+      <div className="flex flex-col h-[calc(100vh-3.5rem)] w-full overflow-hidden p-4 gap-4 max-w-[1400px] mx-auto">
+        <div className="flex justify-between items-start shrink-0 mt-4">
           <div>
             <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground flex items-center gap-4">
               Trade #{id}

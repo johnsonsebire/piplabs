@@ -55,13 +55,17 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
       const allLegs = [code.legs?.buy, code.legs?.sell, code.buy, code.sell].filter(Boolean);
       if (allLegs.length === 0 && Array.isArray(code.conditions)) allLegs.push(code);
       allLegs.forEach((leg: any) => {
-        if (leg?.conditions) {
-          leg.conditions.forEach((cond: any) => {
-            const skip = ["PRICE", "CLOSE", "OPEN", "HIGH", "LOW"];
-            if (cond.indicatorA && !skip.includes(cond.indicatorA) && !isNaN(Number(cond.indicatorA)) === false) refs.add(cond.indicatorA.trim());
-            if (cond.indicatorB && !skip.includes(cond.indicatorB) && isNaN(Number(cond.indicatorB))) refs.add(cond.indicatorB.trim());
-          });
-        }
+        const allConds = [
+          ...(leg.conditions || []),
+          ...(leg.marketFilters || []),
+          ...(leg.triggers || []),
+          ...(leg.confirmations || [])
+        ];
+        allConds.forEach((cond: any) => {
+          const skip = ["CURRENT PRICE", "PRICE", "CLOSE", "OPEN", "HIGH", "LOW"];
+          if (cond.indicatorA && !skip.includes(cond.indicatorA) && !isNaN(Number(cond.indicatorA)) === false) refs.add(cond.indicatorA.trim());
+          if (cond.indicatorB && !skip.includes(cond.indicatorB) && isNaN(Number(cond.indicatorB))) refs.add(cond.indicatorB.trim());
+        });
       });
     } catch (e) {}
 
@@ -69,24 +73,24 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
     detectedRefs.forEach(ref => {
       const upper = ref.toUpperCase();
       if (upper.startsWith("STOCH_") || upper === "STOCH") { refs.add("STOCH_K"); refs.add("STOCH_D"); }
-      else if (upper.startsWith("MACD") || upper === "MACD_SIGNAL") { refs.add("MACD"); refs.add("MACD_SIGNAL"); }
+      else if (upper.startsWith("MACD") || upper === "MACD_SIGNAL") { refs.add("MACD"); refs.add("MACD_SIGNAL"); refs.add("MACD_HIST"); }
       else if (upper.startsWith("BB_") || upper === "BB") { refs.add("BB_UPPER"); refs.add("BB_LOWER"); refs.add("BB_MIDDLE"); }
     });
 
-    const mappedCandles = candles.map(c => ({ ...c, indicators: {} as Record<string, number> }));
+    const mappedCandles = candles.map(c => ({ ...c, indicators: {} as Record<string, any> }));
 
     refs.forEach(ref => {
       let config = userIndMap.get(ref.trim().toLowerCase()) ?? null;
       if (!config) {
-        const matchMA = ref.match(/^(SMA|EMA|WMA|TMA)\((\d+)\)$/i);
+        const matchMA = ref.match(/^(SMA|EMA|WMA|TMA)\s*\(?\s*(\d+)\s*\)?$/i);
         if (matchMA) config = { type: "MA", subtype: matchMA[1].toUpperCase(), period: parseInt(matchMA[2], 10) };
-        const matchRSIn = ref.match(/^RSI\((\d+)\)$/i);
+        const matchRSIn = ref.match(/^RSI\s*\(?\s*(\d+)\s*\)?$/i);
         if (matchRSIn) config = { type: "RSI", period: parseInt(matchRSIn[1], 10) };
         if (ref.toUpperCase() === "RSI") config = { type: "RSI", period: 14 };
-        const matchCCIn = ref.match(/^CCI\((\d+)\)$/i);
+        const matchCCIn = ref.match(/^CCI\s*\(?\s*(\d+)\s*\)?$/i);
         if (matchCCIn) config = { type: "CCI", period: parseInt(matchCCIn[1], 10) };
         if (ref.toUpperCase() === "CCI") config = { type: "CCI", period: 20 };
-        if (ref.toUpperCase() === "MACD" || ref.toUpperCase() === "MACD_SIGNAL") config = { type: "MACD", fast: 12, slow: 26, signal: 9 };
+        if (ref.toUpperCase() === "MACD" || ref.toUpperCase() === "MACD_SIGNAL" || ref.toUpperCase() === "MACD_HIST") config = { type: "MACD", fast: 12, slow: 26, signal: 9 };
         if (["BB_UPPER","BB_LOWER","BB_MIDDLE"].includes(ref.toUpperCase())) config = { type: "BB", period: 20 };
         if (["STOCH_K","STOCH_D"].includes(ref.toUpperCase())) config = { type: "STOCH", kPeriod: 14, dPeriod: 3 };
         if (ref.toUpperCase() === "ATR") config = { type: "ATR", period: 14 };
@@ -100,6 +104,7 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
             const upperRef = ref.toUpperCase();
             if (config.type === "STOCH" && upperRef === "STOCH_D") targetData = indSeries.additionalSeries?.[0]?.data || [];
             else if (config.type === "MACD" && upperRef === "MACD_SIGNAL") targetData = indSeries.additionalSeries?.[1]?.data || [];
+            else if (config.type === "MACD" && upperRef === "MACD_HIST") targetData = indSeries.additionalSeries?.[0]?.data || [];
             else if (config.type === "BB") {
               if (upperRef === "BB_UPPER") targetData = indSeries.additionalSeries?.[0]?.data || [];
               else if (upperRef === "BB_LOWER") targetData = indSeries.additionalSeries?.[1]?.data || [];
@@ -108,7 +113,10 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
               const timeIndex = new Map(mappedCandles.map((c, i) => [c.time, i]));
               for (const pt of targetData) {
                 const idx = timeIndex.get(pt.time);
-                if (idx !== undefined) mappedCandles[idx].indicators[ref] = pt.value;
+                if (idx !== undefined) {
+                  if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: pt.color };
+                  else mappedCandles[idx].indicators[ref] = pt.value;
+                }
               }
             }
           }
@@ -199,40 +207,60 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
         indicatorSeriesMap.set(key, lineSeries);
       });
 
-      const oscChartsList: any[] = [];
-      const oscColors = ["#06b6d4", "#f97316", "#a855f7", "#22c55e"];
-      dummySeriesRefs.current = [];
+        const dummySeriesList: any[] = [];
+        const oscChartsList: any[] = [];
+        const oscColors = ["#06b6d4", "#f97316", "#a855f7", "#22c55e"];
 
-      oscillatorGroups.forEach(([groupName, keys], groupIdx) => {
-        const oscContainer = oscRefs.current[groupName];
-        if (!oscContainer) return;
+        oscillatorGroups.forEach(([groupName, keys], groupIdx) => {
+          const oscContainer = oscRefs.current[groupName];
+          if (!oscContainer) return;
 
-        const oscChart = lib.createChart(oscContainer, {
-          width: oscContainer.clientWidth || 800,
-          height: oscContainer.clientHeight || 120,
-          layout: commonLayout,
-          grid: commonGrid,
-          timeScale: { 
-            timeVisible: false, secondsVisible: false, 
-            borderColor: "rgba(120,120,120,0.2)", rightOffset: 0,
-          },
-          rightPriceScale: { borderColor: "rgba(120,120,120,0.2)", minimumWidth: 80 },
-          leftPriceScale: { visible: false },
-          crosshair: { mode: 1 },
-        });
-        oscChartsList.push(oscChart);
-
-        keys.forEach((key, keyIdx) => {
-          const lineSeries = oscChart.addLineSeries({
-            color: oscColors[(groupIdx + keyIdx) % oscColors.length],
-            lineWidth: 2, title: key, priceScaleId: "right",
-            lastValueVisible: true, priceLineVisible: false,
+          const oscChart = lib.createChart(oscContainer, {
+            width: oscContainer.clientWidth || 800,
+            height: oscContainer.clientHeight || 120,
+            layout: { background: { type: lib.ColorType.Solid, color: "transparent" }, textColor: "#888" },
+            grid: { vertLines: { color: "rgba(120, 120, 120, 0.1)" }, horzLines: { color: "rgba(120, 120, 120, 0.1)" } },
+            timeScale: { 
+              timeVisible: false, secondsVisible: false, 
+              borderColor: "rgba(120,120,120,0.2)", rightOffset: 0,
+            },
+            rightPriceScale: { borderColor: "rgba(120,120,120,0.2)", minimumWidth: 80 },
+            leftPriceScale: { visible: false },
+            crosshair: { mode: 1 },
           });
-          indicatorSeriesMap.set(key, lineSeries);
+          oscChartsList.push(oscChart);
+
+          keys.forEach((key, keyIdx) => {
+            if (keyIdx === 0) {
+              const dummySeries = oscChart.addLineSeries({
+                color: "transparent",
+                lineWidth: 0,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+              });
+              dummySeriesList.push(dummySeries);
+              dummySeriesRefs.current.push(dummySeries);
+            }
+          if (key.toUpperCase() === "MACD_HIST") {
+            const histSeries = oscChart.addHistogramSeries({
+              color: "#26a69a",
+              priceFormat: { type: 'volume' },
+              priceScaleId: "right",
+              lastValueVisible: true,
+              priceLineVisible: false,
+            });
+            indicatorSeriesMap.set(key, histSeries);
+          } else {
+            const lineSeries = oscChart.addLineSeries({
+              color: oscColors[(groupIdx + keyIdx) % oscColors.length],
+              lineWidth: 2, title: key, priceScaleId: "right",
+              lastValueVisible: true, priceLineVisible: false,
+            });
+            indicatorSeriesMap.set(key, lineSeries);
+          }
         });
 
-        const dummySeries = oscChart.addLineSeries({ color: "transparent", priceLineVisible: false, lastValueVisible: false });
-        dummySeriesRefs.current.push(dummySeries);
 
         let syncingMain = false; let syncingOsc = false;
         chart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
@@ -266,15 +294,24 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
       }
       indicatorSeriesMap.forEach((lineSeries, key) => {
         const data = newCandles
-          .map((c: any) => ({ time: c.time as any, value: c.indicators?.[key] }))
-          .filter(d => d.value !== undefined && d.value !== null && Number.isFinite(d.value));
+          .map((c: any) => {
+            const val = c.indicators?.[key];
+            if (val !== undefined && val !== null) {
+              if (key.toUpperCase() === "MACD_HIST" && typeof val === "object") {
+                return { time: c.time as any, value: val.value, color: val.color };
+              }
+              return { time: c.time as any, value: typeof val === "object" ? val.value : val };
+            }
+            return null;
+          })
+          .filter((d: any) => d && d.value !== undefined && d.value !== null && Number.isFinite(d.value));
         lineSeries.setData(data as any);
       });
       oscChartsList.forEach(oc => { try { oc.timeScale().fitContent(); } catch {} });
       if (newCandles.length > 100) {
         chart.timeScale().setVisibleLogicalRange({ from: newCandles.length - 100, to: newCandles.length - 1 });
       } else {
-        chart.timeScale().fitContent();
+        try { chart.timeScale().fitContent(); } catch {}
       }
 
       const chartMap = new Map<Element, any>();
@@ -307,6 +344,9 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
         ro.disconnect();
         try { chart.remove(); } catch {}
         oscChartsList.forEach(oc => { try { oc.remove(); } catch {} });
+        seriesRef.current = null;
+        indicatorSeriesRef.current = null;
+        dummySeriesRefs.current = [];
       };
     })();
 
@@ -325,8 +365,12 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
       if (indicatorSeriesRef.current) {
         indicatorSeriesRef.current.forEach((lineSeries: any, key: string) => {
           const val = (last as any).indicators?.[key];
-          if (val !== undefined && val !== null && Number.isFinite(val)) {
-            lineSeries.update({ time: last.time as any, value: val });
+          if (val !== undefined && val !== null) {
+            if (key.toUpperCase() === "MACD_HIST" && typeof val === "object" && Number.isFinite(val.value)) {
+              lineSeries.update({ time: last.time as any, value: val.value, color: val.color });
+            } else if (Number.isFinite(val)) {
+              lineSeries.update({ time: last.time as any, value: val });
+            }
           }
         });
       }

@@ -214,7 +214,10 @@ export default function BacktestPage() {
   const deleteBacktest = useDeleteBacktest();
 
   const handleDeleteBacktest = async (id: number, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     
     const confirmed = await swalConfirm(
       "Delete backtest run?",
@@ -692,13 +695,13 @@ export default function BacktestPage() {
                         {bt.status === "running" ? (
                           <BacktestProgress bt={bt} />
                         ) : (
-                          <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-border/10">
-                            <div className="flex justify-between items-center pr-2">
-                              <span className="text-[8px] uppercase font-mono text-muted-foreground">Win Rate</span>
+                          <div className="flex flex-col gap-1 pt-1.5 border-t border-border/10">
+                            <div className="flex justify-between items-center w-full">
+                              <span className="text-[9px] uppercase font-mono text-muted-foreground">Win Rate</span>
                               <span className="text-[10px] font-bold font-mono">{bt.winRate != null ? `${bt.winRate.toFixed(1)}%` : '-'}</span>
                             </div>
-                            <div className="flex justify-between items-center pl-2 border-l border-border/20">
-                              <span className="text-[8px] uppercase font-mono text-muted-foreground">P&L</span>
+                            <div className="flex justify-between items-center w-full">
+                              <span className="text-[9px] uppercase font-mono text-muted-foreground">P&L</span>
                               <span className={`text-[10px] font-bold font-mono ${bt.totalPnl && bt.totalPnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
                                 {bt.totalPnl != null ? `${bt.totalPnl >= 0 ? '+' : ''}$${bt.totalPnl.toFixed(2)}` : '-'}
                               </span>
@@ -731,49 +734,48 @@ export default function BacktestPage() {
                                 </Button>
                               </div>
                             </div>
-                            
-                            <div className="grid grid-cols-4 gap-1.5 mb-2.5">
-                              <div className="bg-[#111520] border border-border/20 p-2">
-                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Win Rate</span>
-                                <span className="text-xs font-bold font-mono text-primary">{selectedBt.winRate?.toFixed(1)}%</span>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 mt-2">
+                              <div className="bg-[#111520] border border-border/20 p-3 rounded flex flex-col justify-between">
+                                <span className="text-[10px] uppercase font-mono text-muted-foreground mb-1">Win Rate</span>
+                                <span className="text-lg font-bold font-mono text-primary">{selectedBt.winRate?.toFixed(1)}%</span>
                               </div>
-                              <div className="bg-[#111520] border border-border/20 p-2">
-                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">P&L</span>
-                                <span className={`text-xs font-bold font-mono ${selectedBt.totalPnl! >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                              <div className="bg-[#111520] border border-border/20 p-3 rounded flex flex-col justify-between">
+                                <span className="text-[10px] uppercase font-mono text-muted-foreground mb-1">Net P&L</span>
+                                <span className={`text-lg font-bold font-mono ${selectedBt.totalPnl! >= 0 ? 'text-primary' : 'text-destructive'}`}>
                                   {selectedBt.totalPnl! >= 0 ? '+' : ''}${selectedBt.totalPnl?.toFixed(2)}
                                 </span>
                               </div>
-                              <div className="bg-[#111520] border border-border/20 p-2">
-                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Trades</span>
-                                <span className="text-xs font-bold font-mono">{selectedBt.totalTrades}</span>
+                              <div className="bg-[#111520] border border-border/20 p-3 rounded flex flex-col justify-between">
+                                <span className="text-[10px] uppercase font-mono text-muted-foreground mb-1">Total Trades</span>
+                                <span className="text-lg font-bold font-mono">{selectedBt.totalTrades}</span>
                               </div>
-                              <div className="bg-[#111520] border border-border/20 p-2">
-                                <span className="text-[8px] uppercase font-mono text-muted-foreground block mb-0.5">Max DD</span>
-                                <span className="text-xs font-bold font-mono text-destructive">{selectedBt.maxDrawdown?.toFixed(1)}%</span>
+                              <div className="bg-[#111520] border border-border/20 p-3 rounded flex flex-col justify-between">
+                                <span className="text-[10px] uppercase font-mono text-muted-foreground mb-1">Max Drawdown</span>
+                                <span className="text-lg font-bold font-mono text-destructive">{selectedBt.maxDrawdown?.toFixed(1)}%</span>
                               </div>
                             </div>
 
                             {selectedBtTrades.length > 0 && (
-                              <div className="bg-[#111520] border border-border/20 p-2.5 mb-2.5 font-mono text-[9px] rounded-none">
-                                <div className="text-muted-foreground uppercase font-bold tracking-wider mb-1.5 border-b border-border/10 pb-1 text-[8px]">
+                              <div className="bg-[#111520] border border-border/20 p-4 mb-4 font-mono text-xs rounded">
+                                <div className="text-muted-foreground uppercase font-bold tracking-wider mb-3 border-b border-border/10 pb-2">
                                   Buy/Sell Setup Performance Breakdown
                                 </div>
-                                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                                  <div className="flex justify-between items-center border-r border-border/10 pr-4">
-                                    <span className="text-[#10b981] font-bold">WINNING BUY (CALL):</span>
-                                    <span className="text-white font-bold">{selectedBtStats.winBuyCount} trades (${selectedBtStats.winBuyPnl.toFixed(2)})</span>
+                                <div className="flex flex-col space-y-2 w-full">
+                                  <div className="flex justify-between items-center p-2 bg-background/50 rounded">
+                                    <span className="text-[#10b981] font-bold">WINNING BUY (CALL)</span>
+                                    <span className="text-white font-bold text-right">{selectedBtStats.winBuyCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.winBuyPnl.toFixed(2)})</span></span>
                                   </div>
-                                  <div className="flex justify-between items-center pl-2">
-                                    <span className="text-[#10b981] font-bold">WINNING SELL (PUT):</span>
-                                    <span className="text-white font-bold">{selectedBtStats.winSellCount} trades (${selectedBtStats.winSellPnl.toFixed(2)})</span>
+                                  <div className="flex justify-between items-center p-2 bg-background/50 rounded">
+                                    <span className="text-[#10b981] font-bold">WINNING SELL (PUT)</span>
+                                    <span className="text-white font-bold text-right">{selectedBtStats.winSellCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.winSellPnl.toFixed(2)})</span></span>
                                   </div>
-                                  <div className="flex justify-between items-center border-r border-border/10 pr-4">
-                                    <span className="text-[#ef4444] font-bold">LOSING BUY (CALL):</span>
-                                    <span className="text-white font-bold">{selectedBtStats.loseBuyCount} trades (${selectedBtStats.loseBuyPnl.toFixed(2)})</span>
+                                  <div className="flex justify-between items-center p-2 bg-background/50 rounded">
+                                    <span className="text-[#ef4444] font-bold">LOSING BUY (CALL)</span>
+                                    <span className="text-white font-bold text-right">{selectedBtStats.loseBuyCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.loseBuyPnl.toFixed(2)})</span></span>
                                   </div>
-                                  <div className="flex justify-between items-center pl-2">
-                                    <span className="text-[#ef4444] font-bold">LOSING SELL (PUT):</span>
-                                    <span className="text-white font-bold">{selectedBtStats.loseSellCount} trades (${selectedBtStats.loseSellPnl.toFixed(2)})</span>
+                                  <div className="flex justify-between items-center p-2 bg-background/50 rounded">
+                                    <span className="text-[#ef4444] font-bold">LOSING SELL (PUT)</span>
+                                    <span className="text-white font-bold text-right">{selectedBtStats.loseSellCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.loseSellPnl.toFixed(2)})</span></span>
                                   </div>
                                 </div>
                               </div>
@@ -790,30 +792,38 @@ export default function BacktestPage() {
                             {selectedBtTrades.length === 0 ? (
                               <div className="p-8 text-center text-xs font-mono uppercase text-muted-foreground opacity-50">No trades executed</div>
                             ) : (
-                              <table className="w-full text-[9px] font-mono text-left whitespace-nowrap">
-                                <thead className="bg-[#121824]/50 sticky top-0 border-b border-border/30 z-10 shadow-sm">
+                              <table className="w-full text-xs font-mono text-left whitespace-nowrap border-collapse">
+                                <thead className="bg-[#121824] sticky top-0 z-10 shadow-sm">
                                   <tr>
-                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">#</th>
-                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase">Dir</th>
-                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">Entry</th>
-                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-right">P&L</th>
-                                    <th className="px-2.5 py-1.5 font-normal text-muted-foreground uppercase text-center">Chart</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase border-b border-border/30 tracking-wider">#</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase border-b border-border/30 tracking-wider">Dir</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase text-right border-b border-border/30 tracking-wider">Entry Date</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase text-right border-b border-border/30 tracking-wider">Entry Time</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase text-right border-b border-border/30 tracking-wider">Exit Date</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase text-right border-b border-border/30 tracking-wider">Exit Time</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase text-right border-b border-border/30 tracking-wider">Entry</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase text-right border-b border-border/30 tracking-wider">P&L</th>
+                                    <th className="px-4 py-3 font-semibold text-muted-foreground uppercase text-center border-b border-border/30 tracking-wider">Chart</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-border/10">
+                                <tbody className="divide-y divide-border/10 bg-[#0A0D14]">
                                   {selectedBtTrades.map(t => (
-                                    <tr key={t.id} className="hover:bg-[#111520]/50 transition-colors">
-                                      <td className="px-2.5 py-1.5 text-muted-foreground">{t.id}</td>
-                                      <td className="px-2.5 py-1.5">
-                                        <span className={`font-bold ${t.direction === "CALL" ? "text-primary bg-primary/5 px-1 py-0.1 border border-primary/10" : "text-destructive bg-destructive/5 px-1 py-0.1 border border-destructive/10"}`}>{t.direction}</span>
+                                    <tr key={t.id} className="hover:bg-[#1A2235] transition-colors">
+                                      <td className="px-4 py-2.5 text-muted-foreground">{t.id}</td>
+                                      <td className="px-4 py-2.5">
+                                        <span className={`font-bold ${t.direction === "CALL" ? "text-primary bg-primary/10 px-2 py-0.5 rounded-sm" : "text-destructive bg-destructive/10 px-2 py-0.5 rounded-sm"}`}>{t.direction}</span>
                                       </td>
-                                      <td className="px-2.5 py-1.5 text-right">{t.entry.toFixed(4)}</td>
-                                      <td className={`px-2.5 py-1.5 text-right font-bold ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
+                                      <td className="px-4 py-2.5 text-right text-muted-foreground">{new Date(t.entryAt).toLocaleDateString()}</td>
+                                      <td className="px-4 py-2.5 text-right">{new Date(t.entryAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</td>
+                                      <td className="px-4 py-2.5 text-right text-muted-foreground">{t.exitAt ? new Date(t.exitAt).toLocaleDateString() : '-'}</td>
+                                      <td className="px-4 py-2.5 text-right">{t.exitAt ? new Date(t.exitAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : '-'}</td>
+                                      <td className="px-4 py-2.5 text-right">{t.entry.toFixed(4)}</td>
+                                      <td className={`px-4 py-2.5 text-right font-bold ${t.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
                                         {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
                                       </td>
-                                      <td className="px-2.5 py-1.5 text-center">
-                                        <Button size="icon" variant="ghost" className="h-5.5 w-5.5 text-muted-foreground hover:text-primary rounded-none" onClick={() => handleViewChart(t, selectedBt.id)}>
-                                          <LineChart className="h-3 w-3" />
+                                      <td className="px-4 py-2.5 text-center">
+                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-primary rounded" onClick={() => handleViewChart(t, selectedBt.id)}>
+                                          <LineChart className="h-4 w-4" />
                                         </Button>
                                       </td>
                                     </tr>

@@ -4,89 +4,124 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 
 const router: IRouter = Router();
 
-const MOCK_NEWS = [
-  {
-    id: "1",
-    title: "US Federal Reserve holds interest rates steady amid economic uncertainty",
-    summary: "The Federal Reserve maintained its benchmark interest rate in a widely expected decision, citing persistent inflation and labor market resilience.",
-    source: "Financial Times",
-    url: "https://ft.com",
-    category: "general",
-    sentiment: "neutral",
-    publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    relatedSymbols: ["frxEURUSD", "frxGBPUSD", "frxUSDJPY"],
-  },
-  {
-    id: "2",
-    title: "EUR/USD holds above 1.08 as dollar weakens on soft data",
-    summary: "The euro gained ground against the US dollar as softer-than-expected US economic data weighed on the greenback.",
-    source: "Reuters",
-    url: "https://reuters.com",
-    category: "forex",
-    sentiment: "bullish",
-    publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    relatedSymbols: ["frxEURUSD"],
-  },
-  {
-    id: "3",
-    title: "Volatility indices spike as market uncertainty rises",
-    summary: "Synthetic volatility indices on Deriv showed increased activity as global market uncertainty prompted traders to seek short-term opportunities.",
-    source: "Deriv Blog",
-    url: "https://deriv.com",
-    category: "general",
-    sentiment: "neutral",
-    publishedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    relatedSymbols: ["R_10", "R_25", "R_50", "R_75", "R_100"],
-  },
-  {
-    id: "4",
-    title: "Bitcoin surges past key resistance as institutional buying accelerates",
-    summary: "Bitcoin broke above a critical technical resistance level following reports of increased institutional accumulation and positive ETF flows.",
-    source: "CoinDesk",
-    url: "https://coindesk.com",
-    category: "crypto",
-    sentiment: "bullish",
-    publishedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    relatedSymbols: ["cryBTCUSD", "cryETHUSD"],
-  },
-  {
-    id: "5",
-    title: "GBP under pressure as UK economic outlook dims",
-    summary: "Sterling fell against major peers after a series of weak UK economic indicators renewed concerns about the Bank of England's rate path.",
-    source: "Bloomberg",
-    url: "https://bloomberg.com",
-    category: "forex",
-    sentiment: "bearish",
-    publishedAt: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-    relatedSymbols: ["frxGBPUSD", "frxEURGBP"],
-  },
-  {
-    id: "6",
-    title: "S&P 500 extends rally on strong earnings season",
-    summary: "US equity markets continued their advance as major corporations reported better-than-expected quarterly earnings results.",
-    source: "Wall Street Journal",
-    url: "https://wsj.com",
-    category: "stocks",
-    sentiment: "bullish",
-    publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-    relatedSymbols: ["OTC_SPC", "OTC_NDX"],
-  },
-];
+const FCSAPI_KEY = process.env.FCSAPI_KEY || "";
+const FCSAPI_BASE = "https://fcsapi.com/api-v3/forex";
 
+interface FCSCalendarEvent {
+  title: string;
+  country: string;
+  date: string;
+  time: string;
+  impact: string;
+  forecast: string;
+  previous: string;
+  actual: string;
+  [key: string]: any;
+}
+
+/**
+ * Economy Calendar endpoint – returns raw calendar data from FCSAPI
+ */
+router.get("/market/economy-calendar", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  try {
+    const url = `${FCSAPI_BASE}/economy?access_key=${FCSAPI_KEY}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`FCSAPI error: ${response.status} ${response.statusText}`);
+      res.json([]);
+      return;
+    }
+    
+    const data = await response.json();
+    
+    if (!data || !data.response) {
+      res.json([]);
+      return;
+    }
+
+    // Return the raw economy calendar events
+    const events = Array.isArray(data.response) ? data.response : [];
+    res.json(events);
+  } catch (err: any) {
+    console.error("Economy calendar fetch error:", err?.message || err);
+    res.json([]);
+  }
+});
+
+
+/**
+ * Legacy market news endpoint — now powered by FCSAPI economy calendar
+ * Transforms calendar events into the existing news-item schema for backward compatibility
+ */
 router.get("/market/news", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const params = GetMarketNewsQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const { category, limit = 10 } = params.data;
+  const { limit = 30 } = params.data;
 
-  let news = MOCK_NEWS;
-  if (category) {
-    news = news.filter(n => n.category === (category as string));
+  try {
+    const url = `${FCSAPI_BASE}/economy?access_key=${FCSAPI_KEY}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`FCSAPI error: ${response.status} ${response.statusText}`);
+      res.json(GetMarketNewsResponse.parse([]));
+      return;
+    }
+    
+    const data = await response.json();
+    
+    if (!data || !data.response) {
+      res.json(GetMarketNewsResponse.parse([]));
+      return;
+    }
+
+    const events: FCSCalendarEvent[] = Array.isArray(data.response) ? data.response : [];
+    
+    // Transform calendar events to news items
+    const newsItems = events.slice(0, limit).map((event, idx) => {
+      const eventDate = event.date && event.time 
+        ? new Date(`${event.date}T${event.time}:00Z`)
+        : new Date();
+
+      // Build a summary from actual/forecast/previous values
+      const parts: string[] = [];
+      if (event.actual) parts.push(`Actual: ${event.actual}`);
+      if (event.forecast) parts.push(`Forecast: ${event.forecast}`);
+      if (event.previous) parts.push(`Previous: ${event.previous}`);
+      const summary = parts.length > 0 ? parts.join(" | ") : "No data available yet";
+
+      // Derive sentiment from actual vs forecast
+      let sentiment: "bullish" | "bearish" | "neutral" = "neutral";
+      if (event.actual && event.forecast) {
+        const actual = parseFloat(event.actual.replace(/[^0-9.-]/g, ""));
+        const forecast = parseFloat(event.forecast.replace(/[^0-9.-]/g, ""));
+        if (!isNaN(actual) && !isNaN(forecast)) {
+          if (actual > forecast) sentiment = "bullish";
+          else if (actual < forecast) sentiment = "bearish";
+        }
+      }
+
+      return {
+        id: `fcs-${idx}-${event.date || ""}`,
+        title: `[${event.country || "GLOBAL"}] ${event.title || "Economic Event"}`,
+        summary,
+        url: "https://fcsapi.com",
+        source: `${event.country || "Global"} Economy`,
+        category: "forex" as const,
+        sentiment,
+        publishedAt: isNaN(eventDate.getTime()) ? new Date().toISOString() : eventDate.toISOString(),
+      };
+    });
+
+    res.json(GetMarketNewsResponse.parse(newsItems));
+  } catch (err: any) {
+    console.error("Market news fetch error:", err?.message || err);
+    res.json(GetMarketNewsResponse.parse([]));
   }
-
-  res.json(GetMarketNewsResponse.parse(news.slice(0, limit)));
 });
 
 export default router;

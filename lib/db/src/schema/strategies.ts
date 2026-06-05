@@ -105,4 +105,16 @@ export const autoTradingSessionsTable = pgTable("auto_trading_sessions", {
 
 export const insertAutoTradingSessionSchema = createInsertSchema(autoTradingSessionsTable);
 export type InsertAutoTradingSession = z.infer<typeof insertAutoTradingSessionSchema>;
-export type AutoTradingSession = typeof autoTradingSessionsTable.$inferSelect;
+export const autoTradingLogsTable = pgTable("auto_trading_logs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  sessionId: integer("session_id").notNull().references(() => autoTradingSessionsTable.id, { onDelete: "cascade" }),
+  symbol: text("symbol").notNull(),
+  action: text("action").notNull(),
+  message: text("message").notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAutoTradingLogSchema = createInsertSchema(autoTradingLogsTable);
+export type InsertAutoTradingLog = z.infer<typeof insertAutoTradingLogSchema>;
+export type AutoTradingLog = typeof autoTradingLogsTable.$inferSelect;

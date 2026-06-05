@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { autoTradingSessionsTable, strategiesTable, tradesTable } from "@workspace/db";
+import { autoTradingSessionsTable, strategiesTable, tradesTable, autoTradingLogsTable } from "@workspace/db";
 import {
   ListAutoTradeSessionsResponse,
   CreateAutoTradeSessionBody,
@@ -34,6 +34,8 @@ router.get("/autotrade/sessions", requireAuth, async (req: AuthenticatedRequest,
       maxTrades: autoTradingSessionsTable.maxTrades,
       stopOnLoss: autoTradingSessionsTable.stopOnLoss,
       profitTarget: autoTradingSessionsTable.profitTarget,
+      tradeProfitTarget: autoTradingSessionsTable.tradeProfitTarget,
+      alternateDirection: autoTradingSessionsTable.alternateDirection,
       totalTrades: autoTradingSessionsTable.totalTrades,
       winTrades: autoTradingSessionsTable.winTrades,
       totalPnl: autoTradingSessionsTable.totalPnl,
@@ -128,8 +130,8 @@ router.patch("/autotrade/sessions/:id", requireAuth, async (req: AuthenticatedRe
   }
   const bodyParsed = UpdateAutoTradeSessionBody.safeParse(req.body);
   if (!bodyParsed.success) {
-    console.error("UpdateAutoTradeSessionBody error", bodyParsed.error);
-    res.status(400).json({ error: bodyParsed.error.message });
+    console.error("UpdateAutoTradeSessionBody error", bodyParsed.error.errors);
+    res.status(400).json({ error: "Validation Error: " + JSON.stringify(bodyParsed.error.errors) });
     return;
   }
 
@@ -225,6 +227,31 @@ router.get("/autotrade/sessions/:id/trades", requireAuth, async (req: Authentica
     .limit(50);
     
   res.json(trades);
+});
+
+router.get("/autotrade/sessions/:id/logs", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const sessionId = parseInt(req.params.id as string, 10);
+  if (isNaN(sessionId)) {
+    res.status(400).json({ error: "Invalid session id" });
+    return;
+  }
+  
+  // Verify session belongs to user
+  const [session] = await db.select({ id: autoTradingSessionsTable.id }).from(autoTradingSessionsTable)
+    .where(and(eq(autoTradingSessionsTable.id, sessionId), eq(autoTradingSessionsTable.userId, req.userId!)))
+    .limit(1);
+    
+  if (!session) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+
+  const logs = await db.select().from(autoTradingLogsTable)
+    .where(eq(autoTradingLogsTable.sessionId, sessionId))
+    .orderBy(desc(autoTradingLogsTable.createdAt))
+    .limit(100);
+    
+  res.json(logs);
 });
 
 export default router;

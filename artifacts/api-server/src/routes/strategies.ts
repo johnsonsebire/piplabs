@@ -36,6 +36,8 @@ import {
   computeMaxDrawdown,
   computeSharpe,
   UserIndicator,
+  parseStrategyLegs,
+  buildSeries
 } from "../lib/backtestEngine";
 import { logger } from "../lib/logger";
 import { readCsvCandles } from "../lib/csvHistory";
@@ -52,11 +54,13 @@ function parseStrategyDirections(rawCode: string | null | undefined): Array<"buy
   let parsed: any;
   try { parsed = JSON.parse(rawCode); } catch { return []; }
   const out: Array<"buy" | "sell"> = [];
-  if (parsed?.buy && parsed.buy.enabled !== false && Array.isArray(parsed.buy.conditions) && parsed.buy.conditions.length > 0) {
-    out.push("buy");
+  if (parsed?.buy && parsed.buy.enabled !== false) {
+    const hasRules = (parsed.buy.conditions?.length || 0) + (parsed.buy.marketFilters?.length || 0) + (parsed.buy.triggers?.length || 0) > 0;
+    if (hasRules) out.push("buy");
   }
-  if (parsed?.sell && parsed.sell.enabled !== false && Array.isArray(parsed.sell.conditions) && parsed.sell.conditions.length > 0) {
-    out.push("sell");
+  if (parsed?.sell && parsed.sell.enabled !== false) {
+    const hasRules = (parsed.sell.conditions?.length || 0) + (parsed.sell.marketFilters?.length || 0) + (parsed.sell.triggers?.length || 0) > 0;
+    if (hasRules) out.push("sell");
   }
   if (out.length > 0) return out;
   // Legacy v1 fallback
@@ -309,7 +313,11 @@ router.post("/datasets/backtests/upload", requireAuth, (req, res, next) => {
 
 router.post("/backtests", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const parsed = RunBacktestBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) {
+    console.error("RunBacktestBody error", parsed.error.errors);
+    res.status(400).json({ error: "Validation Error: " + JSON.stringify(parsed.error.errors) });
+    return;
+  }
 
   // Verify the strategy belongs to the caller (or is public) before running,
   // and load its code so the simulator can respect the configured BUY/SELL legs.
@@ -324,7 +332,7 @@ router.post("/backtests", requireAuth, async (req: AuthenticatedRequest, res): P
   // v2 (separate buy/sell legs) and legacy v1 (single `action`) shapes.
   const enabledDirections = parseStrategyDirections(ownedStrategy.code);
   if (enabledDirections.length === 0) {
-    res.status(400).json({ error: "Strategy has no enabled BUY or SELL leg" });
+    res.status(400).json({ error: "Strategy has no enabled BUY or SELL leg. Code: " + ownedStrategy.code });
     return;
   }
 
@@ -442,6 +450,21 @@ async function executeBacktestJob(input: BacktestJobInput): Promise<void> {
 
     logger.info({ backtestId: input.backtestId, indicatorCount: userIndicators.length, indicators: userIndicators.map(i => i.name) }, "Loaded user indicators for backtest");
 
+    await addProgress("Fetching Higher Timeframe (HTF) data if required");
+    const { buy, sell } = parseStrategyLegs(input.strategyCode);
+    const htfTimeframes = new Set<number>();
+    if (buy.htf?.enabled) htfTimeframes.add(buy.htf.timeframe);
+    if (sell.htf?.enabled) htfTimeframes.add(sell.htf.timeframe);
+
+    const htfData: Record<number, { candles: any[], map: any, closes: number[] }> = {};
+    for (const tf of htfTimeframes) {
+      if (tf === granularity) continue;
+      await addProgress(`Downloading HTF data (${tf}s)`);
+      const htfCandles = await fetchDerivCandles(input.symbol, fromSec, toSec, tf);
+      const htfMap = buildSeries(htfCandles, { buy, sell }, userIndicators);
+      htfData[tf] = { candles: htfCandles, map: htfMap, closes: htfCandles.map(c => c.close) };
+    }
+
     await addProgress("Backtesting with strategy");
 
     const result = runBacktestOnCandles(
@@ -460,6 +483,7 @@ async function executeBacktestJob(input: BacktestJobInput): Promise<void> {
       },
       granularity,
       userIndicators,
+      htfData,
     );
 
     const totalTrades = result.trades.length;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useListAutoTradeSessions, useCreateAutoTradeSession, useUpdateAutoTradeSession, useDeleteAutoTradeSession, useListStrategies, AutoTradeSessionInputMode, getListAutoTradeSessionsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { SessionLiveChart } from "@/components/SessionLiveChart";
+import { Bot, Terminal, Activity, List, ChevronDown } from "lucide-react";
 
 function SessionTrades({ sessionId }: { sessionId: number }) {
   const { data: trades, isLoading } = useQuery({
@@ -35,10 +36,13 @@ function SessionTrades({ sessionId }: { sessionId: number }) {
               <th className="p-2 font-normal text-muted-foreground uppercase">Symbol</th>
               <th className="p-2 font-normal text-muted-foreground uppercase">Dir</th>
               <th className="p-2 font-normal text-muted-foreground uppercase">Stake</th>
-              <th className="p-2 font-normal text-muted-foreground uppercase">Entry</th>
+              <th className="p-2 font-normal text-muted-foreground uppercase">Entry Date</th>
+              <th className="p-2 font-normal text-muted-foreground uppercase">Entry Time</th>
+              <th className="p-2 font-normal text-muted-foreground uppercase">Exit Date</th>
+              <th className="p-2 font-normal text-muted-foreground uppercase">Exit Time</th>
+              <th className="p-2 font-normal text-muted-foreground uppercase">Entry Px</th>
               <th className="p-2 font-normal text-muted-foreground uppercase">P&L</th>
               <th className="p-2 font-normal text-muted-foreground uppercase">Status</th>
-              <th className="p-2 font-normal text-muted-foreground uppercase">Time</th>
               <th className="p-2 font-normal text-muted-foreground uppercase">Chart</th>
             </tr>
           </thead>
@@ -48,12 +52,15 @@ function SessionTrades({ sessionId }: { sessionId: number }) {
                 <td className="p-2 font-bold">{t.symbol}</td>
                 <td className="p-2 uppercase">{t.direction}</td>
                 <td className="p-2">${t.stake}</td>
+                <td className="p-2">{new Date(t.openedAt).toLocaleDateString()}</td>
+                <td className="p-2">{new Date(t.openedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</td>
+                <td className="p-2">{t.closedAt ? new Date(t.closedAt).toLocaleDateString() : '-'}</td>
+                <td className="p-2">{t.closedAt ? new Date(t.closedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : '-'}</td>
                 <td className="p-2">{t.entryPrice ?? '-'}</td>
                 <td className={`p-2 font-bold ${t.currentProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
                   {t.currentProfit ? (t.currentProfit > 0 ? '+' : '') + t.currentProfit.toFixed(2) : '-'}
                 </td>
                 <td className="p-2 uppercase">{t.status}</td>
-                <td className="p-2 text-muted-foreground">{format(new Date(t.openedAt), "HH:mm:ss")}</td>
                 <td className="p-2">
                   {(t.status === 'closed' || t.status === 'cancelled') ? (
                     <Link href={`/autotrade/chart?tradeId=${t.id}`}>
@@ -78,8 +85,82 @@ function SessionTrades({ sessionId }: { sessionId: number }) {
   );
 }
 
+function SessionLogs({ sessionId }: { sessionId: number }) {
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const { data: logs, isLoading } = useQuery({
+    queryKey: ["/api/autotrade/sessions", sessionId, "logs"],
+    queryFn: async () => {
+      const res = await fetch(`/api/autotrade/sessions/${sessionId}/logs`);
+      if (!res.ok) throw new Error("Failed to fetch logs");
+      return res.json();
+    },
+    refetchInterval: 5000,
+  });
+
+  if (isLoading) return (
+    <div className="w-full">
+      <div className="session-logs-header">
+        <div className="session-logs-header-dot" />
+        <span>DATA WINDOW</span>
+        <span className="session-logs-header-sub">Loading...</span>
+      </div>
+      <div className="session-logs-body">
+        <div className="session-logs-empty">Loading logs...</div>
+      </div>
+    </div>
+  );
+  if (!logs || logs.length === 0) return (
+    <div className="w-full">
+      <div className="session-logs-header">
+        <div className="session-logs-header-dot" />
+        <span>DATA WINDOW</span>
+        <span className="session-logs-header-sub">0 entries</span>
+      </div>
+      <div className="session-logs-body">
+        <div className="session-logs-empty">No logs yet. Logs will appear when the strategy begins evaluating.</div>
+      </div>
+    </div>
+  );
+
+  const getActionClass = (action: string) => {
+    switch (action) {
+      case 'trade': return 'session-log-action-trade';
+      case 'ai_result': return 'session-log-action-ai';
+      case 'blocked': return 'session-log-action-blocked';
+      case 'error': return 'session-log-action-error';
+      case 'evaluate': return 'session-log-action-evaluate';
+      default: return 'session-log-action-default';
+    }
+  };
+
+  return (
+    <div className="w-full">
+      <div className="session-logs-header">
+        <div className="session-logs-header-dot session-logs-header-dot--active" />
+        <span>DATA WINDOW</span>
+        <span className="session-logs-header-sub">{logs.length} entries</span>
+      </div>
+      <div className="session-logs-body">
+        {logs.map((log: any, idx: number) => (
+          <div key={log.id} className={`session-log-row ${idx % 2 === 0 ? 'session-log-row--even' : ''}`}>
+            <span className="session-log-time">
+              {new Date(log.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
+            </span>
+            <span className="session-log-symbol">{log.symbol}</span>
+            <span className={`session-log-action ${getActionClass(log.action)}`}>
+              {log.action}
+            </span>
+            <span className="session-log-message">{log.message}</span>
+          </div>
+        ))}
+        <div ref={logsEndRef} />
+      </div>
+    </div>
+  );
+}
+
 function SessionExpandedPanel({ session }: { session: any }) {
-  const [tab, setTab] = useState<"chart" | "trades">("chart");
+  const [tab, setTab] = useState<"chart" | "trades" | "logs">("chart");
   
   const isActive = session.status === "running" || session.status === "paused";
   
@@ -99,22 +180,33 @@ function SessionExpandedPanel({ session }: { session: any }) {
   }
 
   return (
-    <div className="bg-muted/5 flex flex-col border-b-2 border-primary/20">
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-border bg-card">
-        <button 
-          onClick={() => setTab("chart")}
-          className={`text-xs font-mono font-bold uppercase transition-colors pb-1 border-b-2 ${tab === "chart" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-        >
-          Live Scanner
-        </button>
-        <button 
-          onClick={() => setTab("trades")}
-          className={`text-xs font-mono font-bold uppercase transition-colors pb-1 border-b-2 ${tab === "trades" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-        >
-          Trades List
-        </button>
+    <div className="session-expanded-panel">
+      <div className="session-tab-bar">
+        <div className="session-tab-group">
+          <button 
+            onClick={() => setTab("chart")}
+            className={`session-tab-btn ${tab === "chart" ? "session-tab-btn--active" : ""}`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Live Scanner</span>
+          </button>
+          <button 
+            onClick={() => setTab("trades")}
+            className={`session-tab-btn ${tab === "trades" ? "session-tab-btn--active" : ""}`}
+          >
+            <List className="w-3.5 h-3.5" />
+            <span>Trade List</span>
+          </button>
+          <button 
+            onClick={() => setTab("logs")}
+            className={`session-tab-btn ${tab === "logs" ? "session-tab-btn--active" : ""}`}
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>Data Window</span>
+          </button>
+        </div>
       </div>
-      <div className="p-4">
+      <div className={tab === "logs" ? "w-full" : "p-4"}>
         {tab === "chart" ? (
           <div className="flex flex-col gap-4">
             {symbols.map(sym => (
@@ -123,8 +215,10 @@ function SessionExpandedPanel({ session }: { session: any }) {
               </div>
             ))}
           </div>
-        ) : (
+        ) : tab === "trades" ? (
           <SessionTrades sessionId={session.id} />
+        ) : (
+          <SessionLogs sessionId={session.id} />
         )}
       </div>
     </div>
@@ -364,7 +458,22 @@ export default function AutoTradePage() {
                         <tr className="hover:bg-muted/10 transition-colors cursor-pointer" onClick={() => setExpandedSessionId(expandedSessionId === s.id ? null : s.id)}>
                           <td className="p-4 font-bold text-primary flex items-center gap-2">
                             <span className="text-[10px] bg-muted px-1.5 py-0.5">{expandedSessionId === s.id ? "▼" : "▶"}</span>
-                            {s.strategyName || `Strategy #${s.strategyId}`}
+                            {(() => {
+                              const strategyInfo = strategies?.find(st => st.id === s.strategyId);
+                              let aiEnabled = false;
+                              if (strategyInfo) {
+                                try {
+                                  const code = JSON.parse(strategyInfo.code);
+                                  if (code.buy?.useAIConfirmation || code.sell?.useAIConfirmation) aiEnabled = true;
+                                } catch {}
+                              }
+                              return (
+                                <span className="flex items-center gap-2">
+                                  {s.strategyName || `Strategy #${s.strategyId}`}
+                                  {aiEnabled && <Bot className="w-4 h-4 text-primary" title="AI Confirmation Enabled" />}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="p-4 text-foreground">{pairsDisplay}</td>
                           <td className="p-4">

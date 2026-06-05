@@ -149,8 +149,7 @@ export default function BacktestReplayPage() {
     const empty = { candles: [] as any[], indicatorRefs: new Set<string>(), indicatorStatus: {} as Record<string, { computed: boolean; sampleValues: number[]; error?: string }>, overlayKeys: [] as string[], oscillatorKeys: [] as string[] };
     if (!rawCandles.length) return empty;
 
-    // Deep-copy candles so we can safely write indicator values
-    const newCandles = rawCandles.map(c => ({ ...c, indicators: { ...((c as any).indicators || {}) } }));
+    const mappedCandles = rawCandles.map(c => ({ ...c, indicators: {} as Record<string, any> }));
 
     const refs = new Set<string>();
     const status: Record<string, { computed: boolean; sampleValues: number[]; error?: string }> = {};
@@ -159,7 +158,6 @@ export default function BacktestReplayPage() {
     const userIndMap = new Map<string, any>();
     if (userIndicators) {
       for (const ind of userIndicators) {
-        // parseIndicatorConfig reads the stored parameters JSON
         const cfg = parseIndicatorConfig(ind.parameters, ind.code);
         if (cfg) userIndMap.set(ind.name.trim().toLowerCase(), cfg);
       }
@@ -168,23 +166,25 @@ export default function BacktestReplayPage() {
     if (strategy) {
       try {
         const code = JSON.parse(strategy.code);
-        // Support v2 (buy/sell legs) and v1 (conditions at root)
         const allLegs = [code.legs?.buy, code.legs?.sell, code.buy, code.sell].filter(Boolean);
         if (allLegs.length === 0 && Array.isArray(code.conditions)) allLegs.push(code);
         allLegs.forEach((leg: any) => {
-          if (leg?.conditions) {
-            leg.conditions.forEach((cond: any) => {
-              const skip = ["PRICE", "CLOSE", "OPEN", "HIGH", "LOW"];
-              if (cond.indicatorA && !skip.includes(cond.indicatorA) && !isNaN(Number(cond.indicatorA)) === false) refs.add(cond.indicatorA.trim());
-              if (cond.indicatorB && !skip.includes(cond.indicatorB) && isNaN(Number(cond.indicatorB))) refs.add(cond.indicatorB.trim());
-            });
-          }
+          const allConds = [
+            ...(leg.conditions || []),
+            ...(leg.marketFilters || []),
+            ...(leg.triggers || []),
+            ...(leg.confirmations || [])
+          ];
+          allConds.forEach((cond: any) => {
+            const skip = ["CURRENT PRICE", "PRICE", "CLOSE", "OPEN", "HIGH", "LOW"];
+            if (cond.indicatorA && !skip.includes(cond.indicatorA) && !isNaN(Number(cond.indicatorA)) === false) refs.add(cond.indicatorA.trim());
+            if (cond.indicatorB && !skip.includes(cond.indicatorB) && isNaN(Number(cond.indicatorB))) refs.add(cond.indicatorB.trim());
+          });
         });
       } catch (e: any) {
         console.error("Strategy parse error", e);
       }
 
-      // Ensure companion lines are also added for multi-line indicators
       const detectedRefs = Array.from(refs);
       detectedRefs.forEach(ref => {
         const upper = ref.toUpperCase();
@@ -194,6 +194,7 @@ export default function BacktestReplayPage() {
         } else if (upper.startsWith("MACD") || upper === "MACD_SIGNAL") {
           refs.add("MACD");
           refs.add("MACD_SIGNAL");
+          refs.add("MACD_HIST");
         } else if (upper.startsWith("BB_") || upper === "BB") {
           refs.add("BB_UPPER");
           refs.add("BB_LOWER");
@@ -202,17 +203,8 @@ export default function BacktestReplayPage() {
       });
 
       refs.forEach(ref => {
-        // Check if backend already supplied values
-        const backendHas = (newCandles[0] as any).indicators?.[ref] !== undefined;
-        if (backendHas) {
-          status[ref] = { computed: true, sampleValues: newCandles.slice(0, 3).map((c: any) => c.indicators?.[ref]).filter((v: any) => v != null) };
-          return;
-        }
-
-        // 1. Try to resolve using the user's saved indicator config (EMA3 -> {type:MA, subtype:EMA, period:3})
         let config = userIndMap.get(ref.trim().toLowerCase()) ?? null;
 
-        // 2. Fall back to parsing as an inline shorthand (EMA(14), RSI, etc.)
         if (!config) {
           const matchMA = ref.match(/^(SMA|EMA|WMA|TMA)\((\d+)\)$/i);
           if (matchMA) config = { type: "MA", subtype: matchMA[1].toUpperCase(), period: parseInt(matchMA[2], 10) };
@@ -222,7 +214,7 @@ export default function BacktestReplayPage() {
           const matchCCIn = ref.match(/^CCI\((\d+)\)$/i);
           if (matchCCIn) config = { type: "CCI", period: parseInt(matchCCIn[1], 10) };
           if (ref.toUpperCase() === "CCI") config = { type: "CCI", period: 20 };
-          if (ref.toUpperCase() === "MACD" || ref.toUpperCase() === "MACD_SIGNAL") config = { type: "MACD", fast: 12, slow: 26, signal: 9 };
+          if (ref.toUpperCase() === "MACD" || ref.toUpperCase() === "MACD_SIGNAL" || ref.toUpperCase() === "MACD_HIST") config = { type: "MACD", fast: 12, slow: 26, signal: 9 };
           if (["BB_UPPER","BB_LOWER","BB_MIDDLE"].includes(ref.toUpperCase())) config = { type: "BB", period: 20 };
           if (["STOCH_K","STOCH_D"].includes(ref.toUpperCase())) config = { type: "STOCH", kPeriod: 14, dPeriod: 3 };
           if (ref.toUpperCase() === "ATR") config = { type: "ATR", period: 14 };
@@ -230,34 +222,27 @@ export default function BacktestReplayPage() {
 
         if (config) {
           try {
-            const indSeries = computeIndicator(ref, ref, config, newCandles as any);
+            const indSeries = computeIndicator(ref, ref, config, mappedCandles as any);
             if (indSeries) {
               let targetData = indSeries.data;
-              
-              // Extract the correct series for multi-line indicators
               const upperRef = ref.toUpperCase();
-              if (config.type === "STOCH") {
-                if (upperRef === "STOCH_D") {
-                  targetData = indSeries.additionalSeries?.[0]?.data || [];
-                }
-              } else if (config.type === "MACD") {
-                if (upperRef === "MACD_SIGNAL") {
-                  targetData = indSeries.additionalSeries?.[1]?.data || [];
-                }
-              } else if (config.type === "BB") {
-                if (upperRef === "BB_UPPER") {
-                  targetData = indSeries.additionalSeries?.[0]?.data || [];
-                } else if (upperRef === "BB_LOWER") {
-                  targetData = indSeries.additionalSeries?.[1]?.data || [];
-                }
+              
+              if (config.type === "STOCH" && upperRef === "STOCH_D") targetData = indSeries.additionalSeries?.[0]?.data || [];
+              else if (config.type === "MACD" && upperRef === "MACD_SIGNAL") targetData = indSeries.additionalSeries?.[1]?.data || [];
+              else if (config.type === "MACD" && upperRef === "MACD_HIST") targetData = indSeries.additionalSeries?.[0]?.data || [];
+              else if (config.type === "BB") {
+                if (upperRef === "BB_UPPER") targetData = indSeries.additionalSeries?.[0]?.data || [];
+                else if (upperRef === "BB_LOWER") targetData = indSeries.additionalSeries?.[1]?.data || [];
               }
 
-              if (targetData && targetData.length > 0) {
-                // Write values into newCandles by index (faster than find)
-                const timeIndex = new Map(newCandles.map((c, i) => [c.time, i]));
+              if (targetData) {
+                const timeIndex = new Map(mappedCandles.map((c, i) => [c.time, i]));
                 for (const pt of targetData) {
                   const idx = timeIndex.get(pt.time);
-                  if (idx !== undefined) (newCandles[idx] as any).indicators[ref] = pt.value;
+                  if (idx !== undefined) {
+                    if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: pt.color };
+                    else mappedCandles[idx].indicators[ref] = pt.value;
+                  }
                 }
                 status[ref] = { computed: true, sampleValues: targetData.slice(0, 3).map(d => d.value) };
               } else {
@@ -275,7 +260,6 @@ export default function BacktestReplayPage() {
       });
     }
 
-    // Classify each indicator as overlay or oscillator using the user's saved config
     const OSCILLATOR_TYPES = new Set(["RSI", "MACD", "STOCH", "CCI", "ATR"]);
     const overlayKeys: string[] = [];
     const oscillatorKeys: string[] = [];
@@ -286,7 +270,6 @@ export default function BacktestReplayPage() {
       if (cfg) {
         isOsc = OSCILLATOR_TYPES.has((cfg.type || "").toUpperCase());
       } else {
-        // Fallback by name
         const upper = ref.toUpperCase();
         isOsc = upper.startsWith("RSI") || upper.startsWith("CCI") || upper.startsWith("MACD") ||
                 upper.startsWith("STOCH") || upper.startsWith("ATR");
@@ -294,7 +277,7 @@ export default function BacktestReplayPage() {
       (isOsc ? oscillatorKeys : overlayKeys).push(ref);
     });
 
-    return { candles: newCandles, indicatorRefs: refs, indicatorStatus: status, overlayKeys, oscillatorKeys };
+    return { candles: mappedCandles, indicatorRefs: refs, indicatorStatus: status, overlayKeys, oscillatorKeys };
   }, [rawCandles, strategy, userIndicators]);
 
 
@@ -346,8 +329,15 @@ export default function BacktestReplayPage() {
     if (indicatorSeriesRef.current) {
       indicatorSeriesRef.current.forEach((lineSeries: any, key: string) => {
         const data = slice
-          .map(c => ({ time: c.time as any, value: c.indicators?.[key] }))
-          .filter(d => d.value !== undefined && d.value !== null && Number.isFinite(d.value));
+          .map(c => {
+             const val = c.indicators?.[key];
+             if (val === undefined || val === null) return null;
+             if (key.toUpperCase() === "MACD_HIST" && typeof val === "object") {
+                return { time: c.time as any, value: val.value, color: val.color };
+             }
+             return { time: c.time as any, value: typeof val === "object" ? val.value : val };
+          })
+          .filter(d => d && Number.isFinite(d.value));
         lineSeries.setData(data as any);
       });
     }
@@ -471,15 +461,23 @@ export default function BacktestReplayPage() {
         oscChartsList.push(oscChart);
 
         keys.forEach((key, keyIdx) => {
-          const lineSeries = oscChart.addLineSeries({
-            color: oscColors[(groupIdx + keyIdx) % oscColors.length],
-            lineWidth: 2,
-            title: key,
-            priceScaleId: "right",
-            lastValueVisible: true,
-            priceLineVisible: false,
-          });
-          indicatorSeriesMap.set(key, lineSeries);
+          if (key.toUpperCase() === "MACD_HIST") {
+            const histSeries = oscChart.addHistogramSeries({
+              color: "#26a69a",
+              priceFormat: { type: 'volume' },
+              priceScaleId: "right",
+              lastValueVisible: true,
+              priceLineVisible: false,
+            });
+            indicatorSeriesMap.set(key, histSeries);
+          } else {
+            const lineSeries = oscChart.addLineSeries({
+              color: oscColors[(groupIdx + keyIdx) % oscColors.length],
+              lineWidth: 2, title: key, priceScaleId: "right",
+              lastValueVisible: true, priceLineVisible: false,
+            });
+            indicatorSeriesMap.set(key, lineSeries);
+          }
         });
 
         // Add a hidden dummy series to align the timescale of both charts
@@ -531,8 +529,15 @@ export default function BacktestReplayPage() {
         }
         indicatorSeriesMap.forEach((lineSeries, key) => {
           const data = slice
-            .map(c => ({ time: c.time as any, value: c.indicators?.[key] }))
-            .filter(d => d.value !== undefined && d.value !== null && Number.isFinite(d.value));
+            .map(c => {
+               const val = c.indicators?.[key];
+               if (val === undefined || val === null) return null;
+               if (key.toUpperCase() === "MACD_HIST" && typeof val === "object") {
+                  return { time: c.time as any, value: val.value, color: val.color };
+               }
+               return { time: c.time as any, value: typeof val === "object" ? val.value : val };
+            })
+            .filter(d => d && Number.isFinite(d.value));
           lineSeries.setData(data as any);
         });
         oscChartsList.forEach(oc => {
@@ -603,9 +608,14 @@ export default function BacktestReplayPage() {
         }
         if (indicatorSeriesRef.current && candle.indicators) {
           indicatorSeriesRef.current.forEach((lineSeries: any, key: string) => {
-            const val = (candle as any).indicators?.[key];
-            if (val !== undefined && val !== null && Number.isFinite(val)) {
-              lineSeries.update({ time: candle.time as any, value: val });
+            const val = candle.indicators?.[key];
+            if (val !== undefined && val !== null) {
+              if (key.toUpperCase() === "MACD_HIST" && typeof val === "object") {
+                lineSeries.update({ time: candle.time as any, value: val.value, color: val.color });
+              } else {
+                const numericVal = typeof val === "object" ? val.value : val;
+                if (Number.isFinite(numericVal)) lineSeries.update({ time: candle.time as any, value: numericVal });
+              }
             }
           });
         }
