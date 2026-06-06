@@ -69,7 +69,7 @@ type Leg = {
 };
 
 const IND_OPTIONS = ["EMA(3)", "EMA(7)", "EMA(14)", "EMA(21)", "EMA(50)", "EMA(200)", "SMA(20)", "SMA(50)", "RSI", "MACD", "MACD_SIGNAL", "CCI", "BB_UPPER", "BB_LOWER", "BB_MIDDLE", "ATR", "STOCH_K", "STOCH_D", "CURRENT PRICE", "HIGH", "LOW", "OPEN", "CLOSE", "VOLUME"];
-const OP_OPTIONS = ["crosses above", "crosses below", "is above", "is below", "is rising", "is declining", "==", ">", "<", ">=", "<="];
+const OP_OPTIONS = ["crosses above", "crosses below", "is above", "is below", "is rising", "is declining", "is positive and rising", "is negative and declining", "==", ">", "<", ">=", "<="];
 // Common numeric thresholds traders compare indicators against.
 const VALUE_OPTIONS = ["0", "20", "25", "30", "40", "50", "60", "70", "75", "80", "100"];
 const CUSTOM_VALUE = "__custom__";

@@ -747,6 +747,14 @@ function evalCondition(
     if (a0 == null || a1 == null) return false;
     return a1 < a0;
   }
+  if (op === "is positive and rising") {
+    if (a0 == null || a1 == null) return false;
+    return a1 > 0 && a1 > a0;
+  }
+  if (op === "is negative and declining") {
+    if (a0 == null || a1 == null) return false;
+    return a1 < 0 && a1 < a0;
+  }
 
   const b0 = seriesValue(cond.indicatorB, i - 1, map, closes);
   const b1 = seriesValue(cond.indicatorB, i, map, closes);
