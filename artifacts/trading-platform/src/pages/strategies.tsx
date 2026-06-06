@@ -258,7 +258,8 @@ function serializeCode(buy: Leg, sell: Leg, riskManagement?: any): string {
       timeframe: l.htf.timeframe,
       marketFilters: stripConds(l.htf.marketFilters),
       confirmations: stripConds(l.htf.confirmations),
-    }
+    },
+    rangingFilter: l.rangingFilter,
   });
   return JSON.stringify({ version: 2, buy: stripIds(buy), sell: stripIds(sell), riskManagement });
 }
@@ -703,7 +704,6 @@ export default function StrategiesPage() {
 
  const [showForm, setShowForm] = useState(false);
  const [editingId, setEditingId] = useState<number | null>(null);
- const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
  const [name, setName] = useState("");
  const [description, setDescription] = useState("");
@@ -813,16 +813,24 @@ export default function StrategiesPage() {
  }
  };
 
- const handleDelete = (id: number) => {
- deleteStrategy.mutate({ id }, {
- onSuccess: () => {
- swalSuccess("Strategy deleted", "The strategy has been permanently removed.");
- setConfirmDeleteId(null);
- if (editingId === id) closeForm();
- queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
- },
- onError: (err: any) => swalError("Error deleting strategy", err?.message),
- });
+ const handleDeleteClick = async (id: number) => {
+   const confirmed = await swalConfirm(
+     "Delete strategy?",
+     "This will permanently delete the strategy and all its backtests. This cannot be undone.",
+     "Yes, delete it"
+   );
+   if (!confirmed) return;
+
+   deleteStrategy.mutate({ id }, {
+     onSuccess: () => {
+       if (editingId === id) closeForm();
+       queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
+       swalSuccess("Strategy deleted", "The strategy has been permanently removed.");
+     },
+     onError: (err: any) => {
+       swalError("Error deleting strategy", err?.message);
+     },
+   });
  };
 
  const handleTestWebhook = () => {
@@ -909,7 +917,7 @@ export default function StrategiesPage() {
   <Button
   type="button" size="icon" variant="ghost"
   
-  onClick={() => setConfirmDeleteId(s.id)}
+  onClick={() => handleDeleteClick(s.id)}
   data-testid={`button-delete-strategy-${s.id}`}
   title="Delete"
   >
@@ -1075,30 +1083,9 @@ export default function StrategiesPage() {
  </div>
  </form>
  </div>
- )}
+  )}
  </div>
  </div>
-
- <AlertDialog open={confirmDeleteId !== null} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
- <AlertDialogContent className="rounded-none">
- <AlertDialogHeader>
- <AlertDialogTitle className="font-mono text-uppercase">Delete strategy?</AlertDialogTitle>
- <AlertDialogDescription className="font-mono small">
- This will permanently delete the strategy and all its backtests. This cannot be undone.
- </AlertDialogDescription>
- </AlertDialogHeader>
- <AlertDialogFooter>
- <AlertDialogCancel className="rounded-none font-mono text-uppercase">Cancel</AlertDialogCancel>
- <AlertDialogAction
- className="rounded-none font-mono text-uppercase bg-danger "
- onClick={() => confirmDeleteId !== null && handleDelete(confirmDeleteId)}
- disabled={deleteStrategy.isPending}
- >
- {deleteStrategy.isPending ? "Deleting..." : "Delete"}
- </AlertDialogAction>
- </AlertDialogFooter>
- </AlertDialogContent>
- </AlertDialog>
- </AppLayout>
+</AppLayout>
  );
 }

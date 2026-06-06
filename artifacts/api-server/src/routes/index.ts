@@ -11,6 +11,9 @@ import newsRouter from "./news";
 import openaiRouter from "./openai";
 import autotradeRouter from "./autotrade";
 
+import aiStrategyRouter from "./ai-strategy";
+import conversationsRouter from "./conversations";
+
 const router: IRouter = Router();
 
 router.use(healthRouter);
@@ -24,5 +27,7 @@ router.use(dashboardRouter);
 router.use(newsRouter);
 router.use(openaiRouter);
 router.use(autotradeRouter);
+router.use(aiStrategyRouter);
+router.use(conversationsRouter);
 
 export default router;

@@ -631,9 +631,12 @@ export default function AutoTradeChartPage() {
       ? Math.floor(new Date(trade.closedAt).getTime() / 1000)
       : Math.floor(Date.now() / 1000);
     const tradeDuration = Math.max(exitSec - entrySec, 60);
-    const buffer = Math.max(tradeDuration * 2, 300);
-    const startSec = entrySec - buffer;
-    const endSec = exitSec + buffer;
+    // Use at least 90 minutes before entry so EMA context loads and the ENTRY
+    // marker always lands on a real candle (was 5 min buffer, too narrow).
+    const preTradeBuf = Math.max(tradeDuration * 3, 90 * 60);
+    const postTradeBuf = Math.max(tradeDuration, 10 * 60);
+    const startSec = entrySec - preTradeBuf;
+    const endSec = exitSec + postTradeBuf;
     
     // Auto-trader always uses 1-minute (60) granularity internally for evaluation
     const granularity = 60;

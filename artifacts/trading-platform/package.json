@@ -74,6 +74,7 @@
   },
   "dependencies": {
     "@clerk/shared": "^4.11.0",
+    "react-markdown": "^10.1.0",
     "sweetalert2": "^11.26.25"
   }
 }

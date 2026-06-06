@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useListAutoTradeSessions, useCreateAutoTradeSession, useUpdateAutoTradeSession, useDeleteAutoTradeSession, useListStrategies, AutoTradeSessionInputMode, getListAutoTradeSessionsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { swalSuccess, swalError, swalWarning, swalConfirm } from "@/lib/swal";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -424,7 +427,7 @@ export default function AutoTradePage() {
 
         <div className="flex flex-1 min-h-0 gap-6">
           {/* List Panel */}
-          <div className={`flex-1 border border-border bg-card overflow-auto ${showForm ? 'hidden md:block' : ''}`}>
+          <div className="flex-1 border border-border bg-card overflow-auto">
             <table className="w-full text-sm font-mono text-left whitespace-nowrap">
               <thead className="bg-muted/30 sticky top-0 border-b border-border z-10">
                 <tr>
@@ -516,17 +519,27 @@ export default function AutoTradePage() {
             </table>
           </div>
 
-          {/* Form Panel */}
-          {showForm && (
-            <div className="w-full md:w-[400px] border border-border bg-card shrink-0 flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-border bg-muted/20 shrink-0">
-                <h2 className="text-sm font-bold font-mono uppercase text-foreground">{editingId ? "Edit Session" : "New Session"}</h2>
-              </div>
-              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
-                <div className="space-y-2">
+          {/* Form Modal */}
+          {showForm && typeof document !== 'undefined' && createPortal(
+            <div 
+              className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+              style={{ zIndex: 500, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)' }}
+              data-bs-theme="dark"
+            >
+              <div className="card shadow-lg d-flex flex-column border border-secondary" style={{ width: '100%', maxWidth: '700px', maxHeight: '90vh' }}>
+                <div className="card-header p-3 border-bottom d-flex justify-content-between align-items-center" style={{ backgroundColor: 'var(--bs-secondary-bg-subtle)' }}>
+                  <h2 className="m-0 text-uppercase font-mono text-white" style={{ fontSize: '0.875rem', fontWeight: 'bold' }}>
+                    {editingId ? "Edit Session" : "New Session"}
+                  </h2>
+                  <Button type="button" variant="ghost" className="h-6 w-6 p-0 rounded-none hover:bg-destructive hover:text-destructive-foreground transition-colors text-white" onClick={() => setShowForm(false)}>
+                    &times;
+                  </Button>
+                </div>
+              <form onSubmit={handleSubmit} className="card-body p-4 overflow-y-auto d-flex flex-column gap-3 m-0" style={{ backgroundColor: 'var(--bs-card-bg)' }}>
+                <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Strategy</Label>
                   <Select value={formData.strategyId} onValueChange={(v) => setFormData({...formData, strategyId: v})} disabled={!!editingId}>
-                    <SelectTrigger className="w-full rounded-none border-border font-mono text-sm h-10 bg-background">
+                    <SelectTrigger className="w-100 rounded-none border-border font-mono text-sm h-10 bg-background">
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border">
@@ -537,20 +550,20 @@ export default function AutoTradePage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Pairs</Label>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-wrap gap-1 mb-1">
+                  <div className="d-flex flex-column gap-2">
+                    <div className="d-flex flex-wrap gap-1 mb-1">
                       {formData.symbols.map((sym, idx) => (
-                        <div key={idx} className="flex items-center gap-1 bg-primary/20 text-primary px-2 py-1 rounded-sm text-xs font-mono font-bold">
+                        <div key={idx} className="d-flex align-items-center gap-1 border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-wider font-mono" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
                           {sym}
-                          <button type="button" onClick={() => setFormData({...formData, symbols: formData.symbols.filter((_, i) => i !== idx)})} className="hover:text-destructive ml-1">&times;</button>
+                          <button type="button" onClick={() => setFormData({...formData, symbols: formData.symbols.filter((_, i) => i !== idx)})} className="text-primary hover:text-danger px-1 ms-1 transition-colors bg-transparent border-0">&times;</button>
                         </div>
                       ))}
                     </div>
                     <Input 
                       placeholder="Type symbol and press Enter..."
-                      className="rounded-none font-mono border-border bg-background uppercase"
+                      className="w-100 rounded-none font-mono border-border bg-background uppercase text-xs"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ',') {
                           e.preventDefault();
@@ -562,12 +575,15 @@ export default function AutoTradePage() {
                         }
                       }}
                     />
-                    <div className="flex flex-wrap gap-1 mt-1">
+                    <div className="d-flex flex-wrap gap-2 mt-2">
                       {['R_100', 'R_75', 'R_50', 'R_25', 'R_10', 'BTCUSD', 'ETHUSD'].map(sym => (
                         <button 
                           key={sym} type="button" 
                           onClick={() => !formData.symbols.includes(sym) && setFormData({...formData, symbols: [...formData.symbols, sym]})}
-                          className="text-[10px] bg-muted/50 hover:bg-muted text-muted-foreground px-2 py-0.5 rounded-sm font-mono transition-colors"
+                          className="text-[10px] border border-secondary bg-card text-secondary px-2 py-1 font-mono uppercase tracking-wider transition-colors"
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bs-secondary-bg-subtle)'; e.currentTarget.style.color = '#fff'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--bs-card-bg)'; e.currentTarget.style.color = 'var(--bs-secondary)'; }}
                         >
                           +{sym}
                         </button>
@@ -576,10 +592,10 @@ export default function AutoTradePage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Pair Execution Mode</Label>
                   <Select value={formData.pairMode} onValueChange={(v: any) => setFormData({...formData, pairMode: v})}>
-                    <SelectTrigger className="w-full rounded-none border-border font-mono text-sm h-10 bg-background">
+                    <SelectTrigger className="w-100 rounded-none border-border font-mono text-sm h-10 bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border">
@@ -590,45 +606,45 @@ export default function AutoTradePage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Account Mode</Label>
                   <Select value={formData.mode} onValueChange={(v: any) => setFormData({...formData, mode: v})} disabled={!!editingId}>
-                    <SelectTrigger className="w-full rounded-none border-border font-mono text-sm h-10 bg-background">
+                    <SelectTrigger className="w-100 rounded-none border-border font-mono text-sm h-10 bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border">
                       <SelectItem value={AutoTradeSessionInputMode.demo} className="font-mono text-xs uppercase">Demo</SelectItem>
-                      <SelectItem value={AutoTradeSessionInputMode.live} className="font-mono text-xs uppercase text-destructive">Live</SelectItem>
+                      <SelectItem value={AutoTradeSessionInputMode.live} className="font-mono text-xs uppercase text-danger">Live</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Stake Amount (USD)</Label>
                   <Input 
                     required 
                     type="number"
                     value={formData.stakeAmount} 
                     onChange={e => setFormData({...formData, stakeAmount: e.target.value})}
-                    className="rounded-none font-mono border-border bg-background"
+                    className="w-100 rounded-none font-mono border-border bg-background"
                   />
                 </div>
 
-                <div className="flex gap-4">
-                  <div className="space-y-2 flex-1">
+                <div className="row g-3">
+                  <div className="col-sm-6 space-y-1">
                     <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
                     <Input 
                       required 
                       type="number"
                       value={formData.duration} 
                       onChange={e => setFormData({...formData, duration: e.target.value})}
-                      className="rounded-none font-mono border-border bg-background"
+                      className="w-100 rounded-none font-mono border-border bg-background"
                     />
                   </div>
-                  <div className="space-y-2 flex-1">
+                  <div className="col-sm-6 space-y-1">
                     <Label className="text-xs uppercase font-mono text-muted-foreground">Unit</Label>
                     <Select value={formData.durationUnit} onValueChange={(v: any) => setFormData({...formData, durationUnit: v})}>
-                      <SelectTrigger className="w-full rounded-none border-border font-mono text-sm h-10 bg-background">
+                      <SelectTrigger className="w-100 rounded-none border-border font-mono text-sm h-10 bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="rounded-none border-border">
@@ -642,52 +658,52 @@ export default function AutoTradePage() {
                   </div>
                 </div>
 
-                <div className="flex gap-4">
-                  <div className="space-y-2 flex-1">
+                <div className="row g-3">
+                  <div className="col-sm-6 space-y-1">
                     <Label className="text-xs uppercase font-mono text-muted-foreground">Per-Trade Profit Target ($) (Optional)</Label>
                     <Input 
                       type="number"
                       step="0.01"
                       value={formData.tradeProfitTarget} 
                       onChange={e => setFormData({...formData, tradeProfitTarget: e.target.value})}
-                      className="rounded-none font-mono border-border bg-background"
+                      className="w-100 rounded-none font-mono border-border bg-background"
                       placeholder="e.g. 2.50"
                     />
                   </div>
-                  <div className="space-y-2 flex-1">
+                  <div className="col-sm-6 space-y-1">
                     <Label className="text-xs uppercase font-mono text-muted-foreground">Session Profit Target ($) (Optional)</Label>
                     <Input 
                       type="number"
                       step="0.01"
                       value={formData.profitTarget} 
                       onChange={e => setFormData({...formData, profitTarget: e.target.value})}
-                      className="rounded-none font-mono border-border bg-background"
+                      className="w-100 rounded-none font-mono border-border bg-background"
                       placeholder="e.g. 50.00"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Stop on Loss (USD) (Optional)</Label>
                   <Input 
                     type="number"
                     value={formData.stopOnLoss} 
                     onChange={e => setFormData({...formData, stopOnLoss: e.target.value})}
-                    className="rounded-none font-mono border-border bg-background"
+                    className="w-100 rounded-none font-mono border-border bg-background"
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Max Trades (Optional)</Label>
                   <Input 
                     type="number"
                     value={formData.maxTrades} 
                     onChange={e => setFormData({...formData, maxTrades: e.target.value})}
-                    className="rounded-none font-mono border-border bg-background"
+                    className="w-100 rounded-none font-mono border-border bg-background"
                   />
                 </div>
 
-                <div className="flex items-center gap-2 pt-2">
+                <div className="d-flex align-items-center gap-2 pt-2">
                   <input 
                     type="checkbox" 
                     id="alternateDirection"
@@ -695,18 +711,20 @@ export default function AutoTradePage() {
                     onChange={e => setFormData({...formData, alternateDirection: e.target.checked})}
                     className="h-4 w-4 bg-background border-border rounded-sm"
                   />
-                  <Label htmlFor="alternateDirection" className="text-xs uppercase font-mono text-foreground cursor-pointer">
+                  <Label htmlFor="alternateDirection" className="text-xs uppercase font-mono text-foreground cursor-pointer m-0">
                     Alternate direction after each trade
                   </Label>
                 </div>
 
-                <div className="pt-4 border-t border-border flex justify-end">
-                  <Button type="submit" disabled={createSession.isPending || updateSession.isPending} className="w-full rounded-none font-bold uppercase font-mono tracking-wider h-10">
+                <div className="pt-4 border-top border-secondary mt-2">
+                  <Button type="submit" disabled={createSession.isPending || updateSession.isPending} className="w-100 rounded-none font-bold uppercase font-mono tracking-wider h-10" style={{ backgroundColor: 'var(--bs-primary)', color: '#000', fontSize: '0.875rem' }}>
                     {editingId ? (updateSession.isPending ? "Saving..." : "Save Changes") : (createSession.isPending ? "Starting..." : "Start Session")}
                   </Button>
                 </div>
               </form>
-            </div>
+              </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

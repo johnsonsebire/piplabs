@@ -21,6 +21,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { label: "Backtest", href: "/backtest", icon: "bi-clock-history" },
     { label: "Auto Trade", href: "/autotrade", icon: "bi-robot" },
     { label: "News", href: "/news", icon: "bi-newspaper" },
+    { label: "AI Builder", href: "/ai-builder", icon: "bi-robot" },
     { label: "Settings", href: "/settings", icon: "bi-gear" },
   ];
 

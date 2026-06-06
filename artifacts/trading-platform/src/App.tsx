@@ -21,6 +21,7 @@ import SettingsPage from "@/pages/settings";
 import AutoTradePage from "@/pages/autotrade";
 import BacktestReplayPage from "@/pages/backtest-replay";
 import AutoTradeChartPage from "@/pages/autotrade-chart";
+import AIBuilderPage from "@/pages/ai-builder";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -208,6 +209,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/strategies">
               <ProtectedRoute component={StrategiesPage} />
+            </Route>
+            <Route path="/ai-builder">
+              <ProtectedRoute component={AIBuilderPage} />
             </Route>
             <Route path="/indicators">
               <ProtectedRoute component={IndicatorsPage} />
