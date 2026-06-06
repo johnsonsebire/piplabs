@@ -206,14 +206,18 @@ export default function BacktestReplayPage() {
         let config = userIndMap.get(ref.trim().toLowerCase()) ?? null;
 
         if (!config) {
-          const matchMA = ref.match(/^(SMA|EMA|WMA|TMA)\((\d+)\)$/i);
+          // Match both EMA(7) and EMA7 / EMA 7 formats
+          const matchMA = ref.match(/^(SMA|EMA|WMA|TMA)\s*\(?\s*(\d+)\s*\)?$/i);
           if (matchMA) config = { type: "MA", subtype: matchMA[1].toUpperCase(), period: parseInt(matchMA[2], 10) };
-          const matchRSIn = ref.match(/^RSI\((\d+)\)$/i);
+          const matchRSIn = ref.match(/^RSI\s*\(?\s*(\d+)\s*\)?$/i);
           if (matchRSIn) config = { type: "RSI", period: parseInt(matchRSIn[1], 10) };
           if (ref.toUpperCase() === "RSI") config = { type: "RSI", period: 14 };
           const matchCCIn = ref.match(/^CCI\((\d+)\)$/i);
           if (matchCCIn) config = { type: "CCI", period: parseInt(matchCCIn[1], 10) };
           if (ref.toUpperCase() === "CCI") config = { type: "CCI", period: 20 };
+          const matchADX = ref.match(/^ADX\s*\(?\s*(\d+)\s*\)?$/i);
+          if (matchADX) config = { type: "ADX", period: parseInt(matchADX[1], 10) };
+          if (ref.toUpperCase() === "ADX") config = { type: "ADX", period: 14 };
           if (ref.toUpperCase() === "MACD" || ref.toUpperCase() === "MACD_SIGNAL" || ref.toUpperCase() === "MACD_HIST") config = { type: "MACD", fast: 12, slow: 26, signal: 9 };
           if (["BB_UPPER","BB_LOWER","BB_MIDDLE"].includes(ref.toUpperCase())) config = { type: "BB", period: 20 };
           if (["STOCH_K","STOCH_D"].includes(ref.toUpperCase())) config = { type: "STOCH", kPeriod: 14, dPeriod: 3 };
@@ -658,15 +662,19 @@ export default function BacktestReplayPage() {
     }
     
     // Sort markers by time as required by lightweight-charts
-    markers.sort((a, b) => a.time - b.time);
+    markers.sort((a, b) =>
+      a.time !== b.time ? a.time - b.time : (a.text.startsWith("EXIT") ? 1 : -1)
+    );
     
-    // Deduplicate markers at exact same timestamps by offsetting slightly or skipping
-    const uniqueMarkers = [];
-    let lastTime = 0;
+    // Deduplicate only when BOTH markers have the exact same time AND same label prefix.
+    // Entry + Exit on the same candle must BOTH be kept.
+    const uniqueMarkers: any[] = [];
+    const seen = new Set<string>();
     for (const m of markers) {
-      if (m.time !== lastTime) {
+      const key = `${m.time}-${m.text}`;
+      if (!seen.has(key)) {
+        seen.add(key);
         uniqueMarkers.push(m);
-        lastTime = m.time;
       }
     }
     

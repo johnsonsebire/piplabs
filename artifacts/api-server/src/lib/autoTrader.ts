@@ -1,6 +1,6 @@
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { autoTradingSessionsTable, usersTable, strategiesTable, tradesTable, autoTradingLogsTable } from "@workspace/db";
+import { autoTradingSessionsTable, usersTable, strategiesTable, tradesTable, autoTradingLogsTable, indicatorsTable } from "@workspace/db";
 import { getAccountForMode, buyContract, sellContract, getOpenContractStatus, type DerivBuyParams } from "./derivApi";
 import { fetchDerivCandles } from "./derivHistory";
 import { parseStrategyLegs, enabledDirections, buildSeries, evalLeg } from "./backtestEngine";
@@ -28,7 +28,12 @@ function getOpenAIClient(): OpenAI {
   });
 }
 
-async function confirmTradeWithAI(sym: string, side: string, strategyName: string): Promise<boolean> {
+async function confirmTradeWithAI(
+  sym: string, 
+  side: string, 
+  strategyName: string,
+  recentCandles: { open: number; high: number; low: number; close: number }[]
+): Promise<boolean> {
   try {
     const client = getOpenAIClient();
     const prompt = `You are a Deriv AI Trading Assistant.
@@ -37,7 +42,14 @@ Symbol: ${sym}
 Direction: ${side.toUpperCase()}
 Strategy: ${strategyName}
 
-Do you confirm this trade? Reply strictly with a JSON object: {"recommendation": "confirm"} or {"recommendation": "reject"}.`;
+Here is the recent price action (last ${recentCandles.length} candles):
+${JSON.stringify(recentCandles)}
+
+Your task is to analyze the market context. Specifically, you must use industry standards to detect if the market is currently RANGING (sideways/choppy) or TRENDING.
+If the market is RANGING, you MUST reject the trade to protect capital, as technical strategies perform poorly in ranging markets.
+If the market is trending favorably for this signal, confirm the trade.
+
+Do you confirm this trade? Reply strictly with a JSON object: {"recommendation": "confirm", "reason": "..."} or {"recommendation": "reject", "reason": "..."}.`;
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
@@ -168,8 +180,9 @@ async function placeTrade(
     mode: session.mode as "demo" | "live",
   });
 
+  session.totalTrades += 1;
   await db.update(autoTradingSessionsTable)
-    .set({ totalTrades: session.totalTrades + 1 })
+    .set({ totalTrades: session.totalTrades })
     .where(eq(autoTradingSessionsTable.id, session.id));
 
   logger.info({ sessionId: session.id, side, signalSide, symbol, contractId: outcome.result.contractId, alternated: side !== signalSide }, "AutoTrader: Trade placed");
@@ -237,6 +250,21 @@ async function processAutoTradingSessions() {
       const nowSec = Math.floor(Date.now() / 1000);
       const fromSec = nowSec - 5 * 60 * 60;
 
+      // Load user-defined indicators once per session (not per symbol) to avoid connection pool exhaustion
+      const userIndicatorRows = await db
+        .select({
+          name: indicatorsTable.name,
+          code: indicatorsTable.code,
+          parameters: indicatorsTable.parameters,
+        })
+        .from(indicatorsTable)
+        .where(eq(indicatorsTable.userId, user.id));
+      const userIndicators = userIndicatorRows.map(r => ({
+        name: r.name,
+        code: r.code ?? "",
+        parameters: r.parameters ?? null,
+      }));
+
       // --- Evaluate which symbols to trade ---
       type SignalMap = Record<string, "buy" | "sell" | null>;
       const signals: SignalMap = {};
@@ -296,7 +324,8 @@ async function processAutoTradingSessions() {
           const evalIndex = candles.length - 2;
           const directions = enabledDirections(legs);
           if (directions.length === 0) { signals[sym] = null; continue; }
-          const map = buildSeries(candles, legs);
+
+          const map = buildSeries(candles, legs, userIndicators);
           const closes = candles.map(c => c.close);
           const curTime = candles[evalIndex].time;
 
@@ -310,7 +339,7 @@ async function processAutoTradingSessions() {
              const htfFromSec = nowSec - (tf * 300); // Need ~300 HTF candles to compute EMA200 etc.
              const htfC = await fetchDerivCandles(sym, htfFromSec, nowSec, tf);
              if (htfC.length < 2) continue;
-             const hMap = buildSeries(htfC, legs);
+             const hMap = buildSeries(htfC, legs, userIndicators);
              htfData[tf] = { candles: htfC, map: hMap, closes: htfC.map(c => c.close) };
           }
 
@@ -336,7 +365,9 @@ async function processAutoTradingSessions() {
           let side: "buy" | "sell" | null = null;
           
           if (isBuy && isSell) {
-            side = "buy";
+            // Conflicting signal — both legs fired simultaneously. Do NOT trade.
+            await logAutoTradeEvent(session.id, sym, "skip", "Both BUY and SELL conditions fired simultaneously. Skipping to avoid conflicting signal.");
+            side = null;
           } else if (isBuy) {
             side = "buy";
           } else if (isSell) {
@@ -349,7 +380,8 @@ async function processAutoTradingSessions() {
 
           if (side && legs[side].useAIConfirmation) {
             await logAutoTradeEvent(session.id, sym, "ai_request", `AI Confirmation requested for ${side.toUpperCase()} signal.`);
-            const confirmed = await confirmTradeWithAI(sym, side, strategy.name);
+            const recentCandles = candles.slice(-50).map(c => ({ open: c.open, high: c.high, low: c.low, close: c.close }));
+            const confirmed = await confirmTradeWithAI(sym, side, strategy.name, recentCandles);
             if (!confirmed) {
               logger.info({ sym, side }, "AutoTrader: AI rejected trade signal");
               await logAutoTradeEvent(session.id, sym, "ai_result", `AI rejected ${side.toUpperCase()} signal.`);
@@ -382,6 +414,7 @@ async function processAutoTradingSessions() {
           }
           logger.info({ sessionId: session.id, sym, side }, "AutoTrader: Simultaneous signal triggered");
           await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
+          session.totalTrades = sessionForPlace.totalTrades;
           if (await checkAndStopSession(session)) break;
         }
       } else if (pairMode === "rotating") {
@@ -393,10 +426,12 @@ async function processAutoTradingSessions() {
           if (allowed) {
             logger.info({ sessionId: session.id, sym, side, idx }, "AutoTrader: Rotating signal triggered");
             await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
+            session.totalTrades = sessionForPlace.totalTrades;
             const nextIdx = (idx + 1) % symbols.length;
             await db.update(autoTradingSessionsTable)
               .set({ currentPairIdx: nextIdx })
               .where(eq(autoTradingSessionsTable.id, session.id));
+            await checkAndStopSession(session);
           } else {
             await logAutoTradeEvent(session.id, sym, "blocked", `Alternate Direction rule blocked ${side.toUpperCase()} signal.`);
           }
@@ -409,6 +444,8 @@ async function processAutoTradingSessions() {
           if (allowed) {
             logger.info({ sessionId: session.id, sym, side }, "AutoTrader: Single signal triggered");
             await placeTrade(user as any, sessionForPlace as any, strategy, sym, side);
+            session.totalTrades = sessionForPlace.totalTrades;
+            await checkAndStopSession(session);
           } else {
             await logAutoTradeEvent(session.id, sym, "blocked", `Alternate Direction rule blocked ${side.toUpperCase()} signal.`);
           }

@@ -72,7 +72,10 @@ export function isWithinSessions(epochSec: number, sessions?: TradingSession[]):
   if (!sessions || sessions.length === 0) return true;
   const utcHour = new Date(epochSec * 1000).getUTCHours();
   return sessions.some((s) => {
-    const { start, end } = SESSION_HOURS_UTC[s];
+    const sessionKey = (typeof s === 'string' ? s.toLowerCase() : s) as TradingSession;
+    const config = SESSION_HOURS_UTC[sessionKey];
+    if (!config) return true; // if invalid session, don't block
+    const { start, end } = config;
     return utcHour >= start && utcHour < end;
   });
 }
@@ -419,6 +422,7 @@ export type SeriesMap = Map<string, (number | null)[]>;
 const DEFAULT_PERIODS: Record<string, number> = {
   RSI: 14, CCI: 20, ATR: 14, MACD: 12, STOCH_K: 14, STOCH_D: 3,
   BB_UPPER: 20, BB_LOWER: 20, BB_MIDDLE: 20, MACD_SIGNAL: 9,
+  ADX: 14,
 };
 
 /**
@@ -429,7 +433,7 @@ function resolveRef(ref: string): { key: string; kind: string; period: number } 
   const r = ref.trim().toUpperCase();
 
   // Parameterised: EMA(14), SMA(20), RSI(14), CCI(20), WMA(5), EMA 200, EMA200
-  const mParam = r.match(/^(EMA|SMA|WMA|RSI|CCI|ATR)\s*\(?\s*(\d+)\s*\)?$/i);
+  const mParam = r.match(/^(EMA|SMA|WMA|RSI|CCI|ATR|ADX)\s*\(?\s*(\d+)\s*\)?$/i);
   if (mParam) {
     const kind = mParam[1];
     const period = parseInt(mParam[2], 10);
@@ -1026,10 +1030,13 @@ export function runBacktestOnCandles(
     let side: "buy" | "sell" | null = null;
     
     if (isBuy && isSell) {
+      // Conflicting signal — both legs fired at the same candle.
+      // Only resolve it if alternateDirection is on (use opposite of last trade).
+      // Otherwise skip to avoid placing a trade on ambiguous conditions.
       if (params.alternateDirection && lastTradeSide) {
-         side = lastTradeSide === "buy" ? "sell" : "buy";
+        side = lastTradeSide === "buy" ? "sell" : "buy";
       } else {
-         side = "buy";
+        side = null; // ambiguous — skip
       }
     } else if (isBuy) {
       side = "buy";

@@ -1,6 +1,6 @@
 import type { Candle } from "@/hooks/use-deriv-ws";
 
-export type IndicatorKind = "MA" | "RSI" | "MACD" | "STOCH" | "BB" | "CCI" | "ATR" | "CUSTOM";
+export type IndicatorKind = "MA" | "RSI" | "MACD" | "STOCH" | "BB" | "CCI" | "ATR" | "ADX" | "CUSTOM";
 
 export interface IndicatorConfig {
   type: IndicatorKind;
@@ -140,6 +140,7 @@ export function parseIndicatorConfig(raw: string | null | undefined, fallbackCod
       }
       if (code === "RSI") return { type: "RSI", ...obj };
       if (code === "MACD") return { type: "MACD", ...obj };
+      if (code === "ADX") return { type: "ADX", ...obj };
     }
     return obj as IndicatorConfig;
   } catch {
@@ -329,6 +330,61 @@ export function computeIndicator(id: string, name: string, cfg: IndicatorConfig,
       id, name, pane: "oscillator", color, thickness,
       oscillatorKey: "ATR",
       data: toPoints(candles, atr),
+    };
+  }
+
+  if (cfg.type === "ADX") {
+    const period = cfg.period || 14;
+    const outAdx: (number | null)[] = new Array(candles.length).fill(null);
+    const tr: number[] = new Array(candles.length).fill(0);
+    const plusDM: number[] = new Array(candles.length).fill(0);
+    const minusDM: number[] = new Array(candles.length).fill(0);
+
+    for (let i = 1; i < candles.length; i++) {
+      const h = highs[i], l = lows[i];
+      const ph = highs[i-1], pl = lows[i-1], pc = closes[i-1];
+      tr[i] = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+      const upMove = h - ph;
+      const downMove = pl - l;
+      if (upMove > downMove && upMove > 0) plusDM[i] = upMove;
+      if (downMove > upMove && downMove > 0) minusDM[i] = downMove;
+    }
+
+    const smooth = (prev: number, current: number) => prev - (prev / period) + current;
+    let trSmoothed = 0, plusDmSmoothed = 0, minusDmSmoothed = 0;
+    for (let i = 1; i <= period; i++) {
+      trSmoothed += tr[i]; plusDmSmoothed += plusDM[i]; minusDmSmoothed += minusDM[i];
+    }
+
+    const dx: number[] = new Array(candles.length).fill(0);
+    for (let i = period; i < candles.length; i++) {
+      if (i > period) {
+        trSmoothed = smooth(trSmoothed, tr[i]);
+        plusDmSmoothed = smooth(plusDmSmoothed, plusDM[i]);
+        minusDmSmoothed = smooth(minusDmSmoothed, minusDM[i]);
+      }
+      const pDI = trSmoothed === 0 ? 0 : (plusDmSmoothed / trSmoothed) * 100;
+      const mDI = trSmoothed === 0 ? 0 : (minusDmSmoothed / trSmoothed) * 100;
+      const diff = Math.abs(pDI - mDI);
+      const sum = pDI + mDI;
+      dx[i] = sum === 0 ? 0 : (diff / sum) * 100;
+    }
+
+    let adxSum = 0;
+    for (let i = period; i < period * 2; i++) adxSum += dx[i];
+    let prevAdx = adxSum / period;
+    if (period * 2 - 1 < candles.length) outAdx[period * 2 - 1] = prevAdx;
+    for (let i = period * 2; i < candles.length; i++) {
+      prevAdx = ((prevAdx * (period - 1)) + dx[i]) / period;
+      outAdx[i] = prevAdx;
+    }
+
+    return {
+      id, name, pane: "oscillator", color, thickness,
+      oscillatorKey: "ADX",
+      data: toPoints(candles, outAdx),
+      yMin: 0, yMax: 100,
+      guides: [{ value: 25, color: "#ffaa00" }],
     };
   }
 
