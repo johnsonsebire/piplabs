@@ -33,7 +33,7 @@ async function confirmTradeWithAI(
   side: string, 
   strategyName: string,
   recentCandles: { open: number; high: number; low: number; close: number }[]
-): Promise<boolean> {
+): Promise<{ confirmed: boolean; reason: string }> {
   try {
     const client = getOpenAIClient();
     const prompt = `You are a Deriv AI Trading Assistant.
@@ -45,9 +45,13 @@ Strategy: ${strategyName}
 Here is the recent price action (last ${recentCandles.length} candles):
 ${JSON.stringify(recentCandles)}
 
-Your task is to analyze the market context. Specifically, you must use industry standards to detect if the market is currently RANGING (sideways/choppy) or TRENDING.
-If the market is RANGING, you MUST reject the trade to protect capital, as technical strategies perform poorly in ranging markets.
-If the market is trending favorably for this signal, confirm the trade.
+Your task is to analyze the market context. You must rigorously check two primary conditions:
+1. RANGING MARKETS: Use industry standards to detect if the market is currently RANGING (sideways/choppy) or TRENDING. If it is RANGING, you MUST reject the trade to protect capital.
+2. MOMENTUM / MACD WEAKNESS: Evaluate the momentum of the recent price action (similar to how MACD behaves).
+   - If the signal is BUY/CALL, but the upward momentum is visibly declining, weakening, or starting to turn downwards, you MUST reject the trade.
+   - If the signal is SELL/PUT, but the downward momentum is visibly weakening or turning upwards, you MUST reject the trade.
+
+If the market is trending favorably AND momentum strongly supports the signal, confirm the trade.
 
 Do you confirm this trade? Reply strictly with a JSON object: {"recommendation": "confirm", "reason": "..."} or {"recommendation": "reject", "reason": "..."}.`;
     const completion = await client.chat.completions.create({
@@ -56,10 +60,13 @@ Do you confirm this trade? Reply strictly with a JSON object: {"recommendation":
       response_format: { type: "json_object" },
     });
     const res = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
-    return res.recommendation === "confirm";
+    return {
+      confirmed: res.recommendation === "confirm",
+      reason: res.reason || "No reason provided by AI",
+    };
   } catch (err) {
     logger.error({ err, sym, side }, "AI Confirmation Failed, defaulting to reject");
-    return false;
+    return { confirmed: false, reason: "AI Confirmation API failed or returned an invalid response" };
   }
 }
 
@@ -381,13 +388,13 @@ async function processAutoTradingSessions() {
           if (side && legs[side].useAIConfirmation) {
             await logAutoTradeEvent(session.id, sym, "ai_request", `AI Confirmation requested for ${side.toUpperCase()} signal.`);
             const recentCandles = candles.slice(-50).map(c => ({ open: c.open, high: c.high, low: c.low, close: c.close }));
-            const confirmed = await confirmTradeWithAI(sym, side, strategy.name, recentCandles);
-            if (!confirmed) {
+            const aiResponse = await confirmTradeWithAI(sym, side, strategy.name, recentCandles);
+            if (!aiResponse.confirmed) {
               logger.info({ sym, side }, "AutoTrader: AI rejected trade signal");
-              await logAutoTradeEvent(session.id, sym, "ai_result", `AI rejected ${side.toUpperCase()} signal.`);
+              await logAutoTradeEvent(session.id, sym, "ai_result", `AI rejected ${side.toUpperCase()} signal. Reason: ${aiResponse.reason}`);
               side = null;
             } else {
-              await logAutoTradeEvent(session.id, sym, "ai_result", `AI approved ${side.toUpperCase()} signal.`);
+              await logAutoTradeEvent(session.id, sym, "ai_result", `AI approved ${side.toUpperCase()} signal. Reason: ${aiResponse.reason}`);
             }
           }
           
