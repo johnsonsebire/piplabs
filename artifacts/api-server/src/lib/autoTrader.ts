@@ -32,7 +32,7 @@ async function confirmTradeWithAI(
   sym: string, 
   side: string, 
   strategyName: string,
-  recentCandles: { open: number; high: number; low: number; close: number }[]
+  enhancedMatrix: any[]
 ): Promise<{ confirmed: boolean; reason: string }> {
   try {
     const client = getOpenAIClient();
@@ -42,8 +42,8 @@ Symbol: ${sym}
 Direction: ${side.toUpperCase()}
 Strategy: ${strategyName}
 
-Here is the recent price action (last ${recentCandles.length} candles):
-${JSON.stringify(recentCandles)}
+Here is the Enhanced Data Matrix (last ${enhancedMatrix.length} candles with indicators):
+${JSON.stringify(enhancedMatrix)}
 
 Your task is to analyze the market context. You must rigorously check two primary conditions:
 1. RANGING MARKETS: Use industry standards to detect if the market is currently RANGING (sideways/choppy) or TRENDING. If it is RANGING, you MUST reject the trade to protect capital.
@@ -387,8 +387,24 @@ async function processAutoTradingSessions() {
 
           if (side && legs[side].useAIConfirmation) {
             await logAutoTradeEvent(session.id, sym, "ai_request", `AI Confirmation requested for ${side.toUpperCase()} signal.`);
-            const recentCandles = candles.slice(-50).map(c => ({ open: c.open, high: c.high, low: c.low, close: c.close }));
-            const aiResponse = await confirmTradeWithAI(sym, side, strategy.name, recentCandles);
+            const enhancedMatrix = [];
+            const startIdx = Math.max(0, evalIndex - 49);
+            for (let i = startIdx; i <= evalIndex; i++) {
+              enhancedMatrix.push({
+                time: candles[i].time,
+                open: candles[i].open,
+                high: candles[i].high,
+                low: candles[i].low,
+                close: candles[i].close,
+                ema3: map.get("EMA_3")?.[i] ?? null,
+                ema7: map.get("EMA_7")?.[i] ?? null,
+                macd: map.get("MACD")?.[i] ?? null,
+                macd_signal: map.get("MACD_SIGNAL")?.[i] ?? null,
+                rsi: map.get("RSI_14")?.[i] ?? null,
+                adx: map.get("ADX_14")?.[i] ?? null,
+              });
+            }
+            const aiResponse = await confirmTradeWithAI(sym, side, strategy.name, enhancedMatrix);
             if (!aiResponse.confirmed) {
               logger.info({ sym, side }, "AutoTrader: AI rejected trade signal");
               await logAutoTradeEvent(session.id, sym, "ai_result", `AI rejected ${side.toUpperCase()} signal. Reason: ${aiResponse.reason}`);

@@ -474,6 +474,15 @@ function collectRefs(legs: { buy: StrategyLeg; sell: StrategyLeg }): Set<string>
       if (rf.rsi.enabled) refs.add(`RSI(${rf.rsi.period})`);
     }
   }
+  
+  // Always include standard indicators for the AI Enhanced Matrix and safety checks
+  refs.add("EMA(3)");
+  refs.add("EMA(7)");
+  refs.add("MACD");
+  refs.add("MACD_SIGNAL");
+  refs.add("RSI(14)");
+  refs.add("ADX(14)");
+
   return refs;
 }
 
