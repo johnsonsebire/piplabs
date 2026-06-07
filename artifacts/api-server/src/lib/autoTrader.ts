@@ -32,7 +32,8 @@ async function confirmTradeWithAI(
   sym: string, 
   side: string, 
   strategyName: string,
-  enhancedMatrix: any[]
+  enhancedMatrix: any[],
+  htfMatrix?: any[]
 ): Promise<{ confirmed: boolean; reason: string }> {
   try {
     const client = getOpenAIClient();
@@ -42,9 +43,14 @@ Symbol: ${sym}
 Direction: ${side.toUpperCase()}
 Strategy: ${strategyName}
 
-Here is the Enhanced Data Matrix (last ${enhancedMatrix.length} candles with indicators):
+Here is the Enhanced Data Matrix (last ${enhancedMatrix.length} candles with indicators) for the primary timeframe:
 ${JSON.stringify(enhancedMatrix)}
+${htfMatrix ? `
+Additionally, the strategy enforces a Higher Timeframe (HTF) filter. Here is the HTF Data Matrix (last ${htfMatrix.length} HTF candles):
+${JSON.stringify(htfMatrix)}
 
+You MUST verify that the primary timeframe momentum aligns with the Higher Timeframe trend. If they conflict, reject the trade.
+` : ""}
 Your task is to analyze the market context. You must rigorously check two primary conditions:
 1. RANGING MARKETS: Use industry standards to detect if the market is currently RANGING (sideways/choppy) or TRENDING. If it is RANGING, you MUST reject the trade to protect capital.
 2. MOMENTUM / MACD WEAKNESS: Evaluate the momentum of the recent price action (similar to how MACD behaves).
@@ -404,7 +410,33 @@ async function processAutoTradingSessions() {
                 adx: map.get("ADX_14")?.[i] ?? null,
               });
             }
-            const aiResponse = await confirmTradeWithAI(sym, side, strategy.name, enhancedMatrix);
+            let htfMatrix: any[] | undefined = undefined;
+            if (legs[side].htf?.enabled) {
+              const tf = legs[side].htf!.timeframe;
+              const hData = htfData[tf];
+              const htfIndex = side === "buy" ? htfIndexBuy : htfIndexSell;
+              if (hData && htfIndex !== undefined && htfIndex >= 0) {
+                htfMatrix = [];
+                const hStartIdx = Math.max(0, htfIndex - 19); // Pass last 20 HTF candles
+                for (let i = hStartIdx; i <= htfIndex; i++) {
+                  htfMatrix.push({
+                    time: hData.candles[i].time,
+                    open: hData.candles[i].open,
+                    high: hData.candles[i].high,
+                    low: hData.candles[i].low,
+                    close: hData.candles[i].close,
+                    ema3: hData.map.get("EMA_3")?.[i] ?? null,
+                    ema7: hData.map.get("EMA_7")?.[i] ?? null,
+                    macd: hData.map.get("MACD")?.[i] ?? null,
+                    macd_signal: hData.map.get("MACD_SIGNAL")?.[i] ?? null,
+                    rsi: hData.map.get("RSI_14")?.[i] ?? null,
+                    adx: hData.map.get("ADX_14")?.[i] ?? null,
+                  });
+                }
+              }
+            }
+
+            const aiResponse = await confirmTradeWithAI(sym, side, strategy.name, enhancedMatrix, htfMatrix);
             if (!aiResponse.confirmed) {
               logger.info({ sym, side }, "AutoTrader: AI rejected trade signal");
               await logAutoTradeEvent(session.id, sym, "ai_result", `AI rejected ${side.toUpperCase()} signal. Reason: ${aiResponse.reason}`);
