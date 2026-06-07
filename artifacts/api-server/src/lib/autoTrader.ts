@@ -417,7 +417,7 @@ async function processAutoTradingSessions() {
               const htfIndex = side === "buy" ? htfIndexBuy : htfIndexSell;
               if (hData && htfIndex !== undefined && htfIndex >= 0) {
                 htfMatrix = [];
-                const hStartIdx = Math.max(0, htfIndex - 19); // Pass last 20 HTF candles
+                const hStartIdx = Math.max(0, htfIndex - 49); // Pass last 50 HTF candles
                 for (let i = hStartIdx; i <= htfIndex; i++) {
                   htfMatrix.push({
                     time: hData.candles[i].time,
