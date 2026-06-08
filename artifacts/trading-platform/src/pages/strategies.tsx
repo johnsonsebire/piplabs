@@ -169,13 +169,13 @@ function parseStrategyCode(raw: string | null | undefined): { buy: Leg; sell: Le
     if (src.rangingFilter) {
       const rf = src.rangingFilter;
       rangingFilter = {
-        enabled: rf.enabled === true,
-        threshold: typeof rf.threshold === "number" ? rf.threshold : 70,
+        enabled: rf.enabled === true || rf.enabled === "true",
+        threshold: !isNaN(Number(rf.threshold)) ? Number(rf.threshold) : 70,
         adx: {
-          enabled: rf.adx?.enabled !== false, // default true if not strictly false
-          weight: typeof rf.adx?.weight === "number" ? rf.adx.weight : 35,
-          period: typeof rf.adx?.period === "number" ? rf.adx.period : 14,
-          value: typeof rf.adx?.value === "number" ? rf.adx.value : 22,
+          enabled: rf.adx?.enabled !== false && rf.adx?.enabled !== "false",
+          weight: !isNaN(Number(rf.adx?.weight)) ? Number(rf.adx.weight) : 35,
+          period: !isNaN(Number(rf.adx?.period)) ? Number(rf.adx.period) : 14,
+          value: !isNaN(Number(rf.adx?.value)) ? Number(rf.adx.value) : 22,
         },
         bb: {
           enabled: rf.bb?.enabled !== false,

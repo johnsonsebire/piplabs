@@ -95,6 +95,12 @@ export type SimTrade = {
   outcome: "win" | "loss";
 };
 
+export type SessionMetrics = {
+  totalTrades: number;
+  wins: number;
+  losses: number;
+};
+
 export type BacktestRunResult = {
   wins: number;
   losses: number;
@@ -107,6 +113,7 @@ export type BacktestRunResult = {
   granularitySec: number;
   sessions?: TradingSession[];
   seriesMap: SeriesMap;
+  sessionMetrics?: Record<string, SessionMetrics>;
 };
 
 
@@ -167,13 +174,13 @@ export function parseStrategyLegs(rawCode: string | null | undefined): { buy: St
     if (s.rangingFilter && typeof s.rangingFilter === "object") {
       const rf = s.rangingFilter as Record<string, any>;
       rangingFilter = {
-        enabled: rf.enabled === true,
-        threshold: typeof rf.threshold === "number" ? rf.threshold : 70,
+        enabled: rf.enabled === true || rf.enabled === "true",
+        threshold: !isNaN(Number(rf.threshold)) ? Number(rf.threshold) : 70,
         adx: {
-          enabled: rf.adx?.enabled === true,
-          weight: typeof rf.adx?.weight === "number" ? rf.adx.weight : 35,
-          period: typeof rf.adx?.period === "number" ? rf.adx.period : 14,
-          value: typeof rf.adx?.value === "number" ? rf.adx.value : 22,
+          enabled: rf.adx?.enabled === true || rf.adx?.enabled === "true",
+          weight: !isNaN(Number(rf.adx?.weight)) ? Number(rf.adx.weight) : 35,
+          period: !isNaN(Number(rf.adx?.period)) ? Number(rf.adx.period) : 14,
+          value: !isNaN(Number(rf.adx?.value)) ? Number(rf.adx.value) : 22,
         },
         bb: {
           enabled: rf.bb?.enabled === true,
@@ -1099,6 +1106,25 @@ export function runBacktestOnCandles(
   }
 
   const wins = trades.filter((t) => t.outcome === "win").length;
+  
+  const sessionMetrics: Record<string, SessionMetrics> = {
+    asian: { totalTrades: 0, wins: 0, losses: 0 },
+    london: { totalTrades: 0, wins: 0, losses: 0 },
+    newyork: { totalTrades: 0, wins: 0, losses: 0 },
+    overlap_london_ny: { totalTrades: 0, wins: 0, losses: 0 },
+  };
+
+  for (const t of trades) {
+    const utcHour = new Date(t.entryAt).getUTCHours();
+    for (const [s, conf] of Object.entries(SESSION_HOURS_UTC)) {
+      if (utcHour >= conf.start && utcHour < conf.end) {
+        sessionMetrics[s].totalTrades++;
+        if (t.outcome === "win") sessionMetrics[s].wins++;
+        else sessionMetrics[s].losses++;
+      }
+    }
+  }
+
   return {
     wins,
     losses: trades.length - wins,
@@ -1111,6 +1137,7 @@ export function runBacktestOnCandles(
     granularitySec,
     sessions: params.sessions && params.sessions.length > 0 ? params.sessions : undefined,
     seriesMap: map,
+    sessionMetrics,
   };
 }
 

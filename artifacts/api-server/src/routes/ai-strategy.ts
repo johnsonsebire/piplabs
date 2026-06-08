@@ -28,8 +28,8 @@ You have access to two tools:
 ### Strategy Code Schema (JSON)
 The strategy \`code\` you generate must be a strict JSON string matching this structure:
 {
-  "buy": { "enabled": boolean, "sessions": ["asian"|"london"|"newyork"|"overlap_london_ny"], "marketFilters": [...], "triggers": [...], "confirmations": [...], "htf": {...}, "rangingFilter": {...}, "exit": "opposite"|"target"|"manual" },
-  "sell": { "enabled": boolean, "sessions": ["asian"|"london"|"newyork"|"overlap_london_ny"], "marketFilters": [...], "triggers": [...], "confirmations": [...], "htf": {...}, "rangingFilter": {...}, "exit": "opposite"|"target"|"manual" },
+  "buy": { "enabled": boolean, "sessions": ["asian"|"london"|"newyork"|"overlap_london_ny"], "marketFilters": [...], "triggers": [...], "confirmations": [...], "htf": {...}, "rangingFilter": { "enabled": boolean, "threshold": number, "adx": {"enabled": boolean, "weight": number, "period": number, "value": number}, "bb": {"enabled": boolean, "weight": number, "period": number, "percentile": number}, "atr": {"enabled": boolean, "weight": number, "period": number, "smaPeriod": number, "ratio": number}, "rsi": {"enabled": boolean, "weight": number, "period": number, "min": number, "max": number} }, "exit": "opposite"|"target"|"manual" },
+  "sell": { "enabled": boolean, "sessions": ["asian"|"london"|"newyork"|"overlap_london_ny"], "marketFilters": [...], "triggers": [...], "confirmations": [...], "htf": {...}, "rangingFilter": { "enabled": boolean, "threshold": number, "adx": {"enabled": boolean, "weight": number, "period": number, "value": number}, "bb": {"enabled": boolean, "weight": number, "period": number, "percentile": number}, "atr": {"enabled": boolean, "weight": number, "period": number, "smaPeriod": number, "ratio": number}, "rsi": {"enabled": boolean, "weight": number, "period": number, "min": number, "max": number} }, "exit": "opposite"|"target"|"manual" },
   "riskManagement": { "winCooldown": {...}, "lossCooldown": {...} }
 }
 

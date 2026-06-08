@@ -29,6 +29,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useDebounce } from "@/hooks/use-debounce";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type SimTrade = {
   id: number; entryAt: string; exitAt: string; direction: string;
@@ -46,6 +48,7 @@ type BacktestResults = {
   durationUnit?: string;
   granularitySec?: number;
   sessions?: SessionKey[];
+  sessionMetrics?: Record<string, { totalTrades: number, wins: number, losses: number }>;
   trades?: SimTrade[];
 };
 
@@ -143,53 +146,67 @@ function downloadCsv(filename: string, rows: SimTrade[]) {
   URL.revokeObjectURL(url);
 }
 
-function printPdf(title: string, rows: SimTrade[]) {
-  const win = window.open("", "_blank", "width=900,height=700");
-  if (!win) return;
-  const total = rows.reduce((a, r) => a + r.pnl, 0);
-  const wins = rows.filter(r => r.outcome === "win").length;
-  const losses = rows.length - wins;
-  const rowHtml = rows.map(r => `
-    <tr>
-      <td>${r.id}</td>
-      <td>${new Date(r.entryAt).toLocaleString()}</td>
-      <td>${new Date(r.exitAt).toLocaleString()}</td>
-      <td>${r.direction}</td>
-      <td>${r.type}</td>
-      <td>${r.duration}</td>
-      <td style="text-align:right">${r.entry.toFixed(4)}</td>
-      <td style="text-align:right">${r.exit.toFixed(4)}</td>
-      <td style="text-align:right">$${r.stake.toFixed(2)}</td>
-      <td style="text-align:right;color:${r.pnl >= 0 ? "#0a7a3a" : "#a8312a"}">${r.pnl >= 0 ? "+" : ""}$${r.pnl.toFixed(2)}</td>
-      <td>${r.outcome.toUpperCase()}</td>
-    </tr>`).join("");
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
-    <style>
-      body{font-family:ui-monospace,Menlo,monospace;padding:24px;color:#111}
-      h1{font-size:18px;margin:0 0 4px}
-      .meta{color:#555;font-size:12px;margin-bottom:16px}
-      .summary{display:flex;gap:24px;margin-bottom:16px;font-size:12px}
-      .summary div b{display:block;color:#333;font-size:11px;text-transform:uppercase}
-      table{width:100%;border-collapse:collapse;font-size:11px}
-      th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left}
-      thead th{background:#f3f3f3;text-transform:uppercase;font-size:10px;letter-spacing:.04em}
-      @media print { body{padding:12px} }
-    </style></head><body>
-    <h1>${title}</h1>
-    <div class="meta">Generated ${new Date().toLocaleString()}</div>
-    <div class="summary">
-      <div><b>Trades</b>${rows.length}</div>
-      <div><b>Wins</b>${wins}</div>
-      <div><b>Losses</b>${losses}</div>
-      <div><b>Net P&amp;L</b>${total >= 0 ? "+" : ""}$${total.toFixed(2)}</div>
-    </div>
-    <table><thead><tr>
-      <th>#</th><th>Entry</th><th>Exit</th><th>Dir</th><th>Type</th><th>Dur</th>
-      <th>Entry Px</th><th>Exit Px</th><th>Stake</th><th>P&amp;L</th><th>Outcome</th>
-    </tr></thead><tbody>${rowHtml}</tbody></table>
-    <script>window.onload=()=>window.print()</script>
-    </body></html>`);
-  win.document.close();
+function downloadPdfReport(bt: any, results: BacktestResults) {
+  const doc = new jsPDF();
+  const rows = results.trades || [];
+  
+  doc.setFontSize(18);
+  doc.text(`Backtest Report: #${bt.id}`, 14, 22);
+  
+  doc.setFontSize(11);
+  doc.text(`Symbol: ${bt.symbol}`, 14, 30);
+  doc.text(`Win Rate: ${bt.winRate?.toFixed(1) ?? "-"}%`, 14, 36);
+  doc.text(`Net P&L: ${bt.totalPnl >= 0 ? "+" : ""}$${bt.totalPnl?.toFixed(2) ?? "0.00"}`, 14, 42);
+
+  let finalY = 52;
+
+  // Session Metrics Table
+  if (results.sessionMetrics) {
+    doc.text("Per-Session Metrics", 14, finalY);
+    
+    // Sort so it's consistent
+    const sessionData = Object.entries(results.sessionMetrics).map(([session, metrics]) => [
+      sessionShort(session as SessionKey),
+      metrics.totalTrades.toString(),
+      metrics.wins.toString(),
+      metrics.losses.toString()
+    ]);
+    
+    autoTable(doc, {
+      startY: finalY + 4,
+      head: [["Session", "Trades", "Wins", "Losses"]],
+      body: sessionData,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  // Trades Table
+  doc.text("Trades Log", 14, finalY);
+  
+  autoTable(doc, {
+    startY: finalY + 4,
+    head: [["#", "Entry", "Exit", "Dir", "Type", "Dur", "Entry Px", "Exit Px", "Stake", "P&L", "Outcome"]],
+    body: rows.map(r => [
+      r.id.toString(),
+      new Date(r.entryAt).toLocaleString(),
+      new Date(r.exitAt).toLocaleString(),
+      r.direction,
+      r.type,
+      r.duration,
+      r.entry.toFixed(4),
+      r.exit.toFixed(4),
+      `$${r.stake.toFixed(2)}`,
+      `${r.pnl >= 0 ? "+" : ""}$${r.pnl.toFixed(2)}`,
+      r.outcome.toUpperCase()
+    ]),
+    theme: 'grid',
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [41, 128, 185] },
+  });
+
+  doc.save(`backtest_${bt.id}.pdf`);
 }
 
 export default function BacktestPage() {
@@ -726,7 +743,7 @@ export default function BacktestPage() {
                                 <Button size="icon" variant="outline" onClick={() => downloadCsv(`bt-${selectedBt.id}.csv`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Download CSV">
                                   <Download className="h-3 w-3" />
                                 </Button>
-                                <Button size="icon" variant="outline" onClick={() => printPdf(`Backtest #${selectedBt.id}`, selectedBtTrades)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Print PDF">
+                                <Button size="icon" variant="outline" onClick={() => downloadPdfReport(selectedBt, selectedBtResults!)} className="h-6.5 w-6.5 rounded-none border-border/40" title="Download PDF Report">
                                   <FileText className="h-3 w-3" />
                                 </Button>
                                 <Button size="icon" variant="outline" onClick={(e) => handleDeleteBacktest(selectedBt.id, e)} className="h-6.5 w-6.5 rounded-none border-destructive/40 text-destructive hover:bg-destructive/10" title="Delete Backtest">
@@ -755,27 +772,54 @@ export default function BacktestPage() {
                               </div>
                             </div>
 
+                            {selectedBtResults?.sessionMetrics && (
+                              <div className="bg-[#111520] border border-border/20 p-4 mb-4 font-mono text-xs rounded">
+                                <div className="text-muted-foreground uppercase font-bold tracking-wider mb-3 border-b border-border/10 pb-2">
+                                  Per-Session Performance
+                                </div>
+                                <div className="grid grid-cols-4 gap-2">
+                                  {Object.entries(selectedBtResults.sessionMetrics).map(([session, metrics]) => (
+                                    <div key={session} className="flex flex-col bg-background/50 p-2 rounded border border-border/5">
+                                      <span className="text-[9px] uppercase text-muted-foreground font-bold mb-1">{sessionShort(session as SessionKey)}</span>
+                                      <div className="flex justify-between items-center mt-1">
+                                        <span className="text-[10px]">Trades</span>
+                                        <span className="text-[10px] font-bold">{metrics.totalTrades}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-[#10b981]">Wins</span>
+                                        <span className="text-[10px] font-bold text-[#10b981]">{metrics.wins}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-[#ef4444]">Losses</span>
+                                        <span className="text-[10px] font-bold text-[#ef4444]">{metrics.losses}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             {selectedBtTrades.length > 0 && (
                               <div className="bg-[#111520] border border-border/20 p-4 mb-4 font-mono text-xs rounded">
                                 <div className="text-muted-foreground uppercase font-bold tracking-wider mb-3 border-b border-border/10 pb-2">
                                   Buy/Sell Setup Performance Breakdown
                                 </div>
-                                <div className="flex flex-col space-y-2 w-full">
+                                <div className="grid grid-cols-2 gap-4 w-full">
                                   <div className="flex justify-between items-center p-2 bg-background/50 rounded">
-                                    <span className="text-[#10b981] font-bold">WINNING BUY (CALL)</span>
-                                    <span className="text-white font-bold text-right">{selectedBtStats.winBuyCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.winBuyPnl.toFixed(2)})</span></span>
+                                    <span className="text-[#10b981] font-bold text-[10px]">WINNING BUY (CALL)</span>
+                                    <span className="text-white font-bold text-right text-[10px]">{selectedBtStats.winBuyCount} <span className="text-muted-foreground ml-1">(${selectedBtStats.winBuyPnl.toFixed(2)})</span></span>
                                   </div>
                                   <div className="flex justify-between items-center p-2 bg-background/50 rounded">
-                                    <span className="text-[#10b981] font-bold">WINNING SELL (PUT)</span>
-                                    <span className="text-white font-bold text-right">{selectedBtStats.winSellCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.winSellPnl.toFixed(2)})</span></span>
+                                    <span className="text-[#10b981] font-bold text-[10px]">WINNING SELL (PUT)</span>
+                                    <span className="text-white font-bold text-right text-[10px]">{selectedBtStats.winSellCount} <span className="text-muted-foreground ml-1">(${selectedBtStats.winSellPnl.toFixed(2)})</span></span>
                                   </div>
                                   <div className="flex justify-between items-center p-2 bg-background/50 rounded">
-                                    <span className="text-[#ef4444] font-bold">LOSING BUY (CALL)</span>
-                                    <span className="text-white font-bold text-right">{selectedBtStats.loseBuyCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.loseBuyPnl.toFixed(2)})</span></span>
+                                    <span className="text-[#ef4444] font-bold text-[10px]">LOSING BUY (CALL)</span>
+                                    <span className="text-white font-bold text-right text-[10px]">{selectedBtStats.loseBuyCount} <span className="text-muted-foreground ml-1">(${selectedBtStats.loseBuyPnl.toFixed(2)})</span></span>
                                   </div>
                                   <div className="flex justify-between items-center p-2 bg-background/50 rounded">
-                                    <span className="text-[#ef4444] font-bold">LOSING SELL (PUT)</span>
-                                    <span className="text-white font-bold text-right">{selectedBtStats.loseSellCount} trades <span className="text-muted-foreground ml-2">(${selectedBtStats.loseSellPnl.toFixed(2)})</span></span>
+                                    <span className="text-[#ef4444] font-bold text-[10px]">LOSING SELL (PUT)</span>
+                                    <span className="text-white font-bold text-right text-[10px]">{selectedBtStats.loseSellCount} <span className="text-muted-foreground ml-1">(${selectedBtStats.loseSellPnl.toFixed(2)})</span></span>
                                   </div>
                                 </div>
                               </div>

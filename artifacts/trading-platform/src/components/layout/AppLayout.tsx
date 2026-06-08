@@ -20,6 +20,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     { label: "Indicators", href: "/indicators", icon: "bi-bar-chart-line" },
     { label: "Backtest", href: "/backtest", icon: "bi-clock-history" },
     { label: "Auto Trade", href: "/autotrade", icon: "bi-robot" },
+    { label: "MT5 Accounts", href: "/mt5-accounts", icon: "bi-wallet2" },
+    { label: "Copy Trading", href: "/copy-trading", icon: "bi-people" },
     { label: "News", href: "/news", icon: "bi-newspaper" },
     { label: "AI Builder", href: "/ai-builder", icon: "bi-robot" },
     { label: "Settings", href: "/settings", icon: "bi-gear" },

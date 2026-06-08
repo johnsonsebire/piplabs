@@ -23,6 +23,9 @@ import BacktestReplayPage from "@/pages/backtest-replay";
 import AutoTradeChartPage from "@/pages/autotrade-chart";
 import AIBuilderPage from "@/pages/ai-builder";
 
+import MT5AccountsPage from "@/pages/mt5-accounts";
+import CopyTradingPage from "@/pages/copy-trading";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -233,6 +236,12 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/autotrade/chart">
               <ProtectedRoute component={AutoTradeChartPage} />
+            </Route>
+            <Route path="/mt5-accounts">
+              <ProtectedRoute component={MT5AccountsPage} />
+            </Route>
+            <Route path="/copy-trading">
+              <ProtectedRoute component={CopyTradingPage} />
             </Route>
             <Route path="/settings">
               <ProtectedRoute component={SettingsPage} />

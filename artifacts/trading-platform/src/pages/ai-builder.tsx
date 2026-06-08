@@ -210,7 +210,26 @@ export default function AIBuilderPage() {
                 <button
                   key={c.id}
                   onClick={() => setLocation(`${location}?chat=${c.id}`)}
-                  className={`w-100 text-start p-3 border-bottom border-secondary/50 font-mono small text-truncate transition-colors ${activeChatId === String(c.id) ? "bg-primary/10 text-primary" : "hover:bg-secondary/10 text-secondary"}`}
+                  className={`w-100 text-start p-3 border-bottom border-secondary font-mono small text-truncate`}
+                  style={{
+                    backgroundColor: activeChatId === String(c.id) ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                    borderLeft: activeChatId === String(c.id) ? '2px solid #10b981' : '2px solid transparent',
+                    color: activeChatId === String(c.id) ? '#10b981' : '#94a3b8',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (activeChatId !== String(c.id)) {
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.color = '#e2e8f0';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeChatId !== String(c.id)) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = '#94a3b8';
+                    }
+                  }}
                   title={c.title}
                 >
                   <div className="d-flex align-items-center gap-2 text-truncate">
