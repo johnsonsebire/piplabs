@@ -16,13 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Copy, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { swalSuccess, swalError } from "@/lib/swal";
 
 export default function CopyTradingPage() {
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [subscriberAccountId, setSubscriberAccountId] = useState("");
   const [providerAccountId, setProviderAccountId] = useState("");
   const [riskMultiplier, setRiskMultiplier] = useState("1.0");
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: accounts, isError: isAccountsError, error: accountsError } = useQuery({
@@ -54,12 +54,18 @@ export default function CopyTradingPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Successfully subscribed to strategy." });
+      swalSuccess("Subscribed Successfully", "You are now copying trades from the provider.");
       setIsSubscribing(false);
+      setProviderAccountId("");
       queryClient.invalidateQueries({ queryKey: ["copy-trading-subscriptions"] });
     },
     onError: (error: Error) => {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      let msg = error.message;
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed.error) msg = parsed.error;
+      } catch (e) {}
+      swalError("Subscription Failed", msg);
     }
   });
 

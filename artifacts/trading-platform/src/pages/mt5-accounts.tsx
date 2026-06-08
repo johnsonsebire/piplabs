@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { swalSuccess, swalError } from "@/lib/swal";
 import { Loader2, Plus, Server, Activity } from "lucide-react";
 
 export default function MT5AccountsPage() {
@@ -23,7 +23,6 @@ export default function MT5AccountsPage() {
   const [password, setPassword] = useState("");
   const [server, setServer] = useState("");
   const [type, setType] = useState("demo");
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: accounts, isLoading, isError, error } = useQuery({
@@ -46,12 +45,21 @@ export default function MT5AccountsPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "MT5 Account connected." });
+      swalSuccess("Account Connected", "Your MT5 Account was connected successfully.");
       setIsAdding(false);
+      setName("");
+      setLogin("");
+      setPassword("");
+      setServer("");
       queryClient.invalidateQueries({ queryKey: ["mt5-accounts"] });
     },
     onError: (error: Error) => {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      let msg = error.message;
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed.error) msg = parsed.error;
+      } catch (e) {}
+      swalError("Connection Failed", msg);
     }
   });
 
@@ -65,11 +73,16 @@ export default function MT5AccountsPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Account is now a CopyFactory Provider." });
+      swalSuccess("Provider Configured", "This account is now broadcasting trades as a CopyFactory Provider.");
       queryClient.invalidateQueries({ queryKey: ["mt5-accounts"] });
     },
     onError: (error: Error) => {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      let msg = error.message;
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed.error) msg = parsed.error;
+      } catch (e) {}
+      swalError("Configuration Failed", msg);
     }
   });
 
