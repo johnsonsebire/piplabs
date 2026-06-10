@@ -237,12 +237,14 @@ export default function ChartPage() {
               </div>
             </div>
 
-            <TradingChart
-              key={`${symbol}-${granularitySec}`}
-              symbol={symbol}
-              granularitySec={granularitySec}
-              indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
-            />
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <TradingChart
+                key={`${symbol}-${granularitySec}`}
+                symbol={symbol}
+                granularitySec={granularitySec}
+                indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
+              />
+            </div>
             <BottomPanel symbol={symbol} />
           </Panel>
 

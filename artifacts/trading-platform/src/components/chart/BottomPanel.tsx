@@ -1,8 +1,6 @@
 import { useState, useCallback } from "react";
 import { ChevronUp, ChevronDown, Maximize2, Minimize2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { OpenTradesWidget } from "@/components/chart/ChartOpenTrades";
-import { cn } from "@/lib/utils";
 
 type PanelMode = "minimized" | "expanded" | "maximized";
 
@@ -30,43 +28,48 @@ export function BottomPanel({ symbol }: BottomPanelProps) {
   const maximize = useCallback(() => setMode("maximized"), []);
   const minimize = useCallback(() => setMode("minimized"), []);
 
-  const toggleExpand = useCallback(() => {
-    setMode((prev) => (prev === "minimized" ? "expanded" : "minimized"));
-  }, []);
-
   const isMinimized = mode === "minimized";
   const isExpanded = mode === "expanded";
   const isMaximized = mode === "maximized";
 
-  return (
-    <div
-      className={cn(
-        "bottom-panel flex flex-col bg-card border-border transition-all duration-250 ease-in-out flex-shrink-0",
-        isMaximized
-          ? "bottom-panel--maximized"
-          : "border-t border-border w-full"
-      )}
-      style={
-        isMaximized
-          ? {
-              position: "absolute",
-              inset: 0,
-              zIndex: 50,
-              height: "100%",
-              borderTop: "none",
-            }
-          : isExpanded
-          ? { height: `${EXPANDED_HEIGHT}px` }
-          : { height: "2.5rem" }
+  const panelStyle: React.CSSProperties = isMaximized
+    ? {
+        position: "absolute",
+        inset: 0,
+        zIndex: 50,
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: "#0f1318",
+        boxShadow: "0 -4px 24px rgba(0,0,0,0.6)",
       }
-    >
-      {/* ── Header / Tab bar ── */}
+    : {
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: "#0f1318",
+        borderTop: "1px solid #1a2332",
+        height: isExpanded ? `${EXPANDED_HEIGHT}px` : "2.5rem",
+        minHeight: isExpanded ? `${EXPANDED_HEIGHT}px` : "2.5rem",
+        overflow: "hidden",
+        transition: "height 250ms cubic-bezier(0.4, 0, 0.2, 1), min-height 250ms cubic-bezier(0.4, 0, 0.2, 1)",
+      };
+
+  return (
+    <div style={panelStyle}>
+      {/* ── Header / Tab bar ─────────────────────────────── */}
       <div
-        className="bottom-panel__header flex items-center shrink-0 border-b border-border bg-card"
-        style={{ height: "2.5rem", minHeight: "2.5rem" }}
+        style={{
+          height: "2.5rem",
+          minHeight: "2.5rem",
+          display: "flex",
+          alignItems: "center",
+          borderBottom: "1px solid #1a2332",
+          background: "linear-gradient(180deg, #111620 0%, #0f1318 100%)",
+          flexShrink: 0,
+        }}
       >
         {/* Tabs */}
-        <div className="flex items-center h-full overflow-hidden flex-1">
+        <div style={{ display: "flex", alignItems: "center", height: "100%", flex: 1, overflow: "hidden" }}>
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -76,90 +79,140 @@ export function BottomPanel({ symbol }: BottomPanelProps) {
                   setActiveTab(tab.id);
                   if (isMinimized) expand();
                 }}
-                className={cn(
-                  "bottom-panel__tab h-full px-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider border-r border-border transition-all duration-150 shrink-0 cursor-pointer",
-                  isActive
-                    ? "text-primary bg-primary/10 border-b-2 border-b-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                )}
-                style={{ borderBottom: isActive ? "2px solid var(--primary)" : "2px solid transparent" }}
+                style={{
+                  height: "100%",
+                  padding: "0 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: "0.625rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  fontWeight: 700,
+                  border: "none",
+                  borderRight: "1px solid #1a2332",
+                  borderBottom: isActive ? "2px solid #10b981" : "2px solid transparent",
+                  backgroundColor: isActive ? "rgba(16, 185, 129, 0.08)" : "transparent",
+                  color: isActive ? "#10b981" : "#64748b",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  outline: "none",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.color = "#94a3b8";
+                    e.currentTarget.style.backgroundColor = "rgba(30, 41, 59, 0.3)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.color = "#64748b";
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }
+                }}
               >
-                <i className={`bi ${tab.icon}`} style={{ fontSize: "0.65rem" }} />
+                <i className={`bi ${tab.icon}`} style={{ fontSize: "0.6rem" }} />
                 {tab.label}
               </button>
             );
           })}
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-0.5 px-2 shrink-0">
-          {/* Expand / Collapse toggle */}
+        {/* ── Controls ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "2px",
+            padding: "0 0.5rem",
+            flexShrink: 0,
+          }}
+        >
+          {/* Separator */}
+          <div style={{ width: "1px", height: "1rem", backgroundColor: "#1a2332", marginRight: "4px" }} />
+
+          {/* Expand / Collapse */}
           {isMinimized ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
-              onClick={expand}
-              title="Expand panel"
-            >
-              <ChevronUp size={14} />
-            </Button>
+            <ControlButton onClick={expand} title="Expand panel" color="#10b981">
+              <ChevronUp size={13} />
+            </ControlButton>
           ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={isMaximized ? expand : minimize}
-              title={isMaximized ? "Restore" : "Collapse panel"}
-            >
-              <ChevronDown size={14} />
-            </Button>
+            <ControlButton onClick={isMaximized ? expand : minimize} title={isMaximized ? "Restore" : "Collapse panel"}>
+              <ChevronDown size={13} />
+            </ControlButton>
           )}
 
-          {/* Maximize */}
+          {/* Maximize / Restore */}
           {!isMaximized ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
-              onClick={maximize}
-              title="Maximize panel"
-            >
-              <Maximize2 size={13} />
-            </Button>
+            <ControlButton onClick={maximize} title="Maximize panel" color="#10b981">
+              <Maximize2 size={12} />
+            </ControlButton>
           ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={expand}
-              title="Restore to expanded"
-            >
-              <Minimize2 size={13} />
-            </Button>
+            <ControlButton onClick={expand} title="Restore to expanded">
+              <Minimize2 size={12} />
+            </ControlButton>
           )}
 
-          {/* Minimize (close) — always available */}
+          {/* Close / Minimize — only when not already minimized */}
           {!isMinimized && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              onClick={minimize}
-              title="Minimize panel"
-            >
-              <X size={13} />
-            </Button>
+            <ControlButton onClick={minimize} title="Minimize panel" hoverColor="#ef4444">
+              <X size={12} />
+            </ControlButton>
           )}
         </div>
       </div>
 
       {/* ── Body / Tab content ── */}
       {!isMinimized && (
-        <div className="bottom-panel__body flex-1 overflow-auto min-h-0">
+        <div style={{ flex: 1, overflow: "auto", minHeight: 0, backgroundColor: "#0a0d11" }}>
           {activeTab === "trades" && <OpenTradesWidget symbol={symbol} />}
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Small inline helper component for control buttons ── */
+function ControlButton({
+  onClick,
+  title,
+  children,
+  color = "#94a3b8",
+  hoverColor = "#10b981",
+}: {
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+  color?: string;
+  hoverColor?: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "1.75rem",
+        height: "1.75rem",
+        backgroundColor: hovered ? "rgba(30, 41, 59, 0.6)" : "transparent",
+        color: hovered ? hoverColor : color,
+        border: "none",
+        cursor: "pointer",
+        outline: "none",
+        borderRadius: "2px",
+        transition: "background-color 0.15s ease, color 0.15s ease",
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </button>
   );
 }
