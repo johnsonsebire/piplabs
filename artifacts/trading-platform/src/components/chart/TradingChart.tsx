@@ -404,9 +404,23 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
 
   return (
-    <div className="relative w-full h-full flex flex-col overflow-hidden">
+    <div className="position-relative w-100 h-100 d-flex flex-column overflow-hidden" style={{ position: 'relative' }}>
       {!isConnected && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div 
+          style={{ 
+            position: "absolute", 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 10, 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center", 
+            backgroundColor: "rgba(10, 13, 17, 0.8)", 
+            backdropFilter: "blur(4px)" 
+          }}
+        >
           <div className="text-primary font-mono text-xl animate-pulse uppercase tracking-widest">
             Connecting to Deriv...
           </div>
