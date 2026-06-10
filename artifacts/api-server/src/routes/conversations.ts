@@ -26,12 +26,13 @@ router.get("/conversations", requireAuth, async (req: AuthenticatedRequest, res)
 router.get("/conversations/:id/messages", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.userId!;
-    const conversationId = parseInt(req.params.id);
+    const conversationId = parseInt(req.params.id as string);
 
     // Verify ownership
     const convo = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
     if (!convo || convo.length === 0 || convo[0].userId !== userId) {
-      return res.status(404).json({ error: "Conversation not found" });
+      res.status(404).json({ error: "Conversation not found" });
+      return;
     }
 
     const allMsgs = await db
@@ -51,12 +52,13 @@ router.get("/conversations/:id/messages", requireAuth, async (req: Authenticated
 router.delete("/conversations/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.userId!;
-    const conversationId = parseInt(req.params.id);
+    const conversationId = parseInt(req.params.id as string);
 
     // Verify ownership
     const convo = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
     if (!convo || convo.length === 0 || convo[0].userId !== userId) {
-      return res.status(404).json({ error: "Conversation not found" });
+      res.status(404).json({ error: "Conversation not found" });
+      return;
     }
 
     await db.delete(conversations).where(eq(conversations.id, conversationId));

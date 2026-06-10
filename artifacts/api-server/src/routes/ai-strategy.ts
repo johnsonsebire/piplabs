@@ -47,7 +47,8 @@ Condition Object: { "id": "unique_string", "indicatorA": "RSI(14)", "operator": 
 router.post("/ai/strategy/generate", requireAuth, async (req: AuthenticatedRequest, res) => {
   const { messages, conversationId } = req.body;
   if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: "Invalid messages array" });
+    res.status(400).json({ error: "Invalid messages array" });
+    return;
   }
 
   const userId = req.userId!;
@@ -76,7 +77,8 @@ router.post("/ai/strategy/generate", requireAuth, async (req: AuthenticatedReque
     }
   } catch (error) {
     logger.error({ error }, "Error setting up conversation");
-    return res.status(500).json({ error: "Failed to setup conversation" });
+    res.status(500).json({ error: "Failed to setup conversation" });
+    return;
   }
 
   // Setup SSE headers
@@ -230,7 +232,7 @@ router.post("/ai/strategy/generate", requireAuth, async (req: AuthenticatedReque
               const wins = trades.filter(t => t.pnl > 0).length;
               const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
               const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-              const maxDrawdown = computeMaxDrawdown(trades);
+              const maxDrawdown = computeMaxDrawdown(params.initialBalance, trades);
               
               const resultStr = `Backtest Results for ${args.symbol}:\nTrades: ${trades.length}\nWin Rate: ${winRate.toFixed(1)}%\nTotal PnL: $${totalPnl.toFixed(2)}\nMax Drawdown: $${maxDrawdown.toFixed(2)}`;
               

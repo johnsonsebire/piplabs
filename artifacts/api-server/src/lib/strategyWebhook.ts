@@ -159,7 +159,7 @@ export async function fireStrategyWebhook(
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "User-Agent": "DerivTerminal-Webhook/1.0",
+      "User-Agent": "PipLabs-Webhook/1.0",
       "X-Webhook-Timestamp": timestamp,
     };
     if (secret) {

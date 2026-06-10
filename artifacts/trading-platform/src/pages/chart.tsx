@@ -8,7 +8,7 @@ import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
 import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -164,15 +164,36 @@ export default function ChartPage() {
                   <div className="w-px h-4 bg-border flex-shrink-0"></div>
 
                   <Select value={String(granularitySec)} onValueChange={(v) => setGranularitySec(parseInt(v, 10))}>
-                    <SelectTrigger className="w-[70px] h-100 rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50 flex-shrink-0" data-testid="select-timeframe">
+                    <SelectTrigger className="w-[72px] h-full py-0 px-2 rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50 flex-shrink-0 [&>span]:flex [&>span]:items-center [&>span]:h-full" data-testid="select-timeframe">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border max-h-72 bg-[#0f1318] shadow-2xl z-[1000]" style={{ backgroundColor: '#0f1318' }}>
-                      {TIMEFRAME_OPTIONS.map((tf) => (
-                        <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs">
-                          {tf.label}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        <SelectLabel className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-mono font-bold py-1 bg-[#151c24]/30">Minutes</SelectLabel>
+                        {TIMEFRAME_OPTIONS.filter(tf => tf.group === "MINUTES").map((tf) => (
+                          <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs cursor-pointer">
+                            {tf.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectSeparator className="bg-[#1a2332] my-0.5" />
+                      <SelectGroup>
+                        <SelectLabel className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-mono font-bold py-1 bg-[#151c24]/30">Hours</SelectLabel>
+                        {TIMEFRAME_OPTIONS.filter(tf => tf.group === "HOURS").map((tf) => (
+                          <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs cursor-pointer">
+                            {tf.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectSeparator className="bg-[#1a2332] my-0.5" />
+                      <SelectGroup>
+                        <SelectLabel className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-mono font-bold py-1 bg-[#151c24]/30">Days</SelectLabel>
+                        {TIMEFRAME_OPTIONS.filter(tf => tf.group === "DAYS").map((tf) => (
+                          <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs cursor-pointer">
+                            {tf.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>
@@ -184,9 +205,9 @@ export default function ChartPage() {
               </div>
 
               <div className="d-flex align-items-center gap-4">
-                <div className="d-flex flex-column align-items-end">
-                  <span className="text-[9px] text-muted-foreground uppercase font-mono tracking-wider leading-none mb-1">Spot Price</span>
-                  <span className={`font-mono font-bold text-base leading-none ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
+                <div className="d-flex align-items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider leading-none">Spot Price</span>
+                  <span className={`font-mono font-bold text-sm leading-none ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
                     {latestTick ? latestTick.quote.toFixed(4) : '---'}
                   </span>
                 </div>

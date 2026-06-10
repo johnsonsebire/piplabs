@@ -33,7 +33,7 @@ router.get("/market/economy-calendar", requireAuth, async (req: AuthenticatedReq
       return;
     }
     
-    const data = await response.json();
+    const data: any = await response.json();
     
     if (!data || !data.response) {
       res.json([]);
@@ -72,7 +72,7 @@ router.get("/market/news", requireAuth, async (req: AuthenticatedRequest, res): 
       return;
     }
     
-    const data = await response.json();
+    const data: any = await response.json();
     
     if (!data || !data.response) {
       res.json(GetMarketNewsResponse.parse([]));

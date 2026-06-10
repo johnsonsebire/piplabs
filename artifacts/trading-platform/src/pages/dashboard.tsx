@@ -273,7 +273,7 @@ export default function Dashboard() {
                 </div>
                 <div className="d-flex justify-content-between align-items-center px-3 py-3" style={{ borderBottom: '1px solid var(--bs-border-color)' }}>
                   <span className="text-secondary">Platform</span>
-                  <span className="fw-bold text-uppercase letter-spacing-wider" style={{ fontSize: '0.625rem' }}>DerivTerminal v1.0</span>
+                  <span className="fw-bold text-uppercase letter-spacing-wider" style={{ fontSize: '0.625rem' }}>PipLabs v1.0</span>
                 </div>
                 
                 {/* Connect CTA if disconnected */}

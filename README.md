@@ -1,6 +1,6 @@
-# DerivTerminal
+# PipLabs
 
-A high-performance trading terminal for Deriv traders — real-time data via Deriv WebSocket API, TradingView Lightweight Charts, AI-powered trade confirmation, algorithmic strategies with backtesting, and full role-based access control.
+A universal, modern, AI-powered trading platform — supporting real-time data via partner brokers like Deriv, TradingView Lightweight Charts, AI-powered trade confirmation, algorithmic strategies with backtesting, and full role-based access control.
 
 ---
 

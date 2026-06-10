@@ -1,6 +1,6 @@
-# DerivTerminal AI Rules & Tech Stack
+# PipLabs AI Rules & Tech Stack
 
-This document outlines the architectural standards and library usage rules for the DerivTerminal project.
+This document outlines the architectural standards and library usage rules for the PipLabs project.
 
 ## Tech Stack
 

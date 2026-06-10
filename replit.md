@@ -1,6 +1,6 @@
-# DerivTerminal
+# PipLabs
 
-A high-performance trading terminal for Deriv traders — real-time data via Deriv WebSocket API, TradingView Lightweight Charts, AI-powered trade confirmation, algorithmic strategies with backtesting, and full role-based access control.
+A universal, modern, AI-powered trading platform — supporting real-time data via partner brokers like Deriv, TradingView Lightweight Charts, AI-powered trade confirmation, algorithmic strategies with backtesting, and full role-based access control.
 
 ## Run & Operate
 
@@ -85,7 +85,7 @@ A high-performance trading terminal for Deriv traders — real-time data via Der
 ## User preferences
 
 - Dark terminal aesthetic: financial green (`#00ff88`) on deep charcoal (`#0a0f0d`) — keep this throughout
-- Brand name: **DerivTerminal**
+- Brand name: **PipLabs**
 
 ## Gotchas
 

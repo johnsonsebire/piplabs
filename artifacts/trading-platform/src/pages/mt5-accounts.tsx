@@ -106,8 +106,8 @@ export default function MT5AccountsPage() {
           )}
         </div>
 
-        <div className="d-flex flex-1 gap-4 overflow-hidden">
-          <div className="flex-1 overflow-auto d-flex flex-column gap-4 pb-4">
+        <div className="d-flex flex-grow-1 gap-4 overflow-hidden w-100">
+          <div className="flex-grow-1 overflow-auto d-flex flex-column gap-4 pb-4 w-100">
             {isAdding && (
               <div className="border border-success p-4 d-flex flex-column gap-3" style={{ backgroundColor: 'var(--background)' }}>
                 <div className="d-flex align-items-center justify-content-between border-bottom border-secondary pb-3">
@@ -179,7 +179,7 @@ export default function MT5AccountsPage() {
             ) : (
               <div className="row g-4 m-0 w-100">
                 {accounts?.map((account: any) => (
-                  <div className="col-12 col-lg-6 p-0 pe-4 pb-4" key={account.id}>
+                  <div className="col-12 col-xl-6" key={account.id}>
                     <div className="border border-secondary p-4 d-flex flex-column h-100 position-relative" style={{ backgroundColor: 'var(--background)' }}>
                       <div className="d-flex justify-content-between align-items-start mb-4">
                         <div className="pe-2 overflow-hidden flex-grow-1">

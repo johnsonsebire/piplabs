@@ -1054,7 +1054,7 @@ export default function StrategiesPage() {
   </p>
   <Input
   type="url"
-  placeholder="https://example.com/hooks/derivterminal"
+  placeholder="https://example.com/hooks/piplabs"
   value={webhookUrl}
   onChange={e => setWebhookUrl(e.target.value)}
   className="rounded-none font-mono small border-secondary "

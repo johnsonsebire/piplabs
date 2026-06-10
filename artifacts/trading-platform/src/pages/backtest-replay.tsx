@@ -149,7 +149,28 @@ export default function BacktestReplayPage() {
     const empty = { candles: [] as any[], indicatorRefs: new Set<string>(), indicatorStatus: {} as Record<string, { computed: boolean; sampleValues: number[]; error?: string }>, overlayKeys: [] as string[], oscillatorKeys: [] as string[] };
     if (!rawCandles.length) return empty;
 
-    const mappedCandles = rawCandles.map(c => ({ ...c, indicators: {} as Record<string, any> }));
+    // Filter, sort and deduplicate candles
+    const cleaned = rawCandles
+      .filter(c => c && c.time != null && c.open != null && c.high != null && c.low != null && c.close != null)
+      .map(c => ({
+        time: Number(c.time),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    const unique: typeof cleaned = [];
+    for (const c of cleaned) {
+      if (unique.length === 0 || c.time > unique[unique.length - 1].time) {
+        unique.push(c);
+      }
+    }
+
+    if (unique.length === 0) return empty;
+
+    const mappedCandles = unique.map(c => ({ ...c, indicators: {} as Record<string, any> }));
 
     const refs = new Set<string>();
     const status: Record<string, { computed: boolean; sampleValues: number[]; error?: string }> = {};
@@ -244,7 +265,7 @@ export default function BacktestReplayPage() {
                 for (const pt of targetData) {
                   const idx = timeIndex.get(pt.time);
                   if (idx !== undefined) {
-                    if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: pt.color };
+                    if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: (pt as any).color };
                     else mappedCandles[idx].indicators[ref] = pt.value;
                   }
                 }
@@ -634,12 +655,31 @@ export default function BacktestReplayPage() {
   function addMarkersForTrades(series: any, allTrades: SimTrade[], maxIdx: number, allCandles: Candle[]) {
     if (!allTrades || allTrades.length === 0 || maxIdx < 0) return;
     
+    // Helper to find closest candle time to prevent lightweight-charts crash on non-existent timestamps
+    const findClosestCandleTime = (timeSec: number, candlesList: Candle[]) => {
+      if (candlesList.length === 0) return timeSec;
+      let closest = candlesList[0].time;
+      let minDiff = Math.abs(timeSec - closest);
+      for (let i = 1; i < candlesList.length; i++) {
+        const diff = Math.abs(timeSec - candlesList[i].time);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = candlesList[i].time;
+        } else if (candlesList[i].time > timeSec) {
+          break;
+        }
+      }
+      return closest;
+    };
+
     const maxTime = allCandles[maxIdx].time;
     const markers: any[] = [];
     
     for (const t of allTrades) {
-      const entryTime = Math.floor(new Date(t.entryAt).getTime() / 1000);
-      const exitTime = Math.floor(new Date(t.exitAt).getTime() / 1000);
+      const rawEntryTime = Math.floor(new Date(t.entryAt).getTime() / 1000);
+      const entryTime = findClosestCandleTime(rawEntryTime, allCandles);
+      const rawExitTime = Math.floor(new Date(t.exitAt).getTime() / 1000);
+      const exitTime = findClosestCandleTime(rawExitTime, allCandles);
       
       if (entryTime <= maxTime) {
         markers.push({

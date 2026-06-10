@@ -41,6 +41,27 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
     const empty = { newCandles: [], overlayKeys: [] as string[], oscillatorKeys: [] as string[], oscillatorGroups: [] as [string, string[]][] };
     if (!candles.length || !strategy) return empty;
 
+    // Filter, sort and deduplicate candles
+    const cleaned = candles
+      .filter(c => c && c.time != null && c.open != null && c.high != null && c.low != null && c.close != null)
+      .map(c => ({
+        time: Number(c.time),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    const unique: typeof cleaned = [];
+    for (const c of cleaned) {
+      if (unique.length === 0 || c.time > unique[unique.length - 1].time) {
+        unique.push(c);
+      }
+    }
+
+    if (unique.length === 0) return empty;
+
     const refs = new Set<string>();
     const userIndMap = new Map<string, any>();
     if (userIndicators) {
@@ -77,7 +98,7 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
       else if (upper.startsWith("BB_") || upper === "BB") { refs.add("BB_UPPER"); refs.add("BB_LOWER"); refs.add("BB_MIDDLE"); }
     });
 
-    const mappedCandles = candles.map(c => ({ ...c, indicators: {} as Record<string, any> }));
+    const mappedCandles = unique.map(c => ({ ...c, indicators: {} as Record<string, any> }));
 
     refs.forEach(ref => {
       let config = userIndMap.get(ref.trim().toLowerCase()) ?? null;
@@ -114,7 +135,7 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
               for (const pt of targetData) {
                 const idx = timeIndex.get(pt.time);
                 if (idx !== undefined) {
-                  if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: pt.color };
+                  if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: (pt as any).color };
                   else mappedCandles[idx].indicators[ref] = pt.value;
                 }
               }
@@ -234,7 +255,7 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
             if (keyIdx === 0) {
               const dummySeries = oscChart.addLineSeries({
                 color: "transparent",
-                lineWidth: 0,
+                lineWidth: 0 as any,
                 priceLineVisible: false,
                 lastValueVisible: false,
                 crosshairMarkerVisible: false,
@@ -380,12 +401,31 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
   // Trade markers
   useEffect(() => {
     if (!seriesRef.current || !trades || trades.length === 0) return;
+
+    // Helper to find closest candle time to prevent lightweight-charts crash on non-existent timestamps
+    const findClosestCandleTime = (timeSec: number, candlesList: any[]) => {
+      if (candlesList.length === 0) return timeSec;
+      let closest = candlesList[0].time;
+      let minDiff = Math.abs(timeSec - closest);
+      for (let i = 1; i < candlesList.length; i++) {
+        const diff = Math.abs(timeSec - candlesList[i].time);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = candlesList[i].time;
+        } else if (candlesList[i].time > timeSec) {
+          break;
+        }
+      }
+      return closest;
+    };
+
     const markers: any[] = [];
     for (const t of trades) {
       // only show markers for this symbol
       if (t.symbol !== symbol) continue;
       
-      const entryTime = Math.floor(new Date(t.openedAt).getTime() / 1000);
+      const rawEntryTime = Math.floor(new Date(t.openedAt).getTime() / 1000);
+      const entryTime = findClosestCandleTime(rawEntryTime, newCandles);
       markers.push({
         time: entryTime as any,
         position: t.direction === "call" ? "belowBar" : "aboveBar",
@@ -394,7 +434,8 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
         text: t.direction === "call" ? "BUY" : "SELL",
       });
       if (t.closedAt) {
-        const exitTime = Math.floor(new Date(t.closedAt).getTime() / 1000);
+        const rawExitTime = Math.floor(new Date(t.closedAt).getTime() / 1000);
+        const exitTime = findClosestCandleTime(rawExitTime, newCandles);
         markers.push({
           time: exitTime as any,
           position: t.currentProfit >= 0 ? "aboveBar" : "belowBar",
@@ -419,7 +460,7 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
     try {
       seriesRef.current.setMarkers(uniqueMarkers);
     } catch {}
-  }, [trades, symbol, newCandles.length]);
+  }, [trades, symbol, newCandles]);
 
   return (
     <div className="flex flex-col h-full bg-background relative border border-border">

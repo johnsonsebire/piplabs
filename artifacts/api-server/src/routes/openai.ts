@@ -101,7 +101,7 @@ router.post("/openai/conversations/:id/messages", requireAuth, async (req: Authe
       messages: [
         {
           role: "system",
-          content: "You are a helpful trading assistant specializing in Deriv platform trading, technical analysis, and financial markets.",
+          content: "You are a helpful trading assistant specializing in PipLabs platform trading, technical analysis, and financial markets.",
         },
         ...history.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
       ],

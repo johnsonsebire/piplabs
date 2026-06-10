@@ -1,6 +1,6 @@
 @echo off
 :: ============================================================================
-:: Deriv AI Trader — Start Script (Windows)
+:: PipLabs — Start Script (Windows)
 :: Double-click this file or run it from a terminal to launch all services.
 :: ============================================================================
 

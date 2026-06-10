@@ -160,18 +160,30 @@ export function useDerivWs(symbol: string, granularitySec: number = 60): UseDeri
   return { ticks, candles, latestTick, isConnected, error };
 }
 
-export const TIMEFRAME_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
-  { label: "1m",  seconds: 60 },
-  { label: "2m",  seconds: 120 },
-  { label: "3m",  seconds: 180 },
-  { label: "5m",  seconds: 300 },
-  { label: "10m", seconds: 600 },
-  { label: "15m", seconds: 900 },
-  { label: "20m", seconds: 1200 },
-  { label: "30m", seconds: 1800 },
-  { label: "1h",  seconds: 3600 },
-  { label: "2h",  seconds: 7200 },
-  { label: "3h",  seconds: 10800 },
-  { label: "4h",  seconds: 14400 },
-  { label: "1d",  seconds: 86400 },
+export const TIMEFRAME_OPTIONS: ReadonlyArray<{ label: string; seconds: number; group: "MINUTES" | "HOURS" | "DAYS" }> = [
+  // Minutes
+  { label: "M1",  seconds: 60,      group: "MINUTES" },
+  { label: "M2",  seconds: 120,     group: "MINUTES" },
+  { label: "M3",  seconds: 180,     group: "MINUTES" },
+  { label: "M4",  seconds: 240,     group: "MINUTES" },
+  { label: "M5",  seconds: 300,     group: "MINUTES" },
+  { label: "M6",  seconds: 360,     group: "MINUTES" },
+  { label: "M10", seconds: 600,     group: "MINUTES" },
+  { label: "M12", seconds: 720,     group: "MINUTES" },
+  { label: "M15", seconds: 900,     group: "MINUTES" },
+  { label: "M20", seconds: 1200,    group: "MINUTES" },
+  { label: "M30", seconds: 1800,    group: "MINUTES" },
+  // Hours
+  { label: "H1",  seconds: 3600,    group: "HOURS" },
+  { label: "H2",  seconds: 7200,    group: "HOURS" },
+  { label: "H3",  seconds: 10800,   group: "HOURS" },
+  { label: "H4",  seconds: 14400,   group: "HOURS" },
+  { label: "H6",  seconds: 21600,   group: "HOURS" },
+  { label: "H8",  seconds: 28800,   group: "HOURS" },
+  { label: "H12", seconds: 43200,   group: "HOURS" },
+  // Days
+  { label: "D1",  seconds: 86400,   group: "DAYS" },
+  { label: "W1",  seconds: 604800,  group: "DAYS" },
+  { label: "MN",  seconds: 2592000, group: "DAYS" },
 ];
+

@@ -11,6 +11,7 @@ export const copyTradingSubscriptionsTable = pgTable("copy_trading_subscriptions
   subscriberAccountId: text("subscriber_account_id").notNull().references(() => mt5AccountsTable.id, { onDelete: "cascade" }),
   providerAccountId: text("provider_account_id").notNull().references(() => mt5AccountsTable.id, { onDelete: "cascade" }),
   strategyId: integer("strategy_id").references(() => strategiesTable.id, { onDelete: "set null" }), // Optional strategy linkage
+  riskType: text("risk_type").notNull().default("fixed"), // 'fixed' or 'proportional'
   riskMultiplier: real("risk_multiplier").notNull().default(1.0),
   status: copyTradingSubscriptionStatusEnum("status").notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

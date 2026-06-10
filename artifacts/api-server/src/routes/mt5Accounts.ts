@@ -12,7 +12,8 @@ router.get("/mt5-accounts", requireAuth, async (req: AuthenticatedRequest, res: 
   try {
     const userId = req.userId;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ error: "Unauthorized" });
+      return;
     }
 
     const metaApi = getMetaApiWrapper();
@@ -22,6 +23,7 @@ router.get("/mt5-accounts", requireAuth, async (req: AuthenticatedRequest, res: 
       const isProvider = acc.copyFactoryRoles?.includes('PROVIDER') || false;
       const state = acc.state === 'DEPLOYED' ? 'deployed' : 'undeployed';
       const connectionStatus = acc.connectionStatus === 'CONNECTED' ? 'connected' : acc.connectionStatus === 'DISCONNECTED' ? 'disconnected' : 'error';
+      const type = String(acc.type).toLowerCase() === 'live' ? 'live' : 'demo';
 
       await db.insert(mt5AccountsTable).values({
         id: acc.id,
@@ -29,7 +31,7 @@ router.get("/mt5-accounts", requireAuth, async (req: AuthenticatedRequest, res: 
         login: acc.login,
         server: acc.server,
         name: acc.name,
-        type: acc.type === 'live' ? 'live' : 'demo',
+        type: type,
         isProvider,
         state,
         connectionStatus
@@ -60,17 +62,18 @@ router.post("/mt5-accounts/:id/provider", requireAuth, async (req: Authenticated
   try {
     const userId = req.userId;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ error: "Unauthorized" });
+      return;
     }
 
     const accountId = req.params.id;
     const metaApi = getMetaApiWrapper();
     
-    await metaApi.setProviderRole(accountId, 1);
+    await metaApi.setProviderRole(accountId as string, 1);
 
     const [updatedAccount] = await db.update(mt5AccountsTable)
       .set({ isProvider: true, updatedAt: new Date() })
-      .where(eq(mt5AccountsTable.id, accountId))
+      .where(eq(mt5AccountsTable.id, accountId as string))
       .returning();
 
     res.json(updatedAccount);
@@ -85,12 +88,14 @@ router.post("/mt5-accounts", requireAuth, async (req: AuthenticatedRequest, res:
   try {
     const userId = req.userId;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ error: "Unauthorized" });
+      return;
     }
 
     const { name, login, password, server, type } = req.body;
     if (!name || !login || !password || !server) {
-      return res.status(400).json({ error: "Missing required fields" });
+      res.status(400).json({ error: "Missing required fields" });
+      return;
     }
 
     const metaApi = getMetaApiWrapper();

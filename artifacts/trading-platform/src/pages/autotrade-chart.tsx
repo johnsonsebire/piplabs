@@ -117,8 +117,17 @@ function fetchCandlesFromDeriv(
             Number.isFinite(c.close)
           )
           .sort((a: Candle, b: Candle) => a.time - b.time);
+
+        // Remove duplicates by time (required by lightweight-charts)
+        const uniqueCandles: Candle[] = [];
+        for (const c of candles) {
+          if (uniqueCandles.length === 0 || c.time > uniqueCandles[uniqueCandles.length - 1].time) {
+            uniqueCandles.push(c);
+          }
+        }
+
         clearTimeout(timer);
-        finish(() => resolve(candles));
+        finish(() => resolve(uniqueCandles));
       }
     };
 
@@ -163,9 +172,31 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
   const pnl = trade.currentProfit ?? 0;
   const outcome = pnl >= 0 ? "win" : "loss";
 
+  const cleanedCandles = useMemo(() => {
+    if (!candles || candles.length === 0) return [];
+    const cleaned = candles
+      .filter(c => c && c.time != null && c.open != null && c.high != null && c.low != null && c.close != null)
+      .map(c => ({
+        time: Number(c.time),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    const unique: typeof cleaned = [];
+    for (const c of cleaned) {
+      if (unique.length === 0 || c.time > unique[unique.length - 1].time) {
+        unique.push(c);
+      }
+    }
+    return unique;
+  }, [candles]);
+
   const { newCandles, overlayKeys, oscillatorKeys, oscillatorGroups } = useMemo(() => {
-    const empty = { newCandles: candles, overlayKeys: [] as string[], oscillatorKeys: [] as string[], oscillatorGroups: [] as [string, string[]][] };
-    if (!candles.length || !strategy) return empty;
+    const empty = { newCandles: cleanedCandles, overlayKeys: [] as string[], oscillatorKeys: [] as string[], oscillatorGroups: [] as [string, string[]][] };
+    if (!cleanedCandles.length || !strategy) return empty;
 
     const refs = new Set<string>();
     const userIndMap = new Map<string, any>();
@@ -203,7 +234,7 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
       else if (upper.startsWith("BB_") || upper === "BB") { refs.add("BB_UPPER"); refs.add("BB_LOWER"); refs.add("BB_MIDDLE"); }
     });
 
-    const mappedCandles = candles.map(c => ({ ...c, indicators: {} as Record<string, any> }));
+    const mappedCandles = cleanedCandles.map(c => ({ ...c, indicators: {} as Record<string, any> }));
 
     refs.forEach(ref => {
       let config = userIndMap.get(ref.trim().toLowerCase()) ?? null;
@@ -240,7 +271,7 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
               for (const pt of targetData) {
                 const idx = timeIndex.get(pt.time);
                 if (idx !== undefined) {
-                  if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: pt.color };
+                  if (upperRef === "MACD_HIST") mappedCandles[idx].indicators[ref] = { value: pt.value, color: (pt as any).color };
                   else mappedCandles[idx].indicators[ref] = pt.value;
                 }
               }
@@ -369,7 +400,7 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
             if (keyIdx === 0) {
               const dummySeries = oscChart.addLineSeries({
                 color: "transparent",
-                lineWidth: 0,
+                lineWidth: 0 as any,
                 priceLineVisible: false,
                 lastValueVisible: false,
                 crosshairMarkerVisible: false,
@@ -471,8 +502,26 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
           });
         }
 
+        // Helper to find closest candle time to prevent lightweight-charts crash on non-existent timestamps
+        const findClosestCandleTime = (timeSec: number, candlesList: any[]) => {
+          if (candlesList.length === 0) return timeSec;
+          let closest = candlesList[0].time;
+          let minDiff = Math.abs(timeSec - closest);
+          for (let i = 1; i < candlesList.length; i++) {
+            const diff = Math.abs(timeSec - candlesList[i].time);
+            if (diff < minDiff) {
+              minDiff = diff;
+              closest = candlesList[i].time;
+            } else if (candlesList[i].time > timeSec) {
+              break;
+            }
+          }
+          return closest;
+        };
+
         // Entry / exit markers
-        const entrySec = Math.floor(new Date(trade.openedAt).getTime() / 1000);
+        const rawEntrySec = Math.floor(new Date(trade.openedAt).getTime() / 1000);
+        const entrySec = findClosestCandleTime(rawEntrySec, newCandles);
         const markers: any[] = [
           {
             time: entrySec as any,
@@ -485,7 +534,8 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
         ];
 
         if (trade.closedAt) {
-          const exitSec = Math.floor(new Date(trade.closedAt).getTime() / 1000);
+          const rawExitSec = Math.floor(new Date(trade.closedAt).getTime() / 1000);
+          const exitSec = findClosestCandleTime(rawExitSec, newCandles);
           markers.push({
             time: exitSec as any,
             position: outcome === "win" ? "aboveBar" : "belowBar",

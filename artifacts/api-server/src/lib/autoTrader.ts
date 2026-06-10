@@ -37,7 +37,7 @@ async function confirmTradeWithAI(
 ): Promise<{ confirmed: boolean; reason: string }> {
   try {
     const client = getOpenAIClient();
-    const prompt = `You are a Deriv AI Trading Assistant.
+    const prompt = `You are a PipLabs AI Trading Assistant.
 A trading signal has been generated:
 Symbol: ${sym}
 Direction: ${side.toUpperCase()}

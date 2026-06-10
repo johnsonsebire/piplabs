@@ -11,7 +11,7 @@ export default function Home() {
             <path d="M3 13L10 6L14 10L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter"/>
             <path d="M21 3V10M21 3H14" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter"/>
           </svg>
-          DerivTerminal
+          PipLabs
         </div>
         <div className="d-flex align-items-center gap-3">
           <Link href="/sign-in" className="small fw-medium text-secondary text-decoration-none" style={{ transition: 'color 0.2s' }}>
@@ -39,7 +39,7 @@ export default function Home() {
             <span className="text-success">Without Compromise</span>
           </h1>
           <p className="lead font-mono text-secondary mx-auto mb-4" style={{ maxWidth: '36rem', fontSize: '1rem' }}>
-            A high-performance terminal for serious Deriv traders. 
+            A high-performance universal terminal for serious traders. 
             Real-time data, algorithmic execution, and deep analytics.
           </p>
           <div className="d-flex align-items-center justify-content-center gap-3 pt-3">
@@ -90,7 +90,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="text-center py-3 font-mono text-secondary flex-shrink-0" style={{ fontSize: '0.625rem', borderTop: '1px solid var(--bs-border-color)' }}>
-        <span className="text-uppercase letter-spacing-wider">DerivTerminal</span> — Built for precision
+        <span className="text-uppercase letter-spacing-wider">PipLabs</span> — Built for precision
       </footer>
     </div>
   );
