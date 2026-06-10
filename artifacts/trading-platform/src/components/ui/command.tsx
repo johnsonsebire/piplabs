@@ -38,9 +38,9 @@ const CommandDialog = ({ children, ...props }: DialogProps) => {
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => (
   <div 
-    className="flex flex-row items-center flex-nowrap border border-border/40 rounded-md bg-[#121824]/50 px-3 w-full mb-2" 
+    className="flex flex-row items-center flex-nowrap border border-border/40 rounded-md bg-[#121824]/50 px-3 w-full mb-2 focus-within:ring-1 focus-within:ring-inset focus-within:ring-[#10b981] focus-within:border-[#10b981]" 
     cmdk-input-wrapper=""
     style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}
   >
@@ -51,7 +51,7 @@ const CommandInput = React.forwardRef<
         "flex-1 h-9 w-full rounded-none bg-transparent py-2 text-xs outline-none border-0 focus:border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
-      style={{ border: 'none', outline: 'none', boxShadow: 'none', WebkitAppearance: 'none' }}
+      style={{ border: 'none', outline: 'none', boxShadow: 'none', WebkitAppearance: 'none', ...style }}
       {...props}
     />
   </div>

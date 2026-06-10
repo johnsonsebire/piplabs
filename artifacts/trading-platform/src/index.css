@@ -939,6 +939,38 @@ input[type="search"]::-webkit-search-cancel-button {
   gap: 1.5rem;
 }
 
+/* ============================
+   Symbol Search Dropdown
+   ============================ */
+.symbol-search-item {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px !important;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem !important;
+  border-bottom: 1px solid #1a2332 !important;
+  border-radius: 0 !important;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.symbol-search-item:last-child {
+  border-bottom: none !important;
+}
+
+.symbol-search-item[data-selected="true"],
+.symbol-search-item:hover {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.symbol-search-name {
+  color: #e2e8f0;
+  transition: color 0.15s ease;
+}
+
+.symbol-search-item[data-selected="true"] .symbol-search-name,
+.symbol-search-item:hover .symbol-search-name {
+  color: #10b981 !important;
+}
+
 /* Date group */
 .economy-date-group {
   border: 1px solid #1a2332;

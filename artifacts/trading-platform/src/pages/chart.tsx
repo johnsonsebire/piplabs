@@ -29,7 +29,18 @@ const DURATION_UNITS: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 export default function ChartPage() {
-  const [symbol, setSymbol] = useState("R_100");
+  const [symbol, setSymbol] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('deriv_selected_symbol') || "R_100";
+    }
+    return "R_100";
+  });
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('deriv_selected_symbol', symbol);
+    }
+  }, [symbol]);
   const [granularitySec, setGranularitySec] = useState<number>(60);
   const { latestTick, isConnected } = useDerivWs(symbol, granularitySec);
   const { toast } = useToast();
@@ -144,12 +155,12 @@ export default function ChartPage() {
                                   setOpenSearch(false);
                                   setSearchQuery("");
                                 }}
-                                className="font-mono text-xs cursor-pointer py-2 px-3 aria-selected:bg-primary/10 aria-selected:text-primary"
+                                className="symbol-search-item"
                               >
                                 <div className="d-flex align-items-center justify-content-between w-100">
                                   <div className="d-flex flex-column">
-                                    <span className="font-bold">{item.symbol}</span>
-                                    <span className="text-[10px] text-muted-foreground">{item.displayName}</span>
+                                    <span className="font-bold symbol-search-name">{item.symbol}</span>
+                                    <span className="text-muted-foreground mt-0.5" style={{ fontSize: '9px' }}>{item.displayName}</span>
                                   </div>
                                   {symbol === item.symbol && <Check className="h-3 w-3 text-primary" />}
                                 </div>
