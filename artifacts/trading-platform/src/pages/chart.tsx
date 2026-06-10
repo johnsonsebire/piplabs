@@ -198,10 +198,6 @@ export default function ChartPage() {
                   </Select>
                 </div>
 
-                <div className="d-none d-sm-flex align-items-center gap-2 ml-1 flex-shrink-0">
-                  <div className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-primary animate-pulse' : 'bg-destructive'}`}></div>
-                  <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-tighter">{isConnected ? 'Live' : 'Offline'}</span>
-                </div>
               </div>
 
               <div className="d-flex align-items-center gap-4">
