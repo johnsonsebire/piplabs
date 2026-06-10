@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { ChevronUp, ChevronDown, Maximize2, Minimize2, X } from "lucide-react";
-import { OpenTradesWidget } from "@/components/chart/ChartOpenTrades";
+import { OpenTradesWidget, OrderHistoryWidget } from "@/components/chart/ChartOpenTrades";
 
 type PanelMode = "minimized" | "expanded" | "maximized";
 
@@ -12,6 +12,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: "trades", label: "Trades", icon: "bi-arrow-left-right" },
+  { id: "history", label: "Order History", icon: "bi-clock-history" },
 ];
 
 const EXPANDED_HEIGHT = 280;
@@ -169,6 +170,7 @@ export function BottomPanel({ symbol }: BottomPanelProps) {
       {!isMinimized && (
         <div style={{ flex: 1, overflow: "auto", minHeight: 0, backgroundColor: "#0a0d11" }}>
           {activeTab === "trades" && <OpenTradesWidget symbol={symbol} />}
+          {activeTab === "history" && <OrderHistoryWidget />}
         </div>
       )}
     </div>
