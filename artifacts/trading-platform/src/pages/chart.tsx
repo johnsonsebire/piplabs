@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
-import { ChartOpenTradesPanel } from "@/components/chart/ChartOpenTrades";
+import { BottomPanel } from "@/components/chart/BottomPanel";
 import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
 import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -61,9 +61,7 @@ export default function ChartPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   
   const [isTradePanelOpen, setIsTradePanelOpen] = useState(true);
-  const [isOpenTradesOpen, setIsOpenTradesOpen] = useState(false);
   const tradePanelRef = useRef<ImperativePanelHandle>(null);
-  const openTradesPanelRef = useRef<ImperativePanelHandle>(null);
   const isMobile = useIsMobile();
 
   const { data: searchResults, isLoading: isSearching } = useSearchDerivSymbols(
@@ -245,6 +243,7 @@ export default function ChartPage() {
               granularitySec={granularitySec}
               indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
             />
+            <BottomPanel symbol={symbol} />
           </Panel>
 
           <PanelResizeHandle className={cn(
@@ -431,13 +430,6 @@ export default function ChartPage() {
                 />
               </div>
 
-              <div className="border border-border">
-                <ChartOpenTradesPanel 
-                  symbol={symbol} 
-                  isExpanded={isOpenTradesOpen} 
-                  onToggle={() => setIsOpenTradesOpen(!isOpenTradesOpen)} 
-                />
-              </div>
 
               <div className="d-flex align-items-center justify-content-between p-3 border border-border bg-background">
                 <Label className="text-xs uppercase font-mono text-muted-foreground cursor-pointer" htmlFor="ai-confirm">
