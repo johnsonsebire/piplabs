@@ -412,17 +412,51 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
           </div>
         </div>
       )}
-      <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-2 max-w-[calc(100%-80px)]">
-        <div className="flex items-center gap-2 px-2 py-1 bg-background/80 border border-border">
-          <div className={`h-2 w-2 ${isConnected ? "bg-primary animate-pulse" : "bg-destructive"}`} />
-          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+      <div 
+        style={{ 
+          position: "absolute", 
+          top: "8px", 
+          left: "8px", 
+          zIndex: 10, 
+          backgroundColor: "rgba(10, 13, 17, 0.85)", 
+          border: "1px solid #1a2332", 
+          padding: "4px 8px", 
+          display: "flex", 
+          flexDirection: "row", 
+          alignItems: "center", 
+          flexWrap: "wrap", 
+          gap: "8px" 
+        }}
+        className="font-mono text-[9px] uppercase tracking-wider"
+      >
+        <div className="d-flex align-items-center gap-1.5">
+          <div 
+            style={{ 
+              height: "6px", 
+              width: "6px", 
+              borderRadius: "50%", 
+              backgroundColor: isConnected ? "#10b981" : "#ef4444" 
+            }} 
+            className={isConnected ? "animate-pulse" : ""}
+          />
+          <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: "bold" }}>
             {isConnected ? "LIVE • DERIV WS" : "DISCONNECTED"}
           </span>
         </div>
-        {computed.filter(c => c.pane === "overlay").map(c => (
-          <div key={c.id} className="flex items-center gap-1.5 px-2 py-1 bg-background/80 border border-border">
-            <div className="h-0.5 w-3" style={{ background: c.color }} />
-            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground truncate max-w-[140px]">{c.name}</span>
+
+        {computed.filter(c => c.pane === "overlay").length > 0 && (
+          <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332" }} />
+        )}
+
+        {computed.filter(c => c.pane === "overlay").map((c, idx, arr) => (
+          <div key={c.id} className="d-flex align-items-center gap-1.5">
+            <div style={{ height: "2px", width: "10px", background: c.color }} />
+            <span style={{ fontSize: "9px", color: "#94a3b8" }}>
+              {c.name}
+            </span>
+            {idx < arr.length - 1 && (
+              <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332", marginLeft: "8px" }} />
+            )}
           </div>
         ))}
       </div>
