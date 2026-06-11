@@ -6,6 +6,7 @@ import { fetchDerivCandles } from "./derivHistory";
 import { parseStrategyLegs, enabledDirections, buildSeries, evalLeg } from "./backtestEngine";
 import { logger } from "./logger";
 import OpenAI from "openai";
+import { getMetaApiWrapper } from "@workspace/integrations-meta-api";
 
 async function logAutoTradeEvent(sessionId: number, symbol: string, action: string, message: string, details?: any) {
   try {
@@ -523,9 +524,31 @@ async function monitorOpenTrades() {
     .where(eq(tradesTable.status, "open"));
 
   for (const { trade, user } of openTrades) {
-    if (!trade.contractId || !user.derivApiToken) continue;
+    if (!trade.contractId) continue;
 
     try {
+      if (trade.type === "forex") {
+        if (!trade.mt5AccountId) continue;
+        const metaApi = getMetaApiWrapper();
+        const position = await metaApi.getPosition(trade.mt5AccountId, trade.contractId);
+        
+        if (!position) {
+          // Position closed
+          await db.update(tradesTable)
+            .set({ status: "closed", closedAt: new Date() })
+            .where(eq(tradesTable.id, trade.id));
+          logger.info({ tradeId: trade.id }, "AutoTrader: Forex position closed");
+        } else {
+          // Position open, update PnL
+          await db.update(tradesTable)
+            .set({ currentProfit: position.profit })
+            .where(eq(tradesTable.id, trade.id));
+        }
+        continue;
+      }
+
+      if (!user.derivApiToken) continue;
+
       const account = await getAccountForMode(user.derivApiToken, (trade.mode || "demo") as "demo" | "live", user.derivAppId);
       const status = await getOpenContractStatus(user.derivApiToken, account.accountId, trade.contractId, user.derivAppId);
       if (!status) continue;

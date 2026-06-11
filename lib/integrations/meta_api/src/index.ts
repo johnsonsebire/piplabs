@@ -192,6 +192,33 @@ export class MetaApiWrapper {
       // await connection.close(); // Not closing immediately for performance, maybe cache connection later
     }
   }
+
+  /**
+   * Closes a position
+   */
+  async closePosition(accountId: string, positionId: string) {
+    const connection = await this.getAccountConnection(accountId);
+    try {
+      const result = await connection.closePosition(positionId);
+      return result;
+    } catch (error) {
+      console.error(`Error closing position ${positionId} on account ${accountId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets a single position
+   */
+  async getPosition(accountId: string, positionId: string) {
+    const connection = await this.getAccountConnection(accountId);
+    try {
+      return await connection.getPosition(positionId);
+    } catch (error) {
+      // It throws if not found
+      return null;
+    }
+  }
 }
 
 let defaultWrapper: MetaApiWrapper | null = null;

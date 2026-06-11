@@ -126,9 +126,18 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
         options.takeProfit = parsed.data.targetProfit;
       }
 
+      // Normalize symbol for MT5 brokers (e.g. frxXAUUSD -> XAUUSD)
+      let mt5Symbol = parsed.data.symbol;
+      if (mt5Symbol.startsWith("frx")) {
+        mt5Symbol = mt5Symbol.slice(3);
+      } else if (mt5Symbol.startsWith("cry")) {
+        mt5Symbol = mt5Symbol.slice(3);
+      }
+      mt5Symbol = mt5Symbol.toUpperCase();
+
       const result = await metaApi.executeMarketOrder(
         (parsed.data as any).mt5AccountId,
-        parsed.data.symbol,
+        mt5Symbol,
         action,
         volume,
         options
@@ -152,7 +161,16 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
       res.status(201).json(GetTradeResponse.parse(updated));
       return;
     } catch (err: any) {
-      const message = err instanceof Error ? err.message : "MT5 execution failed";
+      // Improve user-friendliness of MetaApi errors
+      let message = err instanceof Error ? err.message : "MT5 execution failed";
+      
+      // Handle known MetaApi format errors elegantly
+      if (err?.stringCode === 'ERR_MARKET_UNKNOWN_SYMBOL' || message.includes('Unknown symbol')) {
+        message = `The MT5 broker does not support the symbol: ${parsed.data.symbol}.`;
+      } else if (err?.name === 'ValidationError' && message.includes('We were not able to connect to your broker')) {
+        message = 'Unable to connect to MT5 broker. Please check that your MT5 account credentials and server are correct.';
+      }
+
       req.log.warn({ err, tradeId: trade.id }, "MT5 trade execution failed");
       await db.update(tradesTable)
         .set({ status: "cancelled", notes: message })
@@ -438,6 +456,40 @@ router.post("/trades/:id/close", requireAuth, async (req: AuthenticatedRequest, 
   if (!trade || trade.status !== "open" || !trade.contractId) {
     res.status(404).json({ error: "Trade not found or not open" });
     return;
+  }
+
+  if (trade.type === "forex") {
+    if (!trade.mt5AccountId) {
+      res.status(400).json({ error: "No MT5 account associated with this trade" });
+      return;
+    }
+
+    try {
+      const metaApi = getMetaApiWrapper();
+      await metaApi.closePosition(trade.mt5AccountId, trade.contractId);
+
+      const [updatedTrade] = await db.update(tradesTable)
+        .set({
+          status: "closed",
+          closedAt: new Date(),
+        })
+        .where(eq(tradesTable.id, trade.id))
+        .returning();
+
+      await db.insert(tradeLogsTable).values({
+        tradeId: trade.id,
+        level: "info",
+        message: `Forex position manually closed via MT5.`,
+      });
+
+      res.json(CloseTradeResponse.parse(updatedTrade));
+      return;
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : "Failed to execute sell on MT5";
+      req.log.error({ err, tradeId: trade.id }, "Error selling MT5 trade");
+      res.status(502).json({ error: msg });
+      return;
+    }
   }
 
   const user = req.dbUser!;

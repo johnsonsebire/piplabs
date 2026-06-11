@@ -383,10 +383,8 @@ export function OpenTradesWidget({ symbol }: { symbol: string }) {
                             onMouseLeave={e => { e.currentTarget.style.color = C.mutedFg; e.currentTarget.style.borderColor = C.border; }}
                           >View</button>
                         </Link>
-                        {/* Close button only for options trades */}
-                        {t.type === "vanilla_options" && (
-                          <CloseTradeButton trade={t} onClosed={invalidate} />
-                        )}
+                        {/* Close button for all trades */}
+                        <CloseTradeButton trade={t} onClosed={invalidate} />
                       </div>
                     </Td>
                   </tr>

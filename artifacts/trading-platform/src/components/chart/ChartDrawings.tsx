@@ -10,6 +10,7 @@ export type Drawing = {
   points: Point[];
   color: string;
   completed: boolean;
+  text?: string;
 };
 
 interface ChartDrawingsProps {
@@ -45,6 +46,44 @@ export function ChartDrawings({
   } | null>(null);
   
   const [isDragging, setIsDragging] = useState(false);
+
+  // Selection & Multi-select
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isShiftDown, setIsShiftDown] = useState(false);
+  const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, currentX: number, currentY: number } | null>(null);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+
+  // Keyboard events (Delete & Shift)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") {
+        setIsShiftDown(true);
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        // We only want to delete if we are not focused on an input
+        const target = e.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
+
+        if (selectedIds.length > 0) {
+          setDrawings((prev) => prev.filter((d) => !selectedIds.includes(d.id)));
+          setSelectedIds([]);
+        }
+      }
+    };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") {
+        setIsShiftDown(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [selectedIds, setDrawings]);
 
   // Sync SVG dimensions and redraw on chart interactions
   useEffect(() => {
@@ -165,13 +204,64 @@ export function ChartDrawings({
     };
   }, [isDragging, chart, series, setDrawings]);
 
+  // Handle Box Selection
+  useEffect(() => {
+    if (!selectionBox) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setSelectionBox(prev => prev ? { ...prev, currentX: e.clientX, currentY: e.clientY } : null);
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (selectionBox && containerRef.current && chart && series) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const left = Math.min(selectionBox.startX, selectionBox.currentX) - rect.left;
+        const right = Math.max(selectionBox.startX, selectionBox.currentX) - rect.left;
+        const top = Math.min(selectionBox.startY, selectionBox.currentY) - rect.top;
+        const bottom = Math.max(selectionBox.startY, selectionBox.currentY) - rect.top;
+
+        const newlySelected: string[] = [];
+        drawings.forEach(d => {
+          let inside = false;
+          d.points.forEach(pt => {
+            const x = chart.timeScale().timeToCoordinate(pt.time as Time);
+            const y = series.priceToCoordinate(pt.price);
+            if (x !== null && y !== null && x >= left && x <= right && y >= top && y <= bottom) {
+              inside = true;
+            }
+          });
+          if (inside) newlySelected.push(d.id);
+        });
+
+        if (newlySelected.length > 0) {
+          setSelectedIds(prev => Array.from(new Set([...prev, ...newlySelected])));
+        }
+      }
+      setSelectionBox(null);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [selectionBox, chart, series, containerRef, drawings]);
+
   // Handle Chart Clicks and Crosshair moves for creation
   useEffect(() => {
-    if (!chart || !series || activeTool === "cursor") return;
+    if (!chart || !series) return;
 
     const handleClick = (param: any) => {
       // Don't create if we are dragging or clicking on an existing shape
       if (dragStateRef.current) return;
+
+      if (activeTool === "cursor") {
+        if (!isShiftDown) {
+          setSelectedIds([]); // Clear selection when clicking empty chart space
+        }
+        return;
+      }
 
       if (!param.point || !param.time) return;
 
@@ -182,6 +272,17 @@ export function ChartDrawings({
 
       setDrawings((prev) => {
         const active = prev.find((d) => !d.completed);
+
+        if (activeTool === "text") {
+          const newId = Date.now().toString();
+          setEditingTextId(newId);
+          // Auto-select it so the color picker appears
+          setSelectedIds([newId]);
+          return [
+            ...prev,
+            { id: newId, type: activeTool, points: [{ time, price }], color: "#ffffff", text: "Text", completed: true },
+          ];
+        }
 
         if (activeTool === "horizontal_line" || activeTool === "vertical_line") {
           // Horizontal and Vertical lines only need 1 point
@@ -238,13 +339,21 @@ export function ChartDrawings({
       chart.unsubscribeClick(handleClick);
       chart.unsubscribeCrosshairMove(handleCrosshairMove);
     };
-  }, [chart, series, activeTool, setDrawings]);
+  }, [chart, series, activeTool, setDrawings, isShiftDown]);
 
   if (!chart || !series) return null;
 
   const handleShapeMouseDown = (e: React.MouseEvent, id: string, points: Point[], pointIndex?: number) => {
     if (activeTool !== "cursor") return;
     e.stopPropagation();
+
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    } else {
+      if (!selectedIds.includes(id)) {
+        setSelectedIds([id]);
+      }
+    }
     
     dragStateRef.current = {
       id,
@@ -254,6 +363,19 @@ export function ChartDrawings({
       pointIndex
     };
     setIsDragging(true);
+  };
+
+  const handleSvgMouseDown = (e: React.MouseEvent) => {
+    if (isShiftDown && activeTool === "cursor") {
+      setSelectionBox({
+        startX: e.clientX,
+        startY: e.clientY,
+        currentX: e.clientX,
+        currentY: e.clientY,
+      });
+    } else if (activeTool === "cursor" && !isShiftDown) {
+      setSelectedIds([]);
+    }
   };
 
   const getPointerEvents = () => activeTool === "cursor" ? "all" : "none";
@@ -275,9 +397,11 @@ export function ChartDrawings({
     );
   };
 
-  // Helper to render Anchor Handles (circles)
   const renderAnchor = (id: string, points: Point[], x: number, y: number, pointIndex: number, cursor: string = "pointer") => {
     if (activeTool !== "cursor") return null;
+    const isSelected = selectedIds.includes(id);
+    if (!isSelected) return null;
+
     return (
       <circle
         key={`${id}-anchor-${pointIndex}`}
@@ -285,7 +409,7 @@ export function ChartDrawings({
         cy={y}
         r={5}
         fill="#ffffff"
-        stroke="#1a2332"
+        stroke="#3b82f6"
         strokeWidth={2}
         style={{ pointerEvents: "all", cursor }}
         onMouseDown={(e) => handleShapeMouseDown(e, id, points, pointIndex)}
@@ -295,17 +419,33 @@ export function ChartDrawings({
 
   // Render SVG Elements
   return (
+    <>
     <svg
+      onMouseDown={handleSvgMouseDown}
       style={{
         position: "absolute",
         top: 0,
         left: 0,
         width: "100%",
         height: "100%",
-        pointerEvents: "none",
+        pointerEvents: isShiftDown && activeTool === "cursor" ? "all" : "none",
         zIndex: 20,
       }}
     >
+      {/* Selection Box overlay */}
+      {selectionBox && containerRef.current && (
+        <rect
+          x={Math.min(selectionBox.startX, selectionBox.currentX) - containerRef.current.getBoundingClientRect().left}
+          y={Math.min(selectionBox.startY, selectionBox.currentY) - containerRef.current.getBoundingClientRect().top}
+          width={Math.abs(selectionBox.currentX - selectionBox.startX)}
+          height={Math.abs(selectionBox.currentY - selectionBox.startY)}
+          fill="rgba(59, 130, 246, 0.2)"
+          stroke="#3b82f6"
+          strokeWidth={1}
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+
       {drawings.map((d) => {
         // Map points to SVG coordinates
         const coords = d.points.map((pt) => {
@@ -325,6 +465,67 @@ export function ChartDrawings({
         if (d.type === "vertical_line") {
           const x = coords[0].x!;
           return renderLineWithHitArea(d.id, d.points, x, 0, x, svgRect.height, d.color, "4 4");
+        }
+
+        if (d.type === "text") {
+          const isEditing = editingTextId === d.id;
+          return (
+            <g key={d.id}>
+              {isEditing ? (
+                <foreignObject x={coords[0].x!} y={coords[0].y! - 20} width="300" height="40" style={{ pointerEvents: 'all' }}>
+                  <input
+                    type="text"
+                    defaultValue={d.text}
+                    autoFocus
+                    onBlur={(e) => {
+                       const val = e.target.value;
+                       if (!val.trim()) {
+                         setDrawings(prev => prev.filter(x => x.id !== d.id));
+                       } else {
+                         setDrawings(prev => prev.map(item => item.id === d.id ? { ...item, text: val } : item));
+                       }
+                       setEditingTextId(null);
+                    }}
+                    onKeyDown={(e) => {
+                       if (e.key === "Enter") {
+                         e.currentTarget.blur();
+                       }
+                    }}
+                    style={{
+                       background: 'rgba(15, 19, 24, 0.8)',
+                       border: `1px dashed ${d.color}`,
+                       color: d.color,
+                       outline: 'none',
+                       fontSize: '14px',
+                       fontFamily: 'sans-serif',
+                       width: '100%',
+                       padding: '2px 4px',
+                       borderRadius: '4px'
+                    }}
+                  />
+                </foreignObject>
+              ) : (
+                <text
+                  x={coords[0].x!}
+                  y={coords[0].y!}
+                  fill={d.color}
+                  fontSize="14"
+                  fontFamily="sans-serif"
+                  onMouseDown={(e) => handleShapeMouseDown(e, d.id, d.points)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (activeTool === "cursor") {
+                      setEditingTextId(d.id);
+                    }
+                  }}
+                  style={{ pointerEvents: getPointerEvents(), cursor: getCursor(), userSelect: "none" }}
+                >
+                  {d.text}
+                </text>
+              )}
+              {renderAnchor(d.id, d.points, coords[0].x!, coords[0].y!, 0, "move")}
+            </g>
+          );
         }
 
         if (coords.length < 2) return null; // Needs 2 points
@@ -449,8 +650,48 @@ export function ChartDrawings({
           );
         }
 
+
+
         return null;
       })}
     </svg>
+    {/* Floating Color Picker for Selected Item */}
+    {selectedIds.length === 1 && (
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(15, 19, 24, 0.9)',
+          border: '1px solid #1e293b',
+          borderRadius: '6px',
+          padding: '6px',
+          display: 'flex',
+          gap: '8px',
+          zIndex: 30,
+          pointerEvents: 'all'
+        }}
+      >
+        {['#ffffff', '#f87171', '#4ade80', '#60a5fa', '#facc15', '#c084fc'].map(c => (
+          <div
+            key={c}
+            onClick={(e) => {
+              e.stopPropagation();
+              setDrawings(prev => prev.map(d => d.id === selectedIds[0] ? { ...d, color: c } : d));
+            }}
+            style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              backgroundColor: c,
+              cursor: 'pointer',
+              border: drawings.find(d => d.id === selectedIds[0])?.color === c ? '2px solid white' : '1px solid #334155'
+            }}
+          />
+        ))}
+      </div>
+    )}
+    </>
   );
 }

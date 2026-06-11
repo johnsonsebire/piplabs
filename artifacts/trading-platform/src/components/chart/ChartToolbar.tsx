@@ -7,17 +7,23 @@ import {
   Trash2,
   ChevronRight,
   GripVertical,
-  AlignEndHorizontal
+  AlignEndHorizontal,
+  Activity,
+  Check,
+  Type
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-export type DrawingTool = "cursor" | "horizontal_line" | "vertical_line" | "trend_line" | "ray" | "rectangle" | "fib_retracement";
+export type DrawingTool = "cursor" | "horizontal_line" | "vertical_line" | "trend_line" | "ray" | "rectangle" | "fib_retracement" | "text";
 
 interface ChartToolbarProps {
   activeTool: DrawingTool;
   onToolSelect: (tool: DrawingTool) => void;
   onClearAll: () => void;
+  availableIndicators?: Array<{ id: string | number, name: string }>;
+  activeIndicatorIds?: Array<string | number>;
+  onToggleIndicator?: (id: string | number) => void;
 }
 
 const TOOL_CATEGORIES = [
@@ -55,15 +61,30 @@ const TOOL_CATEGORIES = [
     tools: [
       { id: "rectangle", icon: Square, label: "Rectangle" },
     ]
+  },
+  {
+    id: "annotations",
+    icon: Type,
+    label: "Annotations",
+    tools: [
+      { id: "text", icon: Type, label: "Text" },
+    ]
   }
 ] as const;
 
-export function ChartToolbar({ activeTool, onToolSelect, onClearAll }: ChartToolbarProps) {
-  // Remember the last used tool for each category
+export function ChartToolbar({ 
+  activeTool, 
+  onToolSelect, 
+  onClearAll,
+  availableIndicators,
+  activeIndicatorIds,
+  onToggleIndicator
+}: ChartToolbarProps) {
   const [lastUsedTools, setLastUsedTools] = useState<Record<string, string>>({
     lines: "trend_line",
     shapes: "rectangle",
     fibonacci: "fib_retracement",
+    annotations: "text",
     cursor: "cursor"
   });
 
@@ -183,6 +204,58 @@ export function ChartToolbar({ activeTool, onToolSelect, onClearAll }: ChartTool
           );
         })}
         
+        <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
+        
+        {availableIndicators && availableIndicators.length > 0 && onToggleIndicator && (
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <button
+                    className="p-2 rounded transition-colors d-flex align-items-center justify-content-center"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: activeIndicatorIds && activeIndicatorIds.length > 0 ? '#10b981' : '#94a3b8',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Activity style={{ width: '16px', height: '16px' }} />
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p className="text-xs font-mono">Indicators</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <PopoverContent side="right" align="start" sideOffset={10} className="p-1 rounded-sm border-secondary shadow-lg" style={{ width: 'auto', backgroundColor: '#0f1318', minWidth: '160px', zIndex: 1000 }}>
+              <div className="d-flex flex-column gap-1">
+                {availableIndicators.map(ind => {
+                  const isActive = activeIndicatorIds?.includes(ind.id);
+                  return (
+                    <button
+                      key={ind.id}
+                      className="d-flex align-items-center justify-content-between gap-3 px-2 py-1.5 rounded transition-colors text-start"
+                      style={{
+                        border: 'none',
+                        background: isActive ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                        color: isActive ? '#10b981' : '#94a3b8',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                      onClick={() => onToggleIndicator(ind.id)}
+                    >
+                      <span className="font-mono">{ind.name}</span>
+                      {isActive && <Check style={{ width: '12px', height: '12px' }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
+
         <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
         
         <Tooltip>

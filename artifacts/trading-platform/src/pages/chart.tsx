@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { swalSuccess, swalError } from "@/lib/swal";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronsUpDown, PanelRightClose, PanelRightOpen, Search } from "lucide-react";
@@ -45,7 +45,7 @@ export default function ChartPage() {
   }, [symbol]);
   const [granularitySec, setGranularitySec] = useState<number>(60);
   const { latestTick, isConnected } = useDerivWs(symbol, granularitySec);
-  const { toast } = useToast();
+  // Removed toast hook
 
   const [tradeClass, setTradeClass] = useState<"options" | "multiplier" | "forex">("options");
   const [volume, setVolume] = useState("1.00");
@@ -110,6 +110,11 @@ export default function ChartPage() {
 
     const finalDirection = dirOverride || direction;
 
+    if (isForex && !mt5AccountId) {
+      swalError("EXECUTION FAILED", "Please select an MT5 account to place a Forex trade.");
+      return;
+    }
+
     // Generate the notes payload with encoded contractSubtype
     const notes = isOptions ? encodeContractSubtype(contractType) : undefined;
 
@@ -151,17 +156,11 @@ export default function ChartPage() {
 
     createTrade.mutate({ data: payload }, {
       onSuccess: () => {
-        toast({
-          title: "TRADE EXECUTED",
-          description: `Successfully opened ${direction} on ${symbol}`,
-        });
+        swalSuccess("TRADE EXECUTED", `Successfully opened ${direction} on ${symbol}`);
       },
       onError: (err: any) => {
-        toast({
-          variant: "destructive",
-          title: "EXECUTION FAILED",
-          description: err?.message || "Failed to execute trade",
-        });
+        const errorMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Failed to execute trade";
+        swalError("EXECUTION FAILED", errorMsg);
       }
     });
   };

@@ -189,6 +189,31 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
   const [drawings, setDrawings] = useState<Drawing[]>([]);
 
+  // Indicators state
+  const [activeIndicatorIds, setActiveIndicatorIds] = useState<Array<string | number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('deriv_active_indicators');
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('deriv_active_indicators', JSON.stringify(activeIndicatorIds));
+    }
+  }, [activeIndicatorIds]);
+
+  const handleToggleIndicator = (id: string | number) => {
+    setActiveIndicatorIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
   // Strict data cleaning and mathematical validation to prevent lightweight-charts from crashing
@@ -247,7 +272,8 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   const computed = useMemo<IndicatorSeries[]>(() => {
     if (validCandles.length === 0) return [];
     const out: IndicatorSeries[] = [];
-    for (const ind of indicators) {
+    const activeInds = indicators.filter(ind => activeIndicatorIds.includes(ind.id));
+    for (const ind of activeInds) {
       const cfg = parseIndicatorConfig(ind.parameters, ind.code || undefined);
       if (!cfg) continue;
       const series = computeIndicator(String(ind.id), ind.name, cfg, validCandles);
@@ -416,6 +442,9 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
         activeTool={activeTool} 
         onToolSelect={setActiveTool} 
         onClearAll={() => setDrawings([])} 
+        availableIndicators={indicators}
+        activeIndicatorIds={activeIndicatorIds}
+        onToggleIndicator={handleToggleIndicator}
       />
 
       {/* Main Chart Area */}
