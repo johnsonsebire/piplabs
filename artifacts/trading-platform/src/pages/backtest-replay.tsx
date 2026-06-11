@@ -159,6 +159,13 @@ export default function BacktestReplayPage() {
         low: Number(c.low),
         close: Number(c.close),
       }))
+      .filter(c => 
+        Number.isFinite(c.time) && 
+        Number.isFinite(c.open) && 
+        Number.isFinite(c.high) && 
+        Number.isFinite(c.low) && 
+        Number.isFinite(c.close)
+      )
       .sort((a, b) => a.time - b.time);
 
     const unique: typeof cleaned = [];
@@ -950,7 +957,33 @@ export default function BacktestReplayPage() {
             </div>
           )}
 
-          <div className="flex-1 w-full" ref={containerRef} />
+          {/* Slider Content Separator */}
+          <div style={{ position: "relative", flex: 1, width: "100%", display: "flex", flexDirection: "column" }}>
+            <div 
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                zIndex: 0,
+                opacity: 0.05,
+                pointerEvents: "none",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                width: "100%",
+                height: "100%"
+              }}
+            >
+              <img 
+                src="/assets/brand.png" 
+                alt="Brand Watermark" 
+                style={{ maxWidth: "50%", maxHeight: "50%", filter: "grayscale(100%)" }} 
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            </div>
+            <div className="flex-1 w-full relative" ref={containerRef} style={{ zIndex: 1 }} />
+          </div>
           
           {/* Dynamic Oscillator Panels */}
           {oscillatorGroups.map(([groupName]) => (

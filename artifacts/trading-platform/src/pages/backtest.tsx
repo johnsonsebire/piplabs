@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
@@ -10,12 +10,13 @@ import {
   useSearchDerivSymbols,
   getSearchDerivSymbolsQueryKey,
   useDeleteBacktest,
+  useListMt5Accounts,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -31,6 +32,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useDebounce } from "@/hooks/use-debounce";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { ContractTypeSelector } from "@/components/chart/ContractTypeSelector";
+import { type ContractSubtype, getContractType, subtypeToBacktestType } from "@/lib/deriv-contract-types";
 
 type SimTrade = {
   id: number; entryAt: string; exitAt: string; direction: string;
@@ -263,6 +266,8 @@ export default function BacktestPage() {
     { q: debouncedSearchQuery },
     { query: { queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
   );
+  
+  const { data: mt5Accounts } = useListMt5Accounts();
   const queryClient = useQueryClient();
 
   const { data: datasets } = useQuery({
@@ -288,10 +293,12 @@ export default function BacktestPage() {
     toDate: format(new Date(), "yyyy-MM-dd"),
     initialBalance: "10000",
     stakePerTrade: "1",
-    tradeType: BacktestInputTradeType.vanilla_options as string,
+    tradeClass: "options" as "options" | "multiplier" | "forex",
+    tradeType: "RISE_FALL" as ContractSubtype,
     duration: "5",
     durationUnit: "m",
     alternateDirection: false,
+    mt5AccountId: "",
   });
 
   const handleViewChart = (trade: SimTrade, backtestId: number) => {
@@ -360,12 +367,14 @@ export default function BacktestPage() {
       toDate: formData.toDate,
       initialBalance: parseFloat(formData.initialBalance),
       stakePerTrade: parseFloat(formData.stakePerTrade),
-      tradeType: formData.tradeType as any,
+      tradeType: formData.tradeClass === "options" ? subtypeToBacktestType(formData.tradeType) : formData.tradeClass as any,
+      contractSubtype: formData.tradeClass === "options" ? formData.tradeType : undefined,
       duration: parseInt(formData.duration),
       durationUnit: formData.durationUnit as any,
       sessions: sessionsArr.length > 0 ? sessionsArr : null,
       datasetFile: dataSource === "local" ? selectedDataset : null,
       alternateDirection: formData.alternateDirection,
+      mt5AccountId: formData.tradeClass === "forex" ? formData.mt5AccountId : undefined,
     };
 
     if (timeframesToRun.length > 1) {
@@ -483,30 +492,72 @@ export default function BacktestPage() {
                   <div className="text-[9px] uppercase font-mono text-foreground font-bold tracking-wider m-0 mt-0.5 leading-none">Trade Settings</div>
                 </div>
                 <div className="space-y-1.5">
-                  <Select value={formData.tradeType} onValueChange={(v) => setFormData({ ...formData, tradeType: v })}>
-                    <SelectTrigger className="w-full h-12 rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', boxSizing: 'border-box' }}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none border-border bg-[#0E121B]">
-                      <SelectItem value="vanilla_options" className="font-mono text-[10px] uppercase">Options</SelectItem>
-                      <SelectItem value="multiplier" className="font-mono text-[10px] uppercase">Multiplier</SelectItem>
-                      <SelectItem value="forex" className="font-mono text-[10px] uppercase">Forex</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="flex flex-row items-center gap-1 flex-nowrap w-full" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.25rem', flexWrap: 'nowrap' }}>
-                    <Input type="number" required value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} className="rounded-none font-mono border-border/40 bg-background/40 text-[11px] px-2 text-left" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', width: '60%', boxSizing: 'border-box' }} />
-                    <Select value={formData.durationUnit} onValueChange={(v) => setFormData({ ...formData, durationUnit: v })}>
-                      <SelectTrigger className="rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', width: '40%', boxSizing: 'border-box' }}>
-                        <SelectValue />
+                  <div className="grid grid-cols-3 gap-1 mb-2">
+                    <Button
+                      type="button"
+                      variant={formData.tradeClass === "options" ? "default" : "outline"}
+                      className={`h-7 rounded-none uppercase font-bold text-[9px] tracking-wider px-1 ${formData.tradeClass === "options" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border/50'}`}
+                      onClick={() => setFormData({...formData, tradeClass: "options"})}
+                    >
+                      Options
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.tradeClass === "multiplier" ? "default" : "outline"}
+                      className={`h-7 rounded-none uppercase font-bold text-[9px] tracking-wider px-1 ${formData.tradeClass === "multiplier" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border/50'}`}
+                      onClick={() => setFormData({...formData, tradeClass: "multiplier"})}
+                    >
+                      Multiplier
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.tradeClass === "forex" ? "default" : "outline"}
+                      className={`h-7 rounded-none uppercase font-bold text-[9px] tracking-wider px-1 ${formData.tradeClass === "forex" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border/50'}`}
+                      onClick={() => setFormData({...formData, tradeClass: "forex"})}
+                    >
+                      Forex
+                    </Button>
+                  </div>
+
+                  {formData.tradeClass === "options" && (
+                    <ContractTypeSelector 
+                      value={formData.tradeType} 
+                      onChange={(v) => setFormData({ ...formData, tradeType: v })} 
+                      compact 
+                    />
+                  )}
+
+                  {formData.tradeClass === "forex" && (
+                    <Select value={formData.mt5AccountId} onValueChange={(v: string) => setFormData({...formData, mt5AccountId: v})}>
+                      <SelectTrigger className="w-full rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '36px' }}>
+                        <SelectValue placeholder="Select MT5 Account" />
                       </SelectTrigger>
                       <SelectContent className="rounded-none border-border bg-[#0E121B]">
-                        <SelectItem value="t" className="font-mono text-[10px] uppercase">Ticks</SelectItem>
-                        <SelectItem value="s" className="font-mono text-[10px] uppercase">Sec</SelectItem>
-                        <SelectItem value="m" className="font-mono text-[10px] uppercase">Min</SelectItem>
-                        <SelectItem value="h" className="font-mono text-[10px] uppercase">Hours</SelectItem>
+                        {mt5Accounts?.map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id} className="mt5-account-item font-mono text-[10px] uppercase cursor-pointer rounded-none border-b border-[#1a2332] last:border-0">
+                            {acc.name} - {acc.broker} ({acc.login})
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                  </div>
+                  )}
+
+                  {formData.tradeClass !== "forex" && (
+                    <div className="flex flex-row items-center gap-1 flex-nowrap w-full" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.25rem', flexWrap: 'nowrap' }}>
+                      <Input type="number" required value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} className="rounded-none font-mono border-border/40 bg-background/40 text-[11px] px-2 text-left" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', width: '60%', boxSizing: 'border-box' }} />
+                      <Select value={formData.durationUnit} onValueChange={(v) => setFormData({ ...formData, durationUnit: v })}>
+                        <SelectTrigger className="rounded-none border-border/40 bg-background/40 font-mono text-[10px]" style={{ height: '48px', minHeight: '48px', maxHeight: '48px', width: '40%', boxSizing: 'border-box' }}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none border-border bg-[#0E121B]">
+                          <SelectItem value="t" className="font-mono text-[10px] uppercase">Ticks</SelectItem>
+                          <SelectItem value="s" className="font-mono text-[10px] uppercase">Sec</SelectItem>
+                          <SelectItem value="m" className="font-mono text-[10px] uppercase">Min</SelectItem>
+                          <SelectItem value="h" className="font-mono text-[10px] uppercase">Hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="flex flex-row items-center justify-between w-full p-2 bg-background/20 border border-border/30 mt-2">
                     <div className="flex flex-col gap-0.5">
                       <Label htmlFor="alternateDirection" className="text-[10px] uppercase font-mono text-foreground cursor-pointer font-bold tracking-wider">Alternate Direction</Label>

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createChart, IChartApi, ISeriesApi, LineStyle } from "lightweight-charts";
 import { useDerivWs } from "@/hooks/use-deriv-ws";
 import { computeIndicator, parseIndicatorConfig, type IndicatorSeries } from "@/lib/indicators";
+import { ChartToolbar, DrawingTool } from "./ChartToolbar";
+import { ChartDrawings, Drawing } from "./ChartDrawings";
 
 export interface ChartIndicatorInput {
   id: string | number;
@@ -182,6 +184,10 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const overlayLinesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const [mainReady, setMainReady] = useState(0);
+
+  // Drawing state
+  const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
 
   const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
 
@@ -404,8 +410,17 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
 
   return (
-    <div className="position-relative w-100 h-100 d-flex flex-column overflow-hidden" style={{ position: 'relative' }}>
-      {!isConnected && (
+    <div className="position-relative w-100 h-100 d-flex flex-row overflow-hidden" style={{ position: 'relative' }}>
+      {/* Sidebar Toolbar */}
+      <ChartToolbar 
+        activeTool={activeTool} 
+        onToolSelect={setActiveTool} 
+        onClearAll={() => setDrawings([])} 
+      />
+
+      {/* Main Chart Area */}
+      <div className="position-relative flex-1 d-flex flex-column overflow-hidden w-100 h-100" style={{ position: 'relative' }}>
+        {!isConnected && (
         <div 
           style={{ 
             position: "absolute", 
@@ -474,7 +489,45 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
           </div>
         ))}
       </div>
-      <div ref={chartContainerRef} className="w-full flex-1 min-h-0" />
+      <div 
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          zIndex: 0,
+          opacity: 0.05,
+          pointerEvents: "none",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center"
+        }}
+      >
+        <img 
+          src="/assets/brand.png" 
+          alt="Brand Watermark" 
+          style={{ maxWidth: "50%", maxHeight: "50%", filter: "grayscale(100%)" }} 
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+      </div>
+      <div 
+        ref={chartContainerRef} 
+        className="w-full flex-1 min-h-0" 
+        style={{ 
+          zIndex: 1, 
+          position: 'relative',
+          cursor: activeTool !== 'cursor' ? 'crosshair' : 'default'
+        }} 
+      >
+        <ChartDrawings 
+          chart={chartRef.current} 
+          series={seriesRef.current} 
+          activeTool={activeTool}
+          drawings={drawings}
+          setDrawings={setDrawings}
+          containerRef={chartContainerRef}
+        />
+      </div>
       {computed.filter(c => c.pane === "oscillator").map((osc, index) => (
         <OscillatorPanel
           key={osc.id}
@@ -484,6 +537,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
           isFirst={index === 0}
         />
       ))}
+      </div>
     </div>
   );
 }

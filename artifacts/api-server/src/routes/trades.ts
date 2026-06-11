@@ -30,6 +30,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { buyContract, sellContract, getAccountForMode, invalidateBalanceCache, nextReqId, type DerivBuyParams } from "../lib/derivApi";
 import { buildSignalPayload, fireStrategyWebhook } from "../lib/strategyWebhook";
+import { getMetaApiWrapper } from "@workspace/integrations-meta-api";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,7 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
     aiConfirmed: parsed.data.aiConfirmed ?? false,
     mode: mode as any,
     status: "pending",
+    mt5AccountId: (parsed.data as any).mt5AccountId ?? null,
   }).returning();
 
   await db.insert(tradeLogsTable).values({
@@ -103,6 +105,65 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
     level: "info",
     message: `Trade created: ${trade.direction.toUpperCase()} ${trade.symbol} at stake $${trade.stake} (${mode})`,
   });
+
+  // Forex execution path via MetaApi
+  if (parsed.data.type === "forex") {
+    if (!(parsed.data as any).mt5AccountId) {
+      const message = "MT5 Account ID is required for Forex trades";
+      await db.update(tradesTable).set({ status: "cancelled", notes: message }).where(eq(tradesTable.id, trade.id));
+      await db.insert(tradeLogsTable).values({ tradeId: trade.id, level: "error", message });
+      res.status(400).json({ error: message });
+      return;
+    }
+
+    try {
+      const metaApi = getMetaApiWrapper();
+      const action = parsed.data.direction === "buy" || parsed.data.direction === "call" ? "ORDER_TYPE_BUY" : "ORDER_TYPE_SELL";
+      const volume = parsed.data.stake; 
+      
+      const options: any = {};
+      if (parsed.data.targetProfit) {
+        options.takeProfit = parsed.data.targetProfit;
+      }
+
+      const result = await metaApi.executeMarketOrder(
+        (parsed.data as any).mt5AccountId,
+        parsed.data.symbol,
+        action,
+        volume,
+        options
+      );
+
+      const [updated] = await db.update(tradesTable)
+        .set({
+          status: "open",
+          contractId: result.orderId || result.positionId,
+          entryPrice: result.price,
+        })
+        .where(eq(tradesTable.id, trade.id))
+        .returning();
+
+      await db.insert(tradeLogsTable).values({
+        tradeId: trade.id,
+        level: "info",
+        message: `Executed on MT5: orderId=${result.orderId} price=${result.price}`,
+      });
+
+      res.status(201).json(GetTradeResponse.parse(updated));
+      return;
+    } catch (err: any) {
+      const message = err instanceof Error ? err.message : "MT5 execution failed";
+      req.log.warn({ err, tradeId: trade.id }, "MT5 trade execution failed");
+      await db.update(tradesTable)
+        .set({ status: "cancelled", notes: message })
+        .where(eq(tradesTable.id, trade.id));
+      await db.insert(tradeLogsTable).values({
+        tradeId: trade.id, level: "error", message: `MT5 execution failed: ${message}`,
+      });
+      res.status(502).json({ error: message });
+      return;
+    }
+  }
 
   // Real Deriv execution path — only when user has connected an API token
   if (user.derivApiToken) {

@@ -1020,11 +1020,11 @@ export default function StrategiesPage() {
       <div className="d-flex gap-2 mt-2">
         <div className="flex-grow-1">
           <Label className="small font-mono text-secondary">Consecutive Wins</Label>
-          <Input type="number" min="1" value={winConsecutive} onChange={(e) => setWinConsecutive(e.target.value)} placeholder="e.g. 1" className="font-mono bg-background border-secondary rounded-none" />
+          <Input type="number" min="1" value={winConsecutive} onChange={(e) => setWinConsecutive(e.target.value ? Number(e.target.value) : "")} placeholder="e.g. 1" className="font-mono bg-background border-secondary rounded-none" />
         </div>
         <div className="flex-grow-1">
           <Label className="small font-mono text-secondary">Cooldown (Minutes)</Label>
-          <Input type="number" min="1" value={winCooldown} onChange={(e) => setWinCooldown(e.target.value)} placeholder="e.g. 30" className="font-mono bg-background border-secondary rounded-none" />
+          <Input type="number" min="1" value={winCooldown} onChange={(e) => setWinCooldown(e.target.value ? Number(e.target.value) : "")} placeholder="e.g. 30" className="font-mono bg-background border-secondary rounded-none" />
         </div>
       </div>
     </div>
@@ -1034,11 +1034,11 @@ export default function StrategiesPage() {
       <div className="d-flex gap-2 mt-2">
         <div className="flex-grow-1">
           <Label className="small font-mono text-secondary">Consecutive Losses</Label>
-          <Input type="number" min="1" value={lossConsecutive} onChange={(e) => setLossConsecutive(e.target.value)} placeholder="e.g. 2" className="font-mono bg-background border-secondary rounded-none" />
+          <Input type="number" min="1" value={lossConsecutive} onChange={(e) => setLossConsecutive(e.target.value ? Number(e.target.value) : "")} placeholder="e.g. 2" className="font-mono bg-background border-secondary rounded-none" />
         </div>
         <div className="flex-grow-1">
           <Label className="small font-mono text-secondary">Cooldown (Minutes)</Label>
-          <Input type="number" min="1" value={lossCooldown} onChange={(e) => setLossCooldown(e.target.value)} placeholder="e.g. 60" className="font-mono bg-background border-secondary rounded-none" />
+          <Input type="number" min="1" value={lossCooldown} onChange={(e) => setLossCooldown(e.target.value ? Number(e.target.value) : "")} placeholder="e.g. 60" className="font-mono bg-background border-secondary rounded-none" />
         </div>
       </div>
     </div>

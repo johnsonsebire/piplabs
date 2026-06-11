@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TradingChart } from "@/components/chart/TradingChart";
 import { BottomPanel } from "@/components/chart/BottomPanel";
 import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
-import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators } from "@workspace/api-client-react";
+import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators, useListMt5Accounts } from "@workspace/api-client-react";
+import { ContractTypeSelector } from "@/components/chart/ContractTypeSelector";
+import { type ContractSubtype, getContractType, encodeContractSubtype, GROWTH_RATES, MULTIPLIER_VALUES } from "@/lib/deriv-contract-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,16 +47,36 @@ export default function ChartPage() {
   const { latestTick, isConnected } = useDerivWs(symbol, granularitySec);
   const { toast } = useToast();
 
-  const [contractType, setContractType] = useState<TradeInputType>(TradeInputType.vanilla_options);
+  const [tradeClass, setTradeClass] = useState<"options" | "multiplier" | "forex">("options");
+  const [volume, setVolume] = useState("1.00");
+  const [stopLoss, setStopLoss] = useState("");
+  const [pendingOrder, setPendingOrder] = useState<"market" | "limit" | "stop">("market");
+  const [mt5AccountId, setMt5AccountId] = useState<string>("");
+
+  const [contractType, setContractType] = useState<ContractSubtype>("RISE_FALL");
   const [direction, setDirection] = useState<TradeInputDirection>(TradeInputDirection.call);
   const [stake, setStake] = useState("1");
   const [duration, setDuration] = useState("5");
   const [durationUnit, setDurationUnit] = useState("m");
   const [barrier, setBarrier] = useState("+0.00");
   const [multiplier, setMultiplier] = useState("100");
+  const [growthRate, setGrowthRate] = useState("3");
   const [takeProfit, setTakeProfit] = useState("");
   const [aiConfirmed, setAiConfirmed] = useState(false);
   const [tradeMode, setTradeMode] = useState<"demo" | "live">("demo");
+  
+  const config = getContractType(contractType);
+
+  // When changing contract type, safely update direction and defaults
+  const handleContractTypeChange = (newType: ContractSubtype) => {
+    setContractType(newType);
+    const newConfig = getContractType(newType);
+    if (!newConfig.directions.some(d => d.value === direction)) {
+      setDirection(newConfig.directions[0].value as TradeInputDirection);
+    }
+    if (newConfig.defaultDuration) setDuration(newConfig.defaultDuration);
+    if (newConfig.defaultDurationUnit) setDurationUnit(newConfig.defaultDurationUnit);
+  };
 
   const [openSearch, setOpenSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,23 +93,63 @@ export default function ChartPage() {
 
   const createTrade = useCreateTrade();
   const { data: chartIndicators } = useListIndicators({});
+  const { data: mt5Accounts } = useListMt5Accounts();
 
-  const handleExecute = () => {
-    createTrade.mutate({
-      data: {
-        symbol,
-        type: contractType,
-        direction,
-        stake: parseFloat(stake),
-        duration: parseInt(duration),
-        durationUnit,
-        barrier: contractType === TradeInputType.vanilla_options ? barrier : null,
-        multiplier: contractType === TradeInputType.multiplier ? parseInt(multiplier, 10) : null,
-        targetProfit: takeProfit ? parseFloat(takeProfit) : null,
-        aiConfirmed,
-        mode: tradeMode
+  // Initialize mt5AccountId when accounts load
+  useEffect(() => {
+    if (mt5Accounts && mt5Accounts.length > 0 && !mt5AccountId) {
+      const matchingAccount = mt5Accounts.find(a => a.type === tradeMode);
+      if (matchingAccount) setMt5AccountId(matchingAccount.id);
+    }
+  }, [mt5Accounts, mt5AccountId, tradeMode]);
+
+  const handleExecute = (dirOverride?: TradeInputDirection) => {
+    const isOptions = tradeClass === "options";
+    const isForex = tradeClass === "forex";
+    const isMultiplier = tradeClass === "multiplier";
+
+    const finalDirection = dirOverride || direction;
+
+    // Generate the notes payload with encoded contractSubtype
+    const notes = isOptions ? encodeContractSubtype(contractType) : undefined;
+
+    // Build base payload
+    const payload: any = {
+      symbol,
+      type: isOptions ? config.apiType : (isForex ? "forex" : "multiplier"),
+      direction: finalDirection,
+      stake: isForex ? parseFloat(volume) : parseFloat(stake), // Sending volume as stake for now
+      targetProfit: takeProfit ? parseFloat(takeProfit) : null,
+      aiConfirmed,
+      mode: tradeMode,
+      notes,
+      contractSubtype: isOptions ? contractType : undefined, 
+      mt5AccountId: isForex ? mt5AccountId : undefined,
+    };
+
+    if (isForex && stopLoss) {
+      payload.stopLoss = parseFloat(stopLoss); // Backend to be updated
+      payload.pendingOrder = pendingOrder;
+    }
+
+    if (isOptions) {
+      if (config.hasDuration) {
+        payload.duration = parseInt(duration);
+        payload.durationUnit = durationUnit;
       }
-    }, {
+      if (config.needsBarrier) {
+        payload.barrier = barrier;
+      }
+      if (config.needsGrowthRate) {
+        payload.growthRate = parseFloat(growthRate);
+      }
+    }
+    
+    if (isMultiplier) {
+      payload.multiplier = parseInt(multiplier, 10);
+    }
+
+    createTrade.mutate({ data: payload }, {
       onSuccess: () => {
         toast({
           title: "TRADE EXECUTED",
@@ -269,7 +331,7 @@ export default function ChartPage() {
           >
             <div className="p-4 border-b border-border d-flex align-items-center justify-content-between flex-shrink-0">
               <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">Order Entry</h2>
-              <div className="d-flex align-items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Label className="text-xs font-mono text-muted-foreground uppercase">Mode:</Label>
                 <div className="grid grid-cols-2 gap-1 w-[120px]">
                   <Button
@@ -294,92 +356,198 @@ export default function ChartPage() {
             </div>
 
             <div className="p-4 space-y-6">
-              <div className="space-y-3">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">Contract Type</Label>
+              <div className="space-y-3 mb-6 border-b border-border pb-6">
+                <Label className="text-xs uppercase font-mono text-muted-foreground">Trade Type</Label>
                 <div className="grid grid-cols-3 gap-2">
                   <Button
                     type="button"
-                    variant={contractType === TradeInputType.vanilla_options ? "default" : "outline"}
-                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${contractType === TradeInputType.vanilla_options ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
-                    onClick={() => setContractType(TradeInputType.vanilla_options)}
+                    variant={tradeClass === "options" ? "default" : "outline"}
+                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "options" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                    onClick={() => setTradeClass("options")}
                   >
                     Options
                   </Button>
                   <Button
                     type="button"
-                    variant={contractType === TradeInputType.multiplier ? "default" : "outline"}
-                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${contractType === TradeInputType.multiplier ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
-                    onClick={() => setContractType(TradeInputType.multiplier)}
+                    variant={tradeClass === "multiplier" ? "default" : "outline"}
+                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "multiplier" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                    onClick={() => setTradeClass("multiplier")}
                   >
                     Multiplier
                   </Button>
                   <Button
                     type="button"
-                    variant={contractType === TradeInputType.forex ? "default" : "outline"}
-                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${contractType === TradeInputType.forex ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
-                    onClick={() => setContractType(TradeInputType.forex)}
+                    variant={tradeClass === "forex" ? "default" : "outline"}
+                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "forex" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                    onClick={() => setTradeClass("forex")}
                   >
                     Forex
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant={direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? "default" : "outline"}
-                    className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary'}`}
-                    onClick={() => setDirection(contractType === TradeInputType.multiplier ? TradeInputDirection.buy : TradeInputDirection.call)}
-                    data-testid="button-direction-up"
-                  >
-                    {contractType === TradeInputType.multiplier ? 'Buy' : 'Call'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={direction === TradeInputDirection.put || direction === TradeInputDirection.sell ? "destructive" : "outline"}
-                    className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.put || direction === TradeInputDirection.sell ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive'}`}
-                    onClick={() => setDirection(contractType === TradeInputType.multiplier ? TradeInputDirection.sell : TradeInputDirection.put)}
-                    data-testid="button-direction-down"
-                  >
-                    {contractType === TradeInputType.multiplier ? 'Sell' : 'Put'}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">Stake (USD)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={stake}
-                  onChange={(e) => setStake(e.target.value)}
-                  className="rounded-none font-mono text-lg h-10 border-border bg-background"
-                  data-testid="input-stake"
-                />
-              </div>
-
-              {contractType === TradeInputType.vanilla_options && (
+              {tradeClass === "options" && (
                 <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Barrier / Strike</Label>
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Contract Type</Label>
+                  <ContractTypeSelector value={contractType} onChange={handleContractTypeChange} compact />
+                </div>
+              )}
+
+              {tradeClass === "options" && (
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {config.directions.map((dir) => {
+                      const isSelected = direction === dir.value;
+                      const isGreen = dir.color === "green";
+                      return (
+                        <Button
+                          key={dir.value}
+                          type="button"
+                          variant={isSelected ? (isGreen ? "default" : "destructive") : "outline"}
+                          className={`rounded-none uppercase font-bold tracking-wider ${
+                            isSelected 
+                              ? (isGreen ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground')
+                              : (isGreen ? 'hover:bg-primary/20 hover:text-primary' : 'hover:bg-destructive/20 hover:text-destructive')
+                          }`}
+                          onClick={() => setDirection(dir.value as TradeInputDirection)}
+                          style={{ gridColumn: config.directions.length === 1 ? "span 2" : undefined }}
+                        >
+                          {dir.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {tradeClass === "multiplier" && (
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={direction === TradeInputDirection.buy || direction === TradeInputDirection.call ? "default" : "outline"}
+                      className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.buy || direction === TradeInputDirection.call ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary'}`}
+                      onClick={() => setDirection(TradeInputDirection.buy)}
+                    >
+                      Buy
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={direction === TradeInputDirection.sell || direction === TradeInputDirection.put ? "destructive" : "outline"}
+                      className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.sell || direction === TradeInputDirection.put ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive'}`}
+                      onClick={() => setDirection(TradeInputDirection.sell)}
+                    >
+                      Sell
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {tradeClass === "forex" && (
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground">Order Type</Label>
+                    <Select value={pendingOrder} onValueChange={(v: any) => setPendingOrder(v)}>
+                      <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                        <SelectItem value="market" className="font-mono text-xs">Market Execution</SelectItem>
+                        <SelectItem value="limit" className="font-mono text-xs">Pending Limit</SelectItem>
+                        <SelectItem value="stop" className="font-mono text-xs">Pending Stop</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground">Forex Account</Label>
+                    <Select value={mt5AccountId} onValueChange={setMt5AccountId}>
+                      <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono text-xs">
+                        <SelectValue placeholder="Select MT5 Account" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl max-h-[300px]">
+                        {mt5Accounts?.filter(a => a.type === tradeMode).map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id} className="mt5-account-item font-mono text-xs cursor-pointer rounded-none border-b border-[#1a2332] last:border-0">
+                            {acc.name} - {acc.broker} ({acc.login})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground">Volume (Lots)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={volume}
+                      onChange={(e) => setVolume(e.target.value)}
+                      className="rounded-none font-mono text-lg h-10 border-border bg-background text-center"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground text-destructive">Stop Loss</Label>
+                      <Input
+                        type="number"
+                        step="0.0001"
+                        value={stopLoss}
+                        onChange={(e) => setStopLoss(e.target.value)}
+                        placeholder="0.0000"
+                        className="rounded-none font-mono h-10 border-border bg-background text-destructive"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground text-primary">Take Profit</Label>
+                      <Input
+                        type="number"
+                        step="0.0001"
+                        value={takeProfit}
+                        onChange={(e) => setTakeProfit(e.target.value)}
+                        placeholder="0.0000"
+                        className="rounded-none font-mono h-10 border-border bg-background text-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {tradeClass !== "forex" && (
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Stake (USD)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={stake}
+                    onChange={(e) => setStake(e.target.value)}
+                    className="rounded-none font-mono text-lg h-10 border-border bg-background"
+                    data-testid="input-stake"
+                  />
+                </div>
+              )}
+
+              {tradeClass === "options" && config.needsBarrier && (
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">{config.barrierLabel}</Label>
                   <div className="space-y-1">
                     <Input
                       type="text"
                       value={barrier}
                       onChange={(e) => setBarrier(e.target.value)}
-                      placeholder="+0.00"
+                      placeholder={config.barrierPlaceholder}
                       className="rounded-none font-mono h-10 border-border bg-background"
-                      data-testid="input-barrier"
                     />
                     <p className="text-[10px] font-mono text-muted-foreground">
-                      +0.00 = at-the-money · +N / −N = pips from spot · or absolute price
+                      {config.barrierHint}
                     </p>
                   </div>
                 </div>
               )}
 
-              {contractType !== TradeInputType.multiplier && (
+              {tradeClass === "options" && config.hasDuration && (
                 <div className="space-y-3">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
                   <div className="d-flex gap-2">
@@ -388,31 +556,31 @@ export default function ChartPage() {
                       value={duration}
                       onChange={(e) => setDuration(e.target.value)}
                       className="rounded-none font-mono flex-1 h-10 border-border bg-background"
-                      data-testid="input-duration"
                     />
                     <Select value={durationUnit} onValueChange={setDurationUnit}>
-                      <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono" data-testid="select-duration-unit">
+                      <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
-                        {DURATION_UNITS.map((u) => (
-                          <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
-                        ))}
+                        {DURATION_UNITS.map((u) => {
+                          if (config.ticksOnly && u.value !== "t") return null;
+                          return <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>;
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
               )}
 
-              {contractType === TradeInputType.multiplier && (
+              {tradeClass === "multiplier" && (
                 <div className="space-y-3">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Multiplier</Label>
                   <Select value={multiplier} onValueChange={setMultiplier}>
-                    <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono" data-testid="select-multiplier">
+                    <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
-                      {["40", "100", "200", "300", "400"].map((u) => (
+                      {MULTIPLIER_VALUES.map((u) => (
                         <SelectItem key={u} value={u} className="font-mono text-xs">x{u}</SelectItem>
                       ))}
                     </SelectContent>
@@ -420,17 +588,35 @@ export default function ChartPage() {
                 </div>
               )}
 
-              <div className="space-y-3">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">Take Profit (Optional)</Label>
-                <Input
-                  type="number"
-                  value={takeProfit}
-                  onChange={(e) => setTakeProfit(e.target.value)}
-                  placeholder="0.00"
-                  className="rounded-none font-mono h-10 border-border bg-background"
-                  data-testid="input-takeprofit"
-                />
-              </div>
+              {tradeClass === "options" && config.needsGrowthRate && (
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Growth Rate</Label>
+                  <Select value={growthRate} onValueChange={setGrowthRate}>
+                    <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                      {GROWTH_RATES.map((u) => (
+                        <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {tradeClass !== "forex" && (
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Take Profit (Optional)</Label>
+                  <Input
+                    type="number"
+                    value={takeProfit}
+                    onChange={(e) => setTakeProfit(e.target.value)}
+                    placeholder="0.00"
+                    className="rounded-none font-mono h-10 border-border bg-background"
+                    data-testid="input-takeprofit"
+                  />
+                </div>
+              )}
 
 
               <div className="d-flex align-items-center justify-content-between p-3 border border-border bg-background">
@@ -447,14 +633,43 @@ export default function ChartPage() {
             </div>
 
             <div className="p-4 mt-auto border-t border-border">
-              <Button
-                className={`w-100 rounded-none h-12 text-sm uppercase font-bold tracking-widest ${direction === TradeInputDirection.call || direction === TradeInputDirection.buy ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'}`}
-                onClick={handleExecute}
-                disabled={createTrade.isPending || !isConnected}
-                data-testid="button-execute"
-              >
-                {createTrade.isPending ? 'Executing...' : 'Execute Trade'}
-              </Button>
+              {tradeClass === "forex" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
+                    style={{ backgroundColor: '#ef4444', color: 'white' }}
+                    onClick={() => handleExecute(TradeInputDirection.sell)}
+                    disabled={createTrade.isPending || !isConnected}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
+                  >
+                    <span>Sell by Market</span>
+                  </Button>
+                  <Button
+                    className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
+                    style={{ backgroundColor: '#3b82f6', color: 'white' }}
+                    onClick={() => handleExecute(TradeInputDirection.buy)}
+                    disabled={createTrade.isPending || !isConnected}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                  >
+                    <span>Buy by Market</span>
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  className={`w-100 rounded-none h-12 text-sm uppercase font-bold tracking-widest ${
+                    direction === "put" || direction === "sell" 
+                      ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+                      : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                  }`}
+                  onClick={() => handleExecute()}
+                  disabled={createTrade.isPending || !isConnected}
+                  data-testid="button-execute"
+                >
+                  {createTrade.isPending ? 'Executing...' : 'Execute Trade'}
+                </Button>
+              )}
             </div>
           </Panel>
         </PanelGroup>

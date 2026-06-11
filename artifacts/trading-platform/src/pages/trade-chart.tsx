@@ -188,6 +188,13 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
         low: Number(c.low),
         close: Number(c.close),
       }))
+      .filter(c => 
+        Number.isFinite(c.time) && 
+        Number.isFinite(c.open) && 
+        Number.isFinite(c.high) && 
+        Number.isFinite(c.low) && 
+        Number.isFinite(c.close)
+      )
       .sort((a, b) => a.time - b.time);
 
     const unique: typeof cleaned = [];
@@ -616,10 +623,36 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
 
   return (
     <div className="flex flex-col w-full h-full border border-border/50 rounded-lg overflow-hidden">
-      <div
-        ref={containerRef}
-        className="w-full h-[500px] bg-muted/5 shrink-0"
-      />
+      <div style={{ position: "relative", flexShrink: 0, height: "500px", width: "100%", display: "flex", flexDirection: "column" }}>
+        <div 
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 0,
+            opacity: 0.05,
+            pointerEvents: "none",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            width: "100%",
+            height: "100%"
+          }}
+        >
+          <img 
+            src="/assets/brand.png" 
+            alt="Brand Watermark" 
+            style={{ maxWidth: "50%", maxHeight: "50%", filter: "grayscale(100%)" }} 
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        </div>
+        <div
+          ref={containerRef}
+          className="w-full h-full bg-muted/5 relative"
+          style={{ zIndex: 1 }}
+        />
+      </div>
       {oscillatorGroups.map(([groupName]) => (
         <div 
           key={groupName}

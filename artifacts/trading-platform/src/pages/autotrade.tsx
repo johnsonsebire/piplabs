@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useListAutoTradeSessions, useCreateAutoTradeSession, useUpdateAutoTradeSession, useDeleteAutoTradeSession, useListStrategies, AutoTradeSessionInputMode, getListAutoTradeSessionsQueryKey } from "@workspace/api-client-react";
+import { useListAutoTradeSessions, useCreateAutoTradeSession, useUpdateAutoTradeSession, useDeleteAutoTradeSession, useListStrategies, AutoTradeSessionInputMode, getListAutoTradeSessionsQueryKey, useListMt5Accounts } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectLabel, SelectSeparator, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { swalSuccess, swalError, swalWarning, swalConfirm } from "@/lib/swal";
@@ -14,6 +14,8 @@ import { format } from "date-fns";
 import { Link } from "wouter";
 import { SessionLiveChart } from "@/components/SessionLiveChart";
 import { Bot, Terminal, Activity, List, ChevronDown } from "lucide-react";
+import { ContractTypeSelector } from "@/components/chart/ContractTypeSelector";
+import { type ContractSubtype } from "@/lib/deriv-contract-types";
 
 function SessionTrades({ sessionId }: { sessionId: number }) {
   const { data: trades, isLoading } = useQuery({
@@ -242,6 +244,7 @@ export default function AutoTradePage() {
   const createSession = useCreateAutoTradeSession();
   const updateSession = useUpdateAutoTradeSession();
   const deleteSession = useDeleteAutoTradeSession();
+  const { data: mt5Accounts } = useListMt5Accounts();
   
   const queryClient = useQueryClient();
 
@@ -262,6 +265,9 @@ export default function AutoTradePage() {
     profitTarget: "",
     tradeProfitTarget: "",
     alternateDirection: false,
+    tradeClass: "options" as "options" | "multiplier" | "forex",
+    tradeType: "RISE_FALL" as ContractSubtype,
+    mt5AccountId: "",
   });
 
   const [filter, setFilter] = useState<"all" | "active" | "past">("all");
@@ -290,6 +296,9 @@ export default function AutoTradePage() {
       profitTarget: "",
       tradeProfitTarget: "",
       alternateDirection: false,
+      tradeClass: "options" as "options" | "multiplier" | "forex",
+      tradeType: "RISE_FALL" as ContractSubtype,
+      mt5AccountId: mt5Accounts?.[0]?.id || "",
     });
     setShowForm(true);
   };
@@ -315,6 +324,9 @@ export default function AutoTradePage() {
       profitTarget: session.profitTarget ? session.profitTarget.toString() : "",
       tradeProfitTarget: session.tradeProfitTarget ? session.tradeProfitTarget.toString() : "",
       alternateDirection: session.alternateDirection || false,
+      tradeClass: "options", // Default for now
+      tradeType: session.tradeType || "RISE_FALL",
+      mt5AccountId: session.mt5AccountId || (mt5Accounts?.[0]?.id || ""),
     });
     setShowForm(true);
   };
@@ -346,7 +358,11 @@ export default function AutoTradePage() {
       profitTarget: formData.profitTarget ? parseFloat(formData.profitTarget) : null,
       tradeProfitTarget: formData.tradeProfitTarget ? parseFloat(formData.tradeProfitTarget) : null,
       alternateDirection: formData.alternateDirection,
-    };
+      tradeClass: formData.tradeClass,
+      tradeType: formData.tradeType,
+      contractSubtype: formData.tradeType,
+      mt5AccountId: formData.tradeClass === "forex" ? formData.mt5AccountId : undefined,
+    } as any;
 
     if (editingId) {
       updateSession.mutate({ id: editingId, data: payload }, {
@@ -473,7 +489,7 @@ export default function AutoTradePage() {
                               return (
                                 <span className="flex items-center gap-2">
                                   {s.strategyName || `Strategy #${s.strategyId}`}
-                                  {aiEnabled && <Bot className="w-4 h-4 text-primary" title="AI Confirmation Enabled" />}
+                                  {aiEnabled && <span title="AI Confirmation Enabled"><Bot className="w-4 h-4 text-primary" /></span>}
                                 </span>
                               );
                             })()}
@@ -592,6 +608,65 @@ export default function AutoTradePage() {
                   </div>
                 </div>
 
+                <div className="space-y-3 border-b border-border pb-3">
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Trade Type</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      type="button"
+                      variant={formData.tradeClass === "options" ? "default" : "outline"}
+                      className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${formData.tradeClass === "options" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                      onClick={() => setFormData({...formData, tradeClass: "options"})}
+                    >
+                      Options
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.tradeClass === "multiplier" ? "default" : "outline"}
+                      className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${formData.tradeClass === "multiplier" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                      onClick={() => setFormData({...formData, tradeClass: "multiplier"})}
+                    >
+                      Multiplier
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.tradeClass === "forex" ? "default" : "outline"}
+                      className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${formData.tradeClass === "forex" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                      onClick={() => setFormData({...formData, tradeClass: "forex"})}
+                    >
+                      Forex
+                    </Button>
+                  </div>
+                </div>
+
+                {formData.tradeClass === "options" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground">Contract Type</Label>
+                    <ContractTypeSelector 
+                      value={formData.tradeType} 
+                      onChange={(v) => setFormData({...formData, tradeType: v})} 
+                      compact 
+                    />
+                  </div>
+                )}
+
+                {formData.tradeClass === "forex" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground">Forex Account</Label>
+                    <Select value={formData.mt5AccountId} onValueChange={(v: string) => setFormData({...formData, mt5AccountId: v})} disabled={!!editingId}>
+                      <SelectTrigger className="w-100 rounded-none border-border font-mono text-sm h-10 bg-background">
+                        <SelectValue placeholder="Select MT5 Account" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none border-border">
+                        {mt5Accounts?.filter(a => a.type === formData.mode).map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id} className="mt5-account-item font-mono text-xs uppercase cursor-pointer rounded-none border-b border-[#1a2332] last:border-0">
+                            {acc.name} - {acc.broker} ({acc.login})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="space-y-1">
                   <Label className="text-xs uppercase font-mono text-muted-foreground">Pair Execution Mode</Label>
                   <Select value={formData.pairMode} onValueChange={(v: any) => setFormData({...formData, pairMode: v})}>
@@ -620,43 +695,46 @@ export default function AutoTradePage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Stake Amount (USD)</Label>
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">{formData.tradeClass === "forex" ? "Volume (Lots)" : "Stake Amount (USD)"}</Label>
                   <Input 
                     required 
                     type="number"
+                    step={formData.tradeClass === "forex" ? "0.01" : "any"}
                     value={formData.stakeAmount} 
                     onChange={e => setFormData({...formData, stakeAmount: e.target.value})}
                     className="w-100 rounded-none font-mono border-border bg-background"
                   />
                 </div>
 
-                <div className="row g-3">
-                  <div className="col-sm-6 space-y-1">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
-                    <Input 
-                      required 
-                      type="number"
-                      value={formData.duration} 
-                      onChange={e => setFormData({...formData, duration: e.target.value})}
-                      className="w-100 rounded-none font-mono border-border bg-background"
-                    />
+                {formData.tradeClass !== "forex" && (
+                  <div className="row g-3">
+                    <div className="col-sm-6 space-y-1">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
+                      <Input 
+                        required
+                        type="number"
+                        value={formData.duration} 
+                        onChange={e => setFormData({...formData, duration: e.target.value})}
+                        className="w-100 rounded-none font-mono border-border bg-background"
+                      />
+                    </div>
+                    <div className="col-sm-6 space-y-1">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Unit</Label>
+                      <Select value={formData.durationUnit} onValueChange={(v: any) => setFormData({...formData, durationUnit: v})}>
+                        <SelectTrigger className="w-100 rounded-none border-border font-mono text-sm h-10 bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none border-border">
+                          <SelectItem value="t" className="font-mono text-xs uppercase">Ticks</SelectItem>
+                          <SelectItem value="s" className="font-mono text-xs uppercase">Seconds</SelectItem>
+                          <SelectItem value="m" className="font-mono text-xs uppercase">Minutes</SelectItem>
+                          <SelectItem value="h" className="font-mono text-xs uppercase">Hours</SelectItem>
+                          <SelectItem value="d" className="font-mono text-xs uppercase">Days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="col-sm-6 space-y-1">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground">Unit</Label>
-                    <Select value={formData.durationUnit} onValueChange={(v: any) => setFormData({...formData, durationUnit: v})}>
-                      <SelectTrigger className="w-100 rounded-none border-border font-mono text-sm h-10 bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-none border-border">
-                        <SelectItem value="t" className="font-mono text-xs uppercase">Ticks</SelectItem>
-                        <SelectItem value="s" className="font-mono text-xs uppercase">Seconds</SelectItem>
-                        <SelectItem value="m" className="font-mono text-xs uppercase">Minutes</SelectItem>
-                        <SelectItem value="h" className="font-mono text-xs uppercase">Hours</SelectItem>
-                        <SelectItem value="d" className="font-mono text-xs uppercase">Days</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                )}
 
                 <div className="row g-3">
                   <div className="col-sm-6 space-y-1">

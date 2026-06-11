@@ -12,6 +12,7 @@ export const mt5AccountsTable = pgTable("mt5_accounts", {
   login: text("login").notNull(),
   server: text("server").notNull(),
   name: text("name").notNull(),
+  broker: text("broker").notNull().default("Other"),
   type: text("type").notNull().default("demo"), // 'demo' or 'live'
   isProvider: boolean("is_provider").notNull().default(false),
   state: mt5AccountStateEnum("state").notNull().default("undeployed"),

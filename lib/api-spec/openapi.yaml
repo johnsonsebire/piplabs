@@ -270,6 +270,60 @@ paths:
                 items:
                   $ref: "#/components/schemas/DerivActiveSymbol"
 
+  # ─── MT5 Accounts ────────────────────────────────────────────────────────────
+
+  /mt5-accounts:
+    get:
+      operationId: listMt5Accounts
+      tags: [mt5]
+      summary: List all MT5 accounts for current user
+      responses:
+        "200":
+          description: List of MT5 accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Mt5Account"
+
+    post:
+      operationId: createMt5Account
+      tags: [mt5]
+      summary: Create a new MT5 account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Mt5AccountInput"
+      responses:
+        "201":
+          description: Created MT5 account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mt5Account"
+
+  /mt5-accounts/{id}/provider:
+    post:
+      operationId: setMt5AccountProvider
+      tags: [mt5]
+      summary: Set MT5 account as a Provider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mt5Account"
+
   # ─── Assets ──────────────────────────────────────────────────────────────────
 
   /assets:
@@ -1490,6 +1544,74 @@ components:
       required:
         - connected
 
+    # ─── MT5 Accounts ───────────────────────────────────────────────────────────
+
+    Mt5Account:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        login:
+          type: string
+        server:
+          type: string
+        name:
+          type: string
+        broker:
+          type: string
+        type:
+          type: string
+          enum: [demo, live]
+        isProvider:
+          type: boolean
+        state:
+          type: string
+          enum: [deployed, undeployed]
+        connectionStatus:
+          type: string
+          enum: [connected, disconnected, error]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - login
+        - server
+        - name
+        - broker
+        - type
+        - isProvider
+        - state
+        - connectionStatus
+        - createdAt
+        - updatedAt
+
+    Mt5AccountInput:
+      type: object
+      properties:
+        name:
+          type: string
+        login:
+          type: string
+        password:
+          type: string
+        server:
+          type: string
+        type:
+          type: string
+          enum: [demo, live]
+      required:
+        - name
+        - login
+        - password
+        - server
+
     # ─── Assets ─────────────────────────────────────────────────────────────────
 
     Asset:
@@ -1600,6 +1722,8 @@ components:
         openedAt:
           type: string
           format: date-time
+        mt5AccountId:
+          type: ["string", "null"]
         closedAt:
           type: ["string", "null"]
           format: date-time
@@ -1670,6 +1794,9 @@ components:
         mode:
           type: string
           enum: [demo, live]
+        mt5AccountId:
+          type: ["string", "null"]
+          description: "ID of the MT5 account to use for forex trades via MetaApi"
         barrier:
           type: ["string", "null"]
           description: >
@@ -2079,6 +2206,8 @@ components:
         tradeType:
           type: string
           enum: [vanilla_options, forex, multiplier]
+        mt5AccountId:
+          type: ["string", "null"]
         duration:
           type: ["integer", "null"]
         durationUnit:
@@ -2342,6 +2471,8 @@ components:
           enum: [demo, live]
         symbol:
           type: string
+        mt5AccountId:
+          type: ["string", "null"]
         symbols:
           type: array
           items:
@@ -2372,7 +2503,7 @@ components:
         - stakeAmount
         - duration
         - durationUnit
-
+        
     AutoTradeSessionUpdate:
       type: object
       properties:

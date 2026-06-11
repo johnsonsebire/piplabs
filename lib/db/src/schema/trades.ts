@@ -22,6 +22,7 @@ export const tradesTable = pgTable("trades", {
   exitPrice: real("exit_price"),
   status: tradeStatusEnum("status").notNull().default("pending"),
   contractId: text("contract_id"),
+  mt5AccountId: text("mt5_account_id"),
   strategyId: integer("strategy_id"),
   sessionId: integer("session_id"),
   notes: text("notes"),
