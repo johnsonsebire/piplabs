@@ -206,6 +206,7 @@ export default function AIBuilderPage() {
             width: isSidebarOpen ? '280px' : '0px',
             minWidth: isSidebarOpen ? '280px' : '0px',
             maxWidth: isSidebarOpen ? '280px' : '0px',
+            height: '100%',
             flexShrink: 0,
             overflow: 'hidden',
             display: 'flex',
@@ -256,13 +257,13 @@ export default function AIBuilderPage() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  width: '100%',
+                  width: 'calc(100% - 1.5rem)',
+                  margin: '0.75rem',
                   minWidth: 0,
-                  padding: '0.625rem 1rem',
-                  borderBottom: '1px solid var(--bs-border-color)',
-                  borderLeft: activeChatId === String(c.id) ? '2px solid #10b981' : '2px solid transparent',
-                  borderRight: 'none',
-                  borderTop: 'none',
+                  padding: '0.625rem 0.75rem',
+                  border: '1px solid var(--bs-border-color)',
+                  borderRadius: '0.25rem',
+                  borderLeft: activeChatId === String(c.id) ? '3px solid #10b981' : '1px solid var(--bs-border-color)',
                   backgroundColor: activeChatId === String(c.id) ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
                   color: activeChatId === String(c.id) ? '#10b981' : '#94a3b8',
                   cursor: 'pointer',
@@ -344,11 +345,12 @@ export default function AIBuilderPage() {
               overflow: 'hidden',
             }}
           >
-            {/* Chat Panel — fixed width, flex column, internal scroll only */}
+            {/* Chat Panel — fixed width via calc, internal scroll only */}
             <div
               style={{
-                flex: '1 1 0',
-                minWidth: 0,
+                width: 'calc(100% - 350px - 1rem)',
+                height: '100%',
+                flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -375,7 +377,7 @@ export default function AIBuilderPage() {
                 style={{
                   flex: 1,
                   minHeight: 0,
-                  overflowY: 'auto',
+                  overflowY: 'scroll',
                   overflowX: 'hidden',
                   padding: '1rem',
                 }}
@@ -450,7 +452,9 @@ export default function AIBuilderPage() {
                               h3: ({node, ...props}) => <h3 className="fw-bold mt-2 mb-1 text-uppercase" style={{fontSize: '11px'}} {...props} />,
                               ul: ({node, ...props}) => <ul className="ps-4 mb-2" {...props} />,
                               li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                              strong: ({node, ...props}) => <strong className="fw-bold text-primary" {...props} />
+                              strong: ({node, ...props}) => <strong className="fw-bold text-primary" {...props} />,
+                              pre: ({node, ...props}) => <pre className="mb-2 p-2 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.3)', overflowX: 'auto', maxWidth: '100%', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} {...props} />,
+                              code: ({node, inline, ...props}: any) => inline ? <code style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px' }} {...props} /> : <code {...props} />
                             }}
                           >
                             {msg.content}
@@ -496,9 +500,8 @@ export default function AIBuilderPage() {
             {/* Strategy Panel — fixed width, flex column, internal scroll only */}
             <div
               style={{
-                width: '320px',
-                minWidth: '320px',
-                maxWidth: '320px',
+                width: '350px',
+                height: '100%',
                 flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',

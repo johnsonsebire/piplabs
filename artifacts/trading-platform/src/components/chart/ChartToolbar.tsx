@@ -169,7 +169,7 @@ export function ChartToolbar({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p className="text-xs font-mono">{activeToolConfig.label}</p>
+                  <div className="text-xs font-mono">{activeToolConfig.label}</div>
                 </TooltipContent>
               </Tooltip>
 
@@ -225,7 +225,7 @@ export function ChartToolbar({
                 </PopoverTrigger>
               </TooltipTrigger>
               <TooltipContent side="right">
-                <p className="text-xs font-mono">Indicators</p>
+                <div className="text-xs font-mono">Indicators</div>
               </TooltipContent>
             </Tooltip>
 
@@ -269,7 +269,7 @@ export function ChartToolbar({
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p className="text-xs font-mono">Clear All Drawings</p>
+            <div className="text-xs font-mono">Clear All Drawings</div>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
