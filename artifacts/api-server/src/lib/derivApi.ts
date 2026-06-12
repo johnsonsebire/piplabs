@@ -86,7 +86,7 @@ export type DerivAccountInfo = {
 
 export type DerivBuyParams = {
   symbol: string;
-  contractType: "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLALONGCALL" | "VANILLALONGPUT";
+  contractType: "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLALONGCALL" | "VANILLALONGPUT" | "TURBOSSHORT" | "TURBOSLONG" | "NOTOUCH" | "ONETOUCH" | "DIFFER" | "MATCH" | "UNDER" | "OVER" | "EVEN" | "ODD" | "ACCU";
   amount: number;
   currency: string;
   duration: number;

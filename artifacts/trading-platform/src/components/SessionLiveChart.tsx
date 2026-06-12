@@ -35,6 +35,8 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
   const indicatorSeriesRef = useRef<any>(null);
   const oscRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dummySeriesRefs = useRef<any[]>([]);
+  const lastTimeRef = useRef<number>(0);
+  const lastLengthRef = useRef<number>(0);
 
   // Parse indicators
   const { newCandles, overlayKeys, oscillatorKeys, oscillatorGroups } = useMemo(() => {
@@ -320,6 +322,8 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
       if (dummySeriesRefs.current.length > 0) {
         dummySeriesRefs.current.forEach(ds => ds.setData(newCandles.map((c: any) => ({ time: c.time as any, value: 0 }))));
       }
+      lastTimeRef.current = newCandles.length > 0 ? newCandles[newCandles.length - 1].time : 0;
+      lastLengthRef.current = newCandles.length;
       indicatorSeriesMap.forEach((lineSeries, key) => {
         const data = newCandles
           .map((c: any) => {
@@ -385,24 +389,63 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
   useEffect(() => {
     if (!seriesRef.current || newCandles.length === 0) return;
     const last = newCandles[newCandles.length - 1];
-    try {
-      seriesRef.current.update({ ...last, time: last.time as any });
-      if (dummySeriesRefs.current.length > 0) {
-        dummySeriesRefs.current.forEach(ds => ds.update({ time: last.time as any, value: 0 }));
+    
+    // Check if we need to call setData instead of update
+    const lengthDiff = newCandles.length - lastLengthRef.current;
+    
+    if (lengthDiff < 0 || lengthDiff > 1 || lastTimeRef.current === 0) {
+      // Inconsistent length/time, do a full setData reset to prevent gaps/crashes
+      try {
+        seriesRef.current.setData(newCandles.map((c: any) => ({ ...c, time: c.time as any })));
+        if (dummySeriesRefs.current.length > 0) {
+          dummySeriesRefs.current.forEach(ds => ds.setData(newCandles.map((c: any) => ({ time: c.time as any, value: 0 }))));
+        }
+        if (indicatorSeriesRef.current) {
+          indicatorSeriesRef.current.forEach((lineSeries: any, key: string) => {
+            const data = newCandles
+              .map((c: any) => {
+                const val = c.indicators?.[key];
+                if (val !== undefined && val !== null) {
+                  if (key.toUpperCase() === "MACD_HIST" && typeof val === "object") {
+                    return { time: c.time as any, value: val.value, color: val.color };
+                  }
+                  return { time: c.time as any, value: typeof val === "object" ? val.value : val };
+                }
+                return null;
+              })
+              .filter((d: any) => d && d.value !== undefined && d.value !== null && Number.isFinite(d.value));
+            lineSeries.setData(data as any);
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to reset candle data:', err);
       }
-      if (indicatorSeriesRef.current) {
-        indicatorSeriesRef.current.forEach((lineSeries: any, key: string) => {
-          const val = (last as any).indicators?.[key];
-          if (val !== undefined && val !== null) {
-            if (key.toUpperCase() === "MACD_HIST" && typeof val === "object" && Number.isFinite(val.value)) {
-              lineSeries.update({ time: last.time as any, value: val.value, color: val.color });
-            } else if (Number.isFinite(val)) {
-              lineSeries.update({ time: last.time as any, value: val });
+    } else {
+      // Incremental update (same candle updated or exactly 1 new candle appended)
+      try {
+        seriesRef.current.update({ ...last, time: last.time as any });
+        if (dummySeriesRefs.current.length > 0) {
+          dummySeriesRefs.current.forEach(ds => ds.update({ time: last.time as any, value: 0 }));
+        }
+        if (indicatorSeriesRef.current) {
+          indicatorSeriesRef.current.forEach((lineSeries: any, key: string) => {
+            const val = (last as any).indicators?.[key];
+            if (val !== undefined && val !== null) {
+              if (key.toUpperCase() === "MACD_HIST" && typeof val === "object" && Number.isFinite(val.value)) {
+                lineSeries.update({ time: last.time as any, value: val.value, color: val.color });
+              } else if (Number.isFinite(val)) {
+                lineSeries.update({ time: last.time as any, value: val });
+              }
             }
-          }
-        });
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to update tick incrementally:', err);
       }
-    } catch {}
+    }
+    
+    lastTimeRef.current = last.time;
+    lastLengthRef.current = newCandles.length;
   }, [newCandles]);
 
   // Trade markers

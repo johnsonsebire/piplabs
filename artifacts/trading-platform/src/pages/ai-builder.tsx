@@ -186,113 +186,265 @@ export default function AIBuilderPage() {
 
   return (
     <AppLayout>
-      <div className="d-flex flex-grow-1 w-100 overflow-hidden" style={{ maxWidth: '1600px', margin: '0 auto' }}>
-        
-        {/* Sidebar */}
-        <div 
-          className={`d-flex flex-column border-end border-secondary transition-all overflow-hidden ${isSidebarOpen ? "w-25 min-w-250px" : "w-0"}`}
-          style={{ width: isSidebarOpen ? '300px' : '0px', flexShrink: 0 }}
+      {/*
+        Root wrapper: explicit height = viewport minus the 3rem fixed header.
+        This bypasses Bootstrap's min-vh-100 / flex:1 ambiguity so every
+        child panel stretches to the full remaining viewport height.
+      */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          width: '100%',
+          height: 'calc(100vh - 3rem)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* ── Sidebar ─────────────────────────────────────────── */}
+        <div
+          style={{
+            width: isSidebarOpen ? '280px' : '0px',
+            minWidth: isSidebarOpen ? '280px' : '0px',
+            maxWidth: isSidebarOpen ? '280px' : '0px',
+            flexShrink: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: '1px solid var(--bs-border-color)',
+            transition: 'width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease',
+            backgroundColor: 'var(--bs-card-bg)',
+          }}
         >
-          <div className="p-3 border-bottom border-secondary d-flex align-items-center justify-content-between">
-            <h2 className="h6 mb-0 font-mono text-uppercase fw-bold text-nowrap">Conversations</h2>
-            <Button variant="ghost" size="sm" onClick={() => setIsSidebarOpen(false)} className="rounded-none px-2 text-secondary">
+          {/* Sidebar header */}
+          <div
+            style={{
+              padding: '0.75rem 1rem',
+              borderBottom: '1px solid var(--bs-border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0,
+            }}
+          >
+            <h2 className="font-mono text-uppercase fw-bold mb-0" style={{ fontSize: '0.6875rem', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
+              Conversations
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setIsSidebarOpen(false)} className="rounded-none px-2 text-secondary" style={{ flexShrink: 0 }}>
               <ChevronLeft size={16} />
             </Button>
           </div>
-          <div className="p-3">
-            <Button onClick={startNewChat} variant="outline" className="w-100 rounded-none font-mono small d-flex align-items-center gap-2">
+
+          {/* New chat button */}
+          <div style={{ padding: '0.75rem', flexShrink: 0, borderBottom: '1px solid var(--bs-border-color)' }}>
+            <Button
+              onClick={startNewChat}
+              variant="outline"
+              className="w-100 rounded-none font-mono small d-flex align-items-center gap-2"
+            >
               <Plus size={14} /> New Chat
             </Button>
           </div>
-          <ScrollArea className="flex-1">
-            <div className="d-flex flex-column">
-              {conversations.map((c: any) => (
-                <button
-                  key={c.id}
-                  onClick={() => setLocation(`${location}?chat=${c.id}`)}
-                  className={`w-100 text-start p-3 border-bottom border-secondary font-mono small text-truncate`}
+
+          {/* Conversation list — scrollable */}
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+            {conversations.map((c: any) => (
+              <button
+                key={c.id}
+                onClick={() => setLocation(`${location}?chat=${c.id}`)}
+                title={c.title}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  width: '100%',
+                  minWidth: 0,
+                  padding: '0.625rem 1rem',
+                  borderBottom: '1px solid var(--bs-border-color)',
+                  borderLeft: activeChatId === String(c.id) ? '2px solid #10b981' : '2px solid transparent',
+                  borderRight: 'none',
+                  borderTop: 'none',
+                  backgroundColor: activeChatId === String(c.id) ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                  color: activeChatId === String(c.id) ? '#10b981' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: '0.6875rem',
+                  textAlign: 'left',
+                  boxSizing: 'border-box',
+                  overflow: 'hidden',
+                }}
+                onMouseEnter={(e) => {
+                  if (activeChatId !== String(c.id)) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = '#e2e8f0';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeChatId !== String(c.id)) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#94a3b8';
+                  }
+                }}
+              >
+                <MessageSquare size={14} style={{ flexShrink: 0 }} />
+                <span
                   style={{
-                    backgroundColor: activeChatId === String(c.id) ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
-                    borderLeft: activeChatId === String(c.id) ? '2px solid #10b981' : '2px solid transparent',
-                    color: activeChatId === String(c.id) ? '#10b981' : '#94a3b8',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    minWidth: 0,
+                    flex: 1,
                   }}
-                  onMouseEnter={(e) => {
-                    if (activeChatId !== String(c.id)) {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                      e.currentTarget.style.color = '#e2e8f0';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (activeChatId !== String(c.id)) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#94a3b8';
-                    }
-                  }}
-                  title={c.title}
                 >
-                  <div className="d-flex align-items-center gap-2 text-truncate">
-                    <MessageSquare size={14} className="flex-shrink-0" />
-                    <span className="text-truncate">{c.title}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
+                  {c.title}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="d-flex flex-column flex-grow-1 w-100 overflow-hidden p-4 gap-4 position-relative">
-          {!isSidebarOpen && (
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="position-absolute rounded-none z-10 bg-background" 
-              style={{ top: '1rem', left: '1rem' }}
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              <ChevronRight size={16} />
-            </Button>
-          )}
-
-          <div className={`d-flex align-items-center flex-shrink-0 mt-2 ${!isSidebarOpen ? 'ms-5' : ''}`}>
-            <h1 className="h4 fw-bold font-mono text-uppercase tracking-tight d-flex align-items-center gap-2">
-              <Bot className="text-primary" /> AI Strategy Generator
+        {/* ── Main Content ─────────────────────────────────────── */}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            padding: '1rem 1rem 1rem 1rem',
+            gap: '1rem',
+          }}
+        >
+          {/* Page title row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+            {!isSidebarOpen && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-none"
+                style={{ flexShrink: 0 }}
+                onClick={() => setIsSidebarOpen(true)}
+              >
+                <ChevronRight size={16} />
+              </Button>
+            )}
+            <h1 className="fw-bold font-mono text-uppercase mb-0 d-flex align-items-center gap-2" style={{ fontSize: '1rem', letterSpacing: '0.05em' }}>
+              <Bot className="text-primary" size={20} /> AI Strategy Builder
             </h1>
           </div>
 
-          <div className="d-flex flex-1 gap-4 overflow-hidden">
-          {/* Chat Panel */}
-          <Card className="flex-1 d-flex flex-column rounded-none border-secondary" style={{ minWidth: 0 }}>
-            <CardHeader className="border-bottom border-secondary p-3 flex-shrink-0">
-              <CardTitle className="text-uppercase font-mono small">Chat with Agent</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 d-flex flex-column h-100 overflow-hidden">
-              <ScrollArea className="flex-1 p-4 overflow-y-auto" ref={scrollRef}>
+          {/* ── Two-column panel row ────────────────────────────── */}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'row',
+              gap: '1rem',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Chat Panel — fixed width, flex column, internal scroll only */}
+            <div
+              style={{
+                flex: '1 1 0',
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                border: '1px solid var(--bs-border-color)',
+                backgroundColor: 'var(--bs-card-bg)',
+              }}
+            >
+              {/* Chat header */}
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderBottom: '1px solid var(--bs-border-color)',
+                  flexShrink: 0,
+                }}
+              >
+                <span className="font-mono text-uppercase fw-bold" style={{ fontSize: '0.6875rem', letterSpacing: '0.08em' }}>
+                  Chat with Agent
+                </span>
+              </div>
+
+              {/* Chat messages — this is the ONLY scroll zone */}
+              <div
+                ref={scrollRef}
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  padding: '1rem',
+                }}
+              >
                 {messages.length === 0 ? (
-                  <div className="h-100 d-flex flex-column align-items-center justify-content-center text-center text-secondary gap-3 opacity-50 p-4">
+                  <div
+                    style={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      opacity: 0.5,
+                      gap: '0.75rem',
+                    }}
+                  >
                     <Bot size={48} />
-                    <p className="font-mono small text-uppercase">
-                      Describe your trading strategy.<br/>
+                    <p className="font-mono small text-uppercase text-secondary mb-0">
+                      Describe your trading strategy.<br />
                       You can ask me to build, backtest, and optimize it.
                     </p>
-                    <div className="d-flex flex-column gap-2 mt-4 text-start">
-                      <p className="font-mono" style={{fontSize: '11px'}}>💡 "Create an RSI mean reversion strategy on Volatility 100."</p>
-                      <p className="font-mono" style={{fontSize: '11px'}}>💡 "Build a MACD crossover strategy, backtest it on R_50 for 3 days, and optimize it."</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem', textAlign: 'left' }}>
+                      <p className="font-mono mb-0" style={{ fontSize: '11px' }}>💡 "Create an RSI mean reversion strategy on Volatility 100."</p>
+                      <p className="font-mono mb-0" style={{ fontSize: '11px' }}>💡 "Build a MACD crossover strategy, backtest it on R_50 for 3 days, and optimize it."</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="d-flex flex-column gap-4">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {messages.map((msg, i) => (
-                      <div key={i} className={`d-flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                        <div className={`rounded-circle p-2 d-flex align-items-center justify-content-center flex-shrink-0 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`} style={{width: 36, height: 36}}>
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          gap: '0.75rem',
+                          flexDirection: msg.role === "user" ? "row-reverse" : "row",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            backgroundColor: msg.role === "user" ? '#10b981' : '#1e293b',
+                            color: '#fff',
+                          }}
+                        >
                           {msg.role === "user" ? <User size={18} /> : <Bot size={18} />}
                         </div>
-                        <div className={`p-3 border font-mono small flex-1 ${msg.role === "user" ? "border-primary/50 bg-primary/5 text-end" : "border-secondary bg-background markdown-body"}`} style={{ maxWidth: '80%', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                        <div
+                          className="font-mono small"
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            maxWidth: '80%',
+                            padding: '0.75rem',
+                            border: msg.role === "user" ? '1px solid rgba(16,185,129,0.4)' : '1px solid var(--bs-border-color)',
+                            backgroundColor: msg.role === "user" ? 'rgba(16,185,129,0.05)' : 'var(--bs-body-bg)',
+                            overflowWrap: 'break-word',
+                            wordBreak: 'break-word',
+                          }}
+                        >
                           <ReactMarkdown
                             components={{
-                              p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                              p: ({node, ...props}) => <p className="mb-2 last:mb-0" style={{ margin: 0, marginBottom: '0.5rem' }} {...props} />,
                               h1: ({node, ...props}) => <h1 className="h5 fw-bold mt-3 mb-2" {...props} />,
                               h2: ({node, ...props}) => <h2 className="h6 fw-bold mt-3 mb-2" {...props} />,
                               h3: ({node, ...props}) => <h3 className="fw-bold mt-2 mb-1 text-uppercase" style={{fontSize: '11px'}} {...props} />,
@@ -307,72 +459,130 @@ export default function AIBuilderPage() {
                       </div>
                     ))}
                     {isGenerating && (
-                      <div className="d-flex gap-3 flex-row text-secondary align-items-center">
+                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', color: '#94a3b8' }}>
                         <Loader2 className="animate-spin" size={18} />
                         <span className="font-mono small text-uppercase">Agent is thinking...</span>
                       </div>
                     )}
                   </div>
                 )}
-              </ScrollArea>
-              
-              <div className="p-3 border-top border-secondary flex-shrink-0">
-                <form onSubmit={handleSubmit} className="d-flex gap-2">
-                  <Input 
+              </div>
+
+              {/* Chat input — pinned to bottom of chat panel */}
+              <div
+                style={{
+                  padding: '0.75rem',
+                  borderTop: '1px solid var(--bs-border-color)',
+                  flexShrink: 0,
+                  backgroundColor: 'var(--bs-card-bg)',
+                }}
+              >
+                <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '0.5rem' }}>
+                  <Input
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     placeholder="Describe your strategy or optimization goals..."
                     className="font-mono rounded-none border-secondary"
                     disabled={isGenerating}
+                    style={{ flex: 1, minWidth: 0 }}
                   />
-                  <Button type="submit" disabled={isGenerating || !input.trim()} className="rounded-none px-4">
+                  <Button type="submit" disabled={isGenerating || !input.trim()} className="rounded-none px-4" style={{ flexShrink: 0 }}>
                     <Send size={18} />
                   </Button>
                 </form>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Result Panel */}
-          <Card className="flex-1 d-flex flex-column rounded-none border-secondary" style={{ minWidth: 0 }}>
-            <CardHeader className="border-bottom border-secondary p-3 flex-shrink-0 d-flex flex-row justify-content-between align-items-center">
-              <CardTitle className="text-uppercase font-mono small d-flex align-items-center gap-2">
-                <Code2 size={18} /> Final Strategy
-              </CardTitle>
-              {finalStrategy && (
-                <Button onClick={saveStrategy} size="sm" className="rounded-none h-8 font-mono text-uppercase" style={{fontSize: '10px'}}>
-                  <Save size={14} className="me-2" /> Save
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="p-0 h-100 overflow-hidden d-flex flex-column">
-              {finalStrategy ? (
-                <div className="p-4 d-flex flex-column gap-4 overflow-y-auto h-100">
-                  <div>
-                    <h3 className="h5 fw-bold text-success font-mono m-0">{finalStrategy.name}</h3>
-                    <p className="text-secondary font-mono small mt-1 text-uppercase">{finalStrategy.type}</p>
-                  </div>
-                  
-                  <div className="p-3 border border-secondary/50 bg-secondary/5">
-                    <p className="font-mono small m-0">{finalStrategy.description}</p>
-                  </div>
+            {/* Strategy Panel — fixed width, flex column, internal scroll only */}
+            <div
+              style={{
+                width: '320px',
+                minWidth: '320px',
+                maxWidth: '320px',
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                border: '1px solid var(--bs-border-color)',
+                backgroundColor: 'var(--bs-card-bg)',
+              }}
+            >
+              {/* Strategy header */}
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderBottom: '1px solid var(--bs-border-color)',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span className="font-mono text-uppercase fw-bold d-flex align-items-center gap-2" style={{ fontSize: '0.6875rem', letterSpacing: '0.08em' }}>
+                  <Code2 size={16} /> Final Strategy
+                </span>
+                {finalStrategy && (
+                  <Button onClick={saveStrategy} size="sm" className="rounded-none font-mono text-uppercase" style={{ fontSize: '10px', height: '2rem', flexShrink: 0 }}>
+                    <Save size={14} className="me-1" /> Save
+                  </Button>
+                )}
+              </div>
 
-                  <div className="d-flex flex-column gap-2 mt-2">
-                    <span className="text-uppercase font-mono text-secondary" style={{fontSize: '11px'}}>Raw Configuration (JSON)</span>
-                    <pre className="p-3 border border-secondary bg-black text-success font-mono w-100 overflow-auto" style={{fontSize: '11px', maxHeight: '400px'}}>
-                      {JSON.stringify(JSON.parse(finalStrategy.code), null, 2)}
-                    </pre>
+              {/* Strategy body — scrollable */}
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                }}
+              >
+                {finalStrategy ? (
+                  <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div>
+                      <h3 className="font-mono fw-bold text-success mb-0" style={{ fontSize: '0.875rem' }}>{finalStrategy.name}</h3>
+                      <p className="font-mono small text-secondary text-uppercase mt-1 mb-0">{finalStrategy.type}</p>
+                    </div>
+                    <div style={{ padding: '0.75rem', border: '1px solid var(--bs-border-color)', backgroundColor: 'rgba(30,41,59,0.3)' }}>
+                      <p className="font-mono small mb-0">{finalStrategy.description}</p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <span className="font-mono text-secondary text-uppercase" style={{ fontSize: '11px' }}>Raw Configuration (JSON)</span>
+                      <pre
+                        className="font-mono text-success mb-0"
+                        style={{
+                          fontSize: '11px',
+                          padding: '0.75rem',
+                          backgroundColor: '#000',
+                          border: '1px solid var(--bs-border-color)',
+                          overflowX: 'auto',
+                          margin: 0,
+                        }}
+                      >
+                        {JSON.stringify(JSON.parse(finalStrategy.code), null, 2)}
+                      </pre>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="h-100 d-flex flex-column align-items-center justify-content-center text-center text-secondary opacity-50 p-4">
-                  <Play size={48} className="mb-3" />
-                  <p className="font-mono small text-uppercase">No strategy generated yet.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                ) : (
+                  <div
+                    style={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      opacity: 0.5,
+                      padding: '1rem',
+                    }}
+                  >
+                    <Play size={48} className="mb-3" />
+                    <p className="font-mono small text-uppercase mb-0">No strategy generated yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </AppLayout>

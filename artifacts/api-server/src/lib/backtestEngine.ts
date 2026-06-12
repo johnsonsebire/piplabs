@@ -1,4 +1,5 @@
 import type { HistCandle } from "./derivHistory";
+import { buildSmcSeries, SMC_SERIES_NAMES, type SmcConfig } from "./smcEngine";
 
 export type StrategyCondition = {
   indicatorA: string;
@@ -124,7 +125,7 @@ export type RiskManagement = {
 
 // ─── Strategy parsing (mirrors trading-platform strategies page) ───────────
 
-export function parseStrategyLegs(rawCode: string | null | undefined): { buy: StrategyLeg; sell: StrategyLeg; riskManagement?: RiskManagement } {
+export function parseStrategyLegs(rawCode: string | null | undefined): { buy: StrategyLeg; sell: StrategyLeg; riskManagement?: RiskManagement; smcConfig?: SmcConfig } {
   const empty: StrategyLeg = { enabled: false, logic: "AND", conditions: [] };
   if (!rawCode) return { buy: empty, sell: empty };
 
@@ -220,11 +221,26 @@ export function parseStrategyLegs(rawCode: string | null | undefined): { buy: St
     };
   };
 
+  // Parse optional SMC config
+  let smcConfig: SmcConfig | undefined = undefined;
+  if (parsed.smcConfig && typeof parsed.smcConfig === "object") {
+    const sc = parsed.smcConfig as Record<string, unknown>;
+    smcConfig = {
+      swingLookback: typeof sc.swingLookback === "number" ? sc.swingLookback : undefined,
+      obLookback: typeof sc.obLookback === "number" ? sc.obLookback : undefined,
+      fvgLookback: typeof sc.fvgLookback === "number" ? sc.fvgLookback : undefined,
+      displacementMultiplier: typeof sc.displacementMultiplier === "number" ? sc.displacementMultiplier : undefined,
+      wickRatio: typeof sc.wickRatio === "number" ? sc.wickRatio : undefined,
+      structureLegs: typeof sc.structureLegs === "number" ? sc.structureLegs : undefined,
+    };
+  }
+
   if (parsed.buy || parsed.sell) {
     return {
       buy: parsed.buy ? toLeg(parsed.buy) : empty,
       sell: parsed.sell ? toLeg(parsed.sell) : empty,
       riskManagement: parsed.riskManagement as RiskManagement | undefined,
+      smcConfig,
     };
   }
 
@@ -232,10 +248,10 @@ export function parseStrategyLegs(rawCode: string | null | undefined): { buy: St
     const leg = toLeg(parsed);
     const action = typeof parsed.action === "string" ? parsed.action.toLowerCase() : 
                    typeof parsed.direction === "string" ? parsed.direction.toLowerCase() : "";
-    return action === "sell" ? { buy: empty, sell: leg, riskManagement: parsed.riskManagement as RiskManagement | undefined } : { buy: leg, sell: empty, riskManagement: parsed.riskManagement as RiskManagement | undefined };
+    return action === "sell" ? { buy: empty, sell: leg, riskManagement: parsed.riskManagement as RiskManagement | undefined, smcConfig } : { buy: leg, sell: empty, riskManagement: parsed.riskManagement as RiskManagement | undefined, smcConfig };
   }
 
-  return { buy: empty, sell: empty, riskManagement: parsed.riskManagement as RiskManagement | undefined };
+  return { buy: empty, sell: empty, riskManagement: parsed.riskManagement as RiskManagement | undefined, smcConfig };
 }
 
 function hasRules(leg: StrategyLeg): boolean {
@@ -513,6 +529,7 @@ export function buildSeries(
   candles: HistCandle[],
   legs: { buy: StrategyLeg; sell: StrategyLeg },
   userIndicators: UserIndicator[] = [],
+  smcConfig?: SmcConfig,
 ): SeriesMap {
   const closes = candles.map((c) => c.close);
   const highs = candles.map((c) => c.high);
@@ -693,6 +710,18 @@ export function buildSeries(
         }
         map.set("STOCH_D", dArr);
       }
+    }
+  }
+
+  // ── SMC / ICT Price Action Series ─────────────────────────────────────────
+  // Merge all SMC series into the map unless already present (e.g. from user indicators).
+  // SMC series are always computed — the computation is cheap and allows any condition
+  // to reference SMC concepts without pre-declaring them.
+  const smcSeries = buildSmcSeries(candles, smcConfig ?? {});
+  for (const name of SMC_SERIES_NAMES) {
+    if (!map.has(name)) {
+      const s = smcSeries.get(name);
+      if (s) map.set(name, s);
     }
   }
 
@@ -978,14 +1007,15 @@ export function runBacktestOnCandles(
   userIndicators: UserIndicator[] = [],
   htfData: Record<number, { candles: HistCandle[], map: SeriesMap, closes: number[] }> = {},
 ): BacktestRunResult {
-  const { buy, sell, riskManagement } = parseStrategyLegs(strategyCode);
+  const { buy, sell, riskManagement, smcConfig } = parseStrategyLegs(strategyCode);
   const legs = { buy, sell };
   const directions = enabledDirections(legs);
   if (directions.length === 0) {
     throw new Error("Strategy has no enabled BUY or SELL leg with conditions");
   }
 
-  const map = buildSeries(candles, legs, userIndicators);
+  const smcConfigWithTimeframe = { ...(smcConfig ?? {}), timeframe: granularitySec };
+  const map = buildSeries(candles, legs, userIndicators, smcConfigWithTimeframe);
   const closes = candles.map((c) => c.close);
   const hold = holdSeconds(params.duration, params.durationUnit);
   const trades: SimTrade[] = [];

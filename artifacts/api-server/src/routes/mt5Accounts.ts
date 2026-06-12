@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { db } from "@workspace/db";
 import { mt5AccountsTable, insertMt5AccountSchema } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getMetaApiWrapper } from "@workspace/integrations-meta-api";
 
 const router = Router();
@@ -129,6 +129,48 @@ router.post("/mt5-accounts", requireAuth, async (req: AuthenticatedRequest, res:
     res.status(201).json(newAccount);
   } catch (error: any) {
     req.log.error(error, "Failed to add MT5 account");
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+// Delete/remove an MT5 account
+router.delete("/mt5-accounts/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const accountId = req.params.id as string;
+
+    // Check if account exists and belongs to the user
+    const [account] = await db.select().from(mt5AccountsTable).where(
+      and(
+        eq(mt5AccountsTable.id, accountId),
+        eq(mt5AccountsTable.userId, userId)
+      )
+    );
+
+    if (!account) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    const metaApi = getMetaApiWrapper();
+    
+    try {
+      await metaApi.removeAccount(accountId);
+    } catch (metaApiError: any) {
+      req.log.warn(metaApiError, `Failed to delete account ${accountId} on MetaAPI, proceeding with DB deletion`);
+    }
+
+    // Delete from DB
+    await db.delete(mt5AccountsTable).where(eq(mt5AccountsTable.id, accountId));
+
+    res.status(204).end();
+  } catch (error: any) {
+    req.log.error(error, "Failed to delete MT5 account");
     res.status(500).json({ error: error.message || "Internal server error" });
   }
 });

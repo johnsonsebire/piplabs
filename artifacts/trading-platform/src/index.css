@@ -503,6 +503,29 @@ input[type="search"]::-webkit-search-cancel-button {
   animation: fadeIn 0.4s ease forwards;
 }
 
+/* Spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.account-delete-btn {
+  color: #94a3b8 !important;
+  transition: color 0.2s ease;
+}
+
+.account-delete-btn:hover {
+  color: #ef4444 !important;
+}
+
 /* ============================
    Modal & Dialog Overrides
    ============================ */
@@ -528,6 +551,25 @@ input[type="search"]::-webkit-search-cancel-button {
   font-family: 'Space Mono', monospace;
   font-size: 0.6875rem;
 }
+
+.tooltip-content {
+  background-color: var(--bs-primary) !important;
+  color: #ffffff !important;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem !important;
+  padding: 0.25rem 0.5rem !important;
+  border-radius: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+}
+
+.tooltip-content p {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 
 /* ============================
    Selection Color

@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { swalSuccess, swalError } from "@/lib/swal";
-import { Loader2, Plus, Server, Activity } from "lucide-react";
+import { swalSuccess, swalError, swalConfirm } from "@/lib/swal";
+import { Loader2, Plus, Server, Activity, Trash2 } from "lucide-react";
 
 export default function MT5AccountsPage() {
   const [isAdding, setIsAdding] = useState(false);
@@ -85,6 +85,38 @@ export default function MT5AccountsPage() {
       swalError("Configuration Failed", msg);
     }
   });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (accountId: string) => {
+      const res = await fetch(`/api/mt5-accounts/${accountId}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      swalSuccess("Account Deleted", "The MT5 Account has been removed.");
+      queryClient.invalidateQueries({ queryKey: ["mt5-accounts"] });
+    },
+    onError: (error: Error) => {
+      let msg = error.message;
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed.error) msg = parsed.error;
+      } catch (e) {}
+      swalError("Deletion Failed", msg);
+    }
+  });
+
+  const handleDeleteAccount = async (accountId: string, accountName: string) => {
+    const confirmed = await swalConfirm(
+      "Are you sure?",
+      `This will remove the connection to "${accountName}". Any active copy trading or automated trading on this account will stop.`,
+      "Yes, remove it"
+    );
+    if (confirmed) {
+      deleteAccountMutation.mutate(accountId);
+    }
+  };
 
   const handleAddAccount = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +228,23 @@ export default function MT5AccountsPage() {
                           </div>
                           <div className="font-mono text-secondary" style={{ fontSize: '12px' }}>{account.login}</div>
                         </div>
-                        <Activity className={account.connectionStatus === 'connected' ? 'text-success flex-shrink-0' : 'text-secondary flex-shrink-0'} style={{ width: 18, height: 18, marginTop: '2px' }} />
+                        <div className="d-flex align-items-center gap-2 flex-shrink-0" style={{ marginTop: '2px' }}>
+                          <Activity className={account.connectionStatus === 'connected' ? 'text-success' : 'text-secondary'} style={{ width: 18, height: 18 }} />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAccount(account.id, account.name)}
+                            disabled={deleteAccountMutation.isPending && deleteAccountMutation.variables === account.id}
+                            className="btn btn-link p-0 border-0 d-flex align-items-center justify-content-center account-delete-btn"
+                            style={{ width: '24px', height: '24px', cursor: 'pointer' }}
+                            title="Delete Account"
+                          >
+                            {deleteAccountMutation.isPending && deleteAccountMutation.variables === account.id ? (
+                              <Loader2 className="animate-spin" style={{ width: 16, height: 16 }} />
+                            ) : (
+                              <Trash2 style={{ width: 16, height: 16 }} />
+                            )}
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="d-flex flex-column gap-3 mb-4 flex-grow-1">

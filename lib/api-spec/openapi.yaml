@@ -305,6 +305,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Mt5Account"
 
+  /mt5-accounts/{id}:
+    delete:
+      operationId: deleteMt5Account
+      tags: [mt5]
+      summary: Delete/remove an MT5 account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Account deleted successfully
+        "401":
+          description: Unauthorized
+        "404":
+          description: Account not found
+        "500":
+          description: Internal server error
+
   /mt5-accounts/{id}/provider:
     post:
       operationId: setMt5AccountProvider

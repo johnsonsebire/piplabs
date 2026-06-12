@@ -60,6 +60,14 @@ export class MetaApiWrapper {
   }
 
   /**
+   * Removes a MetaTrader account from MetaAPI
+   */
+  async removeAccount(accountId: string): Promise<void> {
+    const account = await this.api.metatraderAccountApi.getAccount(accountId);
+    await account.remove();
+  }
+
+  /**
    * Set account as a CopyFactory Provider
    */
   async setProviderRole(accountId: string, resourceSlots: number = 1): Promise<void> {

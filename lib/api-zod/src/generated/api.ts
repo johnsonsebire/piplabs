@@ -299,6 +299,14 @@ export const CreateMt5AccountBody = zod.object({
 
 
 /**
+ * @summary Delete/remove an MT5 account
+ */
+export const DeleteMt5AccountParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+/**
  * @summary Set MT5 account as a Provider
  */
 export const SetMt5AccountProviderParams = zod.object({

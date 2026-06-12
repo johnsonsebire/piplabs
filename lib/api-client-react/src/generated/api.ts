@@ -1151,6 +1151,76 @@ export const useCreateMt5Account = <TError = ErrorType<unknown>,
       return useMutation(getCreateMt5AccountMutationOptions(options));
     }
 
+export const getDeleteMt5AccountUrl = (id: string,) => {
+
+
+
+
+  return `/api/mt5-accounts/${id}`
+}
+
+/**
+ * @summary Delete/remove an MT5 account
+ */
+export const deleteMt5Account = async (id: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteMt5AccountUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteMt5AccountMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMt5Account>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMt5Account>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteMt5Account'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMt5Account>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMt5Account(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMt5AccountMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMt5Account>>>
+
+    export type DeleteMt5AccountMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete/remove an MT5 account
+ */
+export const useDeleteMt5Account = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMt5Account>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMt5Account>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteMt5AccountMutationOptions(options));
+    }
+
 export const getSetMt5AccountProviderUrl = (id: string,) => {
 
 

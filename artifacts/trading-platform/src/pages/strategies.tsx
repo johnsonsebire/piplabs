@@ -51,6 +51,15 @@ export type RangingFilterConfig = {
   rsi: { enabled: boolean; weight: number; period: number; min: number; max: number; };
 };
 
+type SmcConfig = {
+  swingLookback?: number | "auto";
+  obLookback?: number;
+  fvgLookback?: number;
+  displacementMultiplier?: number;
+  wickRatio?: number;
+  structureLegs?: number;
+};
+
 type Leg = {
   enabled: boolean;
   logic: LogicOp;
@@ -69,10 +78,34 @@ type Leg = {
 };
 
 const IND_OPTIONS = ["EMA(3)", "EMA(7)", "EMA(14)", "EMA(21)", "EMA(50)", "EMA(200)", "SMA(20)", "SMA(50)", "RSI", "MACD", "MACD_SIGNAL", "CCI", "BB_UPPER", "BB_LOWER", "BB_MIDDLE", "ATR", "STOCH_K", "STOCH_D", "CURRENT PRICE", "HIGH", "LOW", "OPEN", "CLOSE", "VOLUME"];
+const SMC_OPTIONS = ["SWING_HIGH", "SWING_LOW", "BOS_BULL", "BOS_BEAR", "CHOCH_BULL", "CHOCH_BEAR", "OB_BULL", "OB_BEAR", "FVG_BULL", "FVG_BEAR", "PREMIUM", "DISCOUNT", "LIQSWEEP_HIGH", "LIQSWEEP_LOW", "DISP_BULL", "DISP_BEAR", "WICK_BULL", "WICK_BEAR", "MSS_BULL", "MSS_BEAR"];
+const SMC_DESCRIPTIONS: Record<string, string> = {
+  SWING_HIGH: "Confirmed pivot high (N-bar pivot)",
+  SWING_LOW: "Confirmed pivot low (N-bar pivot)",
+  BOS_BULL: "Break of Structure — bullish (close above last swing high)",
+  BOS_BEAR: "Break of Structure — bearish (close below last swing low)",
+  CHOCH_BULL: "Change of Character — bullish reversal BOS",
+  CHOCH_BEAR: "Change of Character — bearish reversal BOS",
+  OB_BULL: "Price is inside an unmitigated Bullish Order Block",
+  OB_BEAR: "Price is inside an unmitigated Bearish Order Block",
+  FVG_BULL: "Price is inside an open Bullish Fair Value Gap (imbalance)",
+  FVG_BEAR: "Price is inside an open Bearish Fair Value Gap (imbalance)",
+  PREMIUM: "Price is above equilibrium (50% of last swing range)",
+  DISCOUNT: "Price is below equilibrium (50% of last swing range)",
+  LIQSWEEP_HIGH: "Liquidity sweep above equal highs (wick above, closed below)",
+  LIQSWEEP_LOW: "Liquidity sweep below equal lows (wick below, closed above)",
+  DISP_BULL: "Bullish displacement candle (body > 1.5× ATR)",
+  DISP_BEAR: "Bearish displacement candle (body > 1.5× ATR)",
+  WICK_BULL: "Bullish rejection wick (lower wick ≥ 2× body)",
+  WICK_BEAR: "Bearish rejection wick (upper wick ≥ 2× body)",
+  MSS_BULL: "Market structure is bullish (series of HH+HL)",
+  MSS_BEAR: "Market structure is bearish (series of LL+LH)",
+};
 const OP_OPTIONS = ["crosses above", "crosses below", "is above", "is below", "is rising", "is declining", "is positive and rising", "is negative and declining", "==", ">", "<", ">=", "<="];
 // Common numeric thresholds traders compare indicators against.
 const VALUE_OPTIONS = ["0", "20", "25", "30", "40", "50", "60", "70", "75", "80", "100"];
 const CUSTOM_VALUE = "__custom__";
+const SMC_VALUE = "__smc__";
 
 const defaultRangingFilter = (): RangingFilterConfig => ({
   enabled: false,
@@ -127,10 +160,24 @@ const emptyLeg = (enabled: boolean): Leg => ({ enabled, logic: "AND", exit: "opp
 
 // Parse stored strategy code into the v2 dual-leg shape, with full backward
 // compatibility for v1 (single `action`/`conditions`/`exit`).
-function parseStrategyCode(raw: string | null | undefined): { buy: Leg; sell: Leg; riskManagement?: any } {
+function parseStrategyCode(raw: string | null | undefined): { buy: Leg; sell: Leg; riskManagement?: any; smcConfig?: SmcConfig } {
  if (!raw) return { buy: seedBuy(), sell: emptyLeg(false) };
  let parsed: any;
  try { parsed = JSON.parse(raw); } catch { return { buy: seedBuy(), sell: emptyLeg(false) }; }
+
+  // Extract smcConfig
+  let smcConfig: SmcConfig | undefined = undefined;
+  if (parsed.smcConfig && typeof parsed.smcConfig === "object") {
+    const sc = parsed.smcConfig as Record<string, unknown>;
+    smcConfig = {
+      swingLookback: typeof sc.swingLookback === "number" || sc.swingLookback === "auto" ? sc.swingLookback as number | "auto" : undefined,
+      obLookback: typeof sc.obLookback === "number" ? sc.obLookback : undefined,
+      fvgLookback: typeof sc.fvgLookback === "number" ? sc.fvgLookback : undefined,
+      displacementMultiplier: typeof sc.displacementMultiplier === "number" ? sc.displacementMultiplier : undefined,
+      wickRatio: typeof sc.wickRatio === "number" ? sc.wickRatio : undefined,
+      structureLegs: typeof sc.structureLegs === "number" ? sc.structureLegs : undefined,
+    };
+  }
 
   const parseConds = (arr: any) => Array.isArray(arr) ? arr.map((c: any) => ({
     id: newId(),
@@ -224,6 +271,7 @@ function parseStrategyCode(raw: string | null | undefined): { buy: Leg; sell: Le
  buy: parsed?.buy ? toLeg(parsed.buy, true) : emptyLeg(false),
  sell: parsed?.sell ? toLeg(parsed.sell, true) : emptyLeg(false),
  riskManagement: parsed?.riskManagement,
+ smcConfig,
  };
  }
 
@@ -233,14 +281,14 @@ function parseStrategyCode(raw: string | null | undefined): { buy: Leg; sell: Le
  const dir = action === "sell" ? "sell" : "buy";
  const migrated = toLeg(parsed, true);
  return dir === "buy"
- ? { buy: migrated, sell: emptyLeg(false), riskManagement: parsed?.riskManagement }
- : { buy: emptyLeg(false), sell: migrated, riskManagement: parsed?.riskManagement };
+ ? { buy: migrated, sell: emptyLeg(false), riskManagement: parsed?.riskManagement, smcConfig }
+ : { buy: emptyLeg(false), sell: migrated, riskManagement: parsed?.riskManagement, smcConfig };
  }
 
- return { buy: seedBuy(), sell: emptyLeg(false), riskManagement: parsed?.riskManagement };
+ return { buy: seedBuy(), sell: emptyLeg(false), riskManagement: parsed?.riskManagement, smcConfig };
 }
 
-function serializeCode(buy: Leg, sell: Leg, riskManagement?: any): string {
+function serializeCode(buy: Leg, sell: Leg, riskManagement?: any, smcConfig?: SmcConfig): string {
   const stripConds = (conds: Condition[]) => conds.map(({ indicatorA, operator, indicatorB }) => ({ indicatorA, operator, indicatorB }));
   const stripIds = (l: Leg) => ({
     enabled: l.enabled,
@@ -261,7 +309,22 @@ function serializeCode(buy: Leg, sell: Leg, riskManagement?: any): string {
     },
     rangingFilter: l.rangingFilter,
   });
-  return JSON.stringify({ version: 2, buy: stripIds(buy), sell: stripIds(sell), riskManagement });
+  
+  const output: any = { version: 2 };
+  if (buy.enabled) output.buy = stripIds(buy);
+  if (sell.enabled) output.sell = stripIds(sell);
+  if (riskManagement) output.riskManagement = riskManagement;
+  if (smcConfig) {
+    const cleanSmc: any = {};
+    if (smcConfig.swingLookback !== undefined) cleanSmc.swingLookback = smcConfig.swingLookback;
+    if (smcConfig.obLookback !== undefined) cleanSmc.obLookback = smcConfig.obLookback;
+    if (smcConfig.fvgLookback !== undefined) cleanSmc.fvgLookback = smcConfig.fvgLookback;
+    if (smcConfig.displacementMultiplier !== undefined) cleanSmc.displacementMultiplier = smcConfig.displacementMultiplier;
+    if (smcConfig.wickRatio !== undefined) cleanSmc.wickRatio = smcConfig.wickRatio;
+    if (smcConfig.structureLegs !== undefined) cleanSmc.structureLegs = smcConfig.structureLegs;
+    if (Object.keys(cleanSmc).length > 0) output.smcConfig = cleanSmc;
+  }
+  return JSON.stringify(output);
 }
 
 interface IndicatorOrValuePickerProps {
@@ -274,64 +337,72 @@ interface IndicatorOrValuePickerProps {
 // Dropdown that lists indicators (and optionally common numeric thresholds)
 // and falls back to a free-text input when the user picks "Custom value...".
 function IndicatorOrValuePicker({ value, onChange, placeholder, showValues }: IndicatorOrValuePickerProps) {
- const isKnownIndicator = IND_OPTIONS.includes(value);
- const isKnownValue = showValues && VALUE_OPTIONS.includes(value);
- const isKnown = isKnownIndicator || isKnownValue;
- // If the current value is non-empty but not in any preset, treat as custom.
- const [customMode, setCustomMode] = useState<boolean>(!!value && !isKnown);
+  const isKnownIndicator = IND_OPTIONS.includes(value) || SMC_OPTIONS.includes(value);
+  const isKnownValue = showValues && VALUE_OPTIONS.includes(value);
+  const isKnown = isKnownIndicator || isKnownValue;
+  // If the current value is non-empty but not in any preset, treat as custom.
+  const [customMode, setCustomMode] = useState<boolean>(!!value && !isKnown);
 
- if (customMode) {
- return (
- <div className="d-flex gap-1">
- <Input
- autoFocus
- value={value}
- onChange={(e) => onChange(e.target.value)}
- placeholder="Enter value..."
- className="rounded-none font-mono small border-secondary flex-1"
- />
- <Button
- type="button" size="icon" variant="ghost"
- className=" flex-shrink-0"
- onClick={() => { onChange(""); setCustomMode(false); }}
- title="Back to dropdown"
- >
- <X />
- </Button>
- </div>
- );
- }
+  if (customMode) {
+  return (
+  <div className="d-flex gap-1">
+  <Input
+  autoFocus
+  value={value}
+  onChange={(e) => onChange(e.target.value)}
+  placeholder="Enter value..."
+  className="rounded-none font-mono small border-secondary flex-1"
+  />
+  <Button
+  type="button" size="icon" variant="ghost"
+  className=" flex-shrink-0"
+  onClick={() => { onChange(""); setCustomMode(false); }}
+  title="Back to dropdown"
+  >
+  <X />
+  </Button>
+  </div>
+  );
+  }
 
- return (
- <Select
- value={value || undefined}
- onValueChange={(v) => {
- if (v === CUSTOM_VALUE) { setCustomMode(true); onChange(""); return; }
- onChange(v);
- }}
- >
- <SelectTrigger className="rounded-none font-mono small border-secondary ">
- <SelectValue placeholder={placeholder} />
- </SelectTrigger>
- <SelectContent className="rounded-none border-secondary" style={{ maxHeight: '18rem' }}>
- <div className="px-2 py-1 text-uppercase font-mono text-secondary letter-spacing-wider">Indicators</div>
- {IND_OPTIONS.map(o => (
- <SelectItem key={o} value={o} className="font-mono small">{o}</SelectItem>
- ))}
- {showValues && (
- <>
- <div className="px-2 py-1 mt-1 text-uppercase font-mono text-secondary letter-spacing-wider border-top border-secondary">Common Values</div>
- {VALUE_OPTIONS.map(v => (
- <SelectItem key={v} value={v} className="font-mono small">{v}</SelectItem>
- ))}
- </>
- )}
- <div className="border-top border-secondary mt-1">
- <SelectItem value={CUSTOM_VALUE} className="font-mono small fst-italic text-secondary">Custom value…</SelectItem>
- </div>
- </SelectContent>
- </Select>
- );
+  return (
+  <Select
+  value={value || undefined}
+  onValueChange={(v) => {
+  if (v === CUSTOM_VALUE) { setCustomMode(true); onChange(""); return; }
+  if (v === SMC_VALUE) return; // group header — ignore
+  onChange(v);
+  }}
+  >
+  <SelectTrigger className="rounded-none font-mono small border-secondary ">
+  <SelectValue placeholder={placeholder} />
+  </SelectTrigger>
+  <SelectContent className="rounded-none border-secondary" style={{ maxHeight: '18rem' }}>
+  <div className="px-2 py-1 text-uppercase font-mono text-secondary letter-spacing-wider">Technical Indicators</div>
+  {IND_OPTIONS.map(o => (
+  <SelectItem key={o} value={o} className="font-mono small">{o}</SelectItem>
+  ))}
+  <div className="px-2 py-1 mt-1 text-uppercase font-mono letter-spacing-wider border-top border-secondary" style={{ color: '#10b981', fontSize: '10px' }}>SMC / Price Action</div>
+  {SMC_OPTIONS.map(o => (
+  <SelectItem key={o} value={o} className="font-mono small" title={SMC_DESCRIPTIONS[o]}>
+    <span style={{ color: '#10b981' }}>◆</span> {o}
+    {SMC_DESCRIPTIONS[o] && <span className="text-secondary ms-1" style={{ fontSize: '9px' }}>— {SMC_DESCRIPTIONS[o]}</span>}
+  </SelectItem>
+  ))}
+  {showValues && (
+  <>
+  <div className="px-2 py-1 mt-1 text-uppercase font-mono text-secondary letter-spacing-wider border-top border-secondary">Common Values</div>
+  {VALUE_OPTIONS.map(v => (
+  <SelectItem key={v} value={v} className="font-mono small">{v}</SelectItem>
+  ))}
+  </>
+  )}
+  <div className="border-top border-secondary mt-1">
+  <SelectItem value={CUSTOM_VALUE} className="font-mono small fst-italic text-secondary">Custom value…</SelectItem>
+  </div>
+  </SelectContent>
+  </Select>
+  );
 }
 
 interface LegEditorProps {
@@ -711,6 +782,7 @@ export default function StrategiesPage() {
  const [webhookUrl, setWebhookUrl] = useState("");
  const [buyLeg, setBuyLeg] = useState<Leg>(seedBuy());
  const [sellLeg, setSellLeg] = useState<Leg>(emptyLeg(false));
+ const [smcConfig, setSmcConfig] = useState<SmcConfig>({ swingLookback: "auto", obLookback: 100, fvgLookback: 100 });
  const [activeTab, setActiveTab] = useState<"buy" | "sell" | "risk">("buy");
 
  const [winCooldown, setWinCooldown] = useState<number | "">("");
@@ -723,6 +795,7 @@ export default function StrategiesPage() {
  if (showForm && editingId === null && !name) {
  setBuyLeg(seedBuy());
  setSellLeg(emptyLeg(false));
+ setSmcConfig({ swingLookback: "auto", obLookback: 100, fvgLookback: 100 });
  setActiveTab("buy");
  }
  }, [showForm, editingId, name]);
@@ -735,6 +808,7 @@ export default function StrategiesPage() {
  setWebhookUrl("");
  setBuyLeg(seedBuy());
  setSellLeg(emptyLeg(false));
+ setSmcConfig({ swingLookback: "auto", obLookback: 100, fvgLookback: 100 });
  setActiveTab("buy");
  setWinCooldown("");
  setWinConsecutive("");
@@ -753,9 +827,10 @@ export default function StrategiesPage() {
  setDescription(s.description ?? "");
  setType(s.type as StrategyInputType);
  setWebhookUrl(s.webhookUrl ?? "");
- const { buy, sell, riskManagement } = parseStrategyCode(s.code);
+ const { buy, sell, riskManagement, smcConfig } = parseStrategyCode(s.code);
  setBuyLeg(buy);
  setSellLeg(sell);
+ if (smcConfig) setSmcConfig(smcConfig);
  setActiveTab(buy.enabled ? "buy" : sell.enabled ? "sell" : "buy");
  setWinCooldown(riskManagement?.winCooldown?.duration || "");
  setWinConsecutive(riskManagement?.winCooldown?.consecutive || "");
@@ -787,7 +862,7 @@ export default function StrategiesPage() {
  code: serializeCode(buyLeg, sellLeg, {
    winCooldown: winCooldown && winConsecutive ? { duration: Number(winCooldown), consecutive: Number(winConsecutive) } : undefined,
    lossCooldown: lossCooldown && lossConsecutive ? { duration: Number(lossCooldown), consecutive: Number(lossConsecutive) } : undefined,
- }),
+ }, smcConfig),
  parameters: "{}",
  webhookUrl: webhookUrl.trim() || null,
  };
@@ -1006,6 +1081,13 @@ export default function StrategiesPage() {
   >
   🛡 RISK
   </TabsTrigger>
+  <TabsTrigger
+  value="smc"
+  className="rounded-none text-uppercase font-mono "
+  data-testid="tab-smc"
+  >
+  📈 SMC
+  </TabsTrigger>
   </TabsList>
   <TabsContent value="buy" className="mt-3">
   <LegEditor side="buy" leg={buyLeg} onChange={setBuyLeg} />
@@ -1039,6 +1121,56 @@ export default function StrategiesPage() {
         <div className="flex-grow-1">
           <Label className="small font-mono text-secondary">Cooldown (Minutes)</Label>
           <Input type="number" min="1" value={lossCooldown} onChange={(e) => setLossCooldown(e.target.value ? Number(e.target.value) : "")} placeholder="e.g. 60" className="font-mono bg-background border-secondary rounded-none" />
+        </div>
+      </div>
+    </div>
+  </TabsContent>
+  <TabsContent value="smc" className="mt-3 d-flex flex-column gap-3 border border-secondary p-3 bg-card/50">
+    <div>
+      <Label className="small text-uppercase font-mono text-success fw-bold">SMC Global Settings</Label>
+      <p className="text-muted font-mono mb-3" style={{ fontSize: "0.8rem" }}>Configure parameters for Smart Money Concepts (SMC) indicators. Defaults apply if left blank.</p>
+      
+      <div className="d-flex flex-column gap-3">
+        <div className="d-flex align-items-center gap-3">
+          <div className="flex-1" style={{ maxWidth: '200px' }}>
+            <Label className="small font-mono text-secondary">Swing Lookback</Label>
+            <Select value={String(smcConfig.swingLookback || "auto")} onValueChange={(v) => setSmcConfig({ ...smcConfig, swingLookback: v === "auto" ? "auto" : Number(v) })}>
+              <SelectTrigger className="font-mono bg-background border-secondary rounded-none">
+                <SelectValue placeholder="Auto" />
+              </SelectTrigger>
+              <SelectContent className="rounded-none border-secondary">
+                <SelectItem value="auto" className="font-mono small">Auto (Based on TF)</SelectItem>
+                <SelectItem value="1" className="font-mono small">1 Bar</SelectItem>
+                <SelectItem value="2" className="font-mono small">2 Bars</SelectItem>
+                <SelectItem value="3" className="font-mono small">3 Bars</SelectItem>
+                <SelectItem value="5" className="font-mono small">5 Bars</SelectItem>
+                <SelectItem value="10" className="font-mono small">10 Bars</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-muted font-mono mb-0 flex-1" style={{ fontSize: "0.75rem" }}>
+            Number of bars on each side required to confirm a swing pivot.
+          </p>
+        </div>
+
+        <div className="d-flex align-items-center gap-3">
+          <div className="flex-1" style={{ maxWidth: '200px' }}>
+            <Label className="small font-mono text-secondary">Order Block Lookback</Label>
+            <Input type="number" min="10" max="500" value={smcConfig.obLookback || 100} onChange={(e) => setSmcConfig({ ...smcConfig, obLookback: Number(e.target.value) })} className="font-mono bg-background border-secondary rounded-none" />
+          </div>
+          <p className="text-muted font-mono mb-0 flex-1" style={{ fontSize: "0.75rem" }}>
+            Max historical bars to search for active, unmitigated Order Blocks.
+          </p>
+        </div>
+
+        <div className="d-flex align-items-center gap-3">
+          <div className="flex-1" style={{ maxWidth: '200px' }}>
+            <Label className="small font-mono text-secondary">FVG Lookback</Label>
+            <Input type="number" min="10" max="500" value={smcConfig.fvgLookback || 100} onChange={(e) => setSmcConfig({ ...smcConfig, fvgLookback: Number(e.target.value) })} className="font-mono bg-background border-secondary rounded-none" />
+          </div>
+          <p className="text-muted font-mono mb-0 flex-1" style={{ fontSize: "0.75rem" }}>
+            Max historical bars to search for open Fair Value Gaps.
+          </p>
         </div>
       </div>
     </div>

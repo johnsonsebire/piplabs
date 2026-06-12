@@ -37,12 +37,33 @@ const router: IRouter = Router();
 function mapDirectionToContractType(
   direction: string,
   type: string,
-): "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLALONGCALL" | "VANILLALONGPUT" {
-  const isDown = direction === "sell" || direction === "put";
+  subtype?: string,
+): "CALL" | "PUT" | "MULTUP" | "MULTDOWN" | "VANILLALONGCALL" | "VANILLALONGPUT" | "TURBOSSHORT" | "TURBOSLONG" | "NOTOUCH" | "ONETOUCH" | "DIFFER" | "MATCH" | "UNDER" | "OVER" | "EVEN" | "ODD" | "ACCU" {
+  const isDown = direction === "sell" || direction === "put" || direction === "under" || direction === "differs" || direction === "odd" || direction === "notouch";
+  
   if (type === "multiplier") return isDown ? "MULTDOWN" : "MULTUP";
-  // True Deriv Vanilla Options product (contract_type without underscores)
-  if (type === "vanilla_options") return isDown ? "VANILLALONGPUT" : "VANILLALONGCALL";
-  // forex uses digital CALL/PUT
+
+  // If we have a subtype, map precisely
+  if (subtype) {
+    switch (subtype) {
+      case "VANILLA": return isDown ? "VANILLALONGPUT" : "VANILLALONGCALL";
+      case "TURBO": return isDown ? "TURBOSSHORT" : "TURBOSLONG"; // Verify Deriv turbo types if needed
+      case "RISE_FALL": return isDown ? "PUT" : "CALL";
+      case "HIGHER_LOWER": return isDown ? "PUT" : "CALL";
+      case "TOUCH_NO_TOUCH": return isDown ? "NOTOUCH" : "ONETOUCH";
+      case "MATCH_DIFFER": return isDown ? "DIFFER" : "MATCH";
+      case "OVER_UNDER": return isDown ? "UNDER" : "OVER";
+      case "EVEN_ODD": return isDown ? "ODD" : "EVEN";
+      case "ACCUMULATOR": return "ACCU";
+    }
+  }
+
+  // True Deriv Vanilla Options product fallback
+  if (type === "vanilla_options" && (!subtype || subtype === "VANILLA")) {
+    return isDown ? "VANILLALONGPUT" : "VANILLALONGCALL";
+  }
+
+  // Default fallback
   return isDown ? "PUT" : "CALL";
 }
 
@@ -189,7 +210,7 @@ router.post("/trades", requireAuth, async (req: AuthenticatedRequest, res): Prom
       // Pick the Deriv account that matches the requested trade mode (demo/live).
       const account = await getAccountForMode(user.derivApiToken, mode, user.derivAppId);
 
-      const contractType = mapDirectionToContractType(parsed.data.direction, parsed.data.type);
+      const contractType = mapDirectionToContractType(parsed.data.direction, parsed.data.type, req.body.contractSubtype);
       const reqId = nextReqId();
       const buyParams: DerivBuyParams = {
         symbol: parsed.data.symbol,

@@ -472,7 +472,7 @@ function TradeChartRenderer({ trade, candles, strategy, userIndicators }: { trad
         );
 
         dummySeriesList.forEach(dummy => {
-          dummy.setData(newCandles.map(c => ({ time: c.time as any })));
+          dummy.setData(newCandles.map(c => ({ time: c.time as any, value: 0 })));
         });
 
         indicatorSeriesMap.forEach((lineSeries, key) => {

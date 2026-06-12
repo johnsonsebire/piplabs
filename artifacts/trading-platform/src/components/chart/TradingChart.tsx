@@ -48,10 +48,11 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: Oscil
 
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight
-        });
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        if (width > 0 && height > 0) {
+          chartRef.current.applyOptions({ width, height });
+        }
       }
     };
 
@@ -309,10 +310,11 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
 
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ 
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight
-        });
+        const width = chartContainerRef.current.clientWidth;
+        const height = chartContainerRef.current.clientHeight;
+        if (width > 0 && height > 0) {
+          chartRef.current.applyOptions({ width, height });
+        }
       }
     };
     

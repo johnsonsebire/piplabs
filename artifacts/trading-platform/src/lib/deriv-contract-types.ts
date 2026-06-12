@@ -73,7 +73,7 @@ export const DERIV_CONTRACT_TYPES: ContractTypeConfig[] = [
     icon: "bi-graph-up-arrow",
     category: "binary",
     categoryLabel: "Binary",
-    apiType: "forex",
+    apiType: "vanilla_options",
     directions: [
       { value: "call", label: "Rise", color: "green" },
       { value: "put",  label: "Fall", color: "red" },
@@ -93,7 +93,7 @@ export const DERIV_CONTRACT_TYPES: ContractTypeConfig[] = [
     icon: "bi-arrows-expand",
     category: "binary",
     categoryLabel: "Binary",
-    apiType: "forex",
+    apiType: "vanilla_options",
     directions: [
       { value: "call", label: "Higher", color: "green" },
       { value: "put",  label: "Lower",  color: "red" },
@@ -116,7 +116,7 @@ export const DERIV_CONTRACT_TYPES: ContractTypeConfig[] = [
     icon: "bi-hand-index",
     category: "binary",
     categoryLabel: "Binary",
-    apiType: "forex",
+    apiType: "vanilla_options",
     directions: [
       { value: "call", label: "Touch",    color: "green" },
       { value: "put",  label: "No Touch", color: "red" },
@@ -140,7 +140,7 @@ export const DERIV_CONTRACT_TYPES: ContractTypeConfig[] = [
     icon: "bi-123",
     category: "digits",
     categoryLabel: "Digits",
-    apiType: "forex",
+    apiType: "vanilla_options",
     directions: [
       { value: "call", label: "Matches", color: "green" },
       { value: "put",  label: "Differs", color: "red" },
@@ -164,7 +164,7 @@ export const DERIV_CONTRACT_TYPES: ContractTypeConfig[] = [
     icon: "bi-chevron-bar-expand",
     category: "digits",
     categoryLabel: "Digits",
-    apiType: "forex",
+    apiType: "vanilla_options",
     directions: [
       { value: "call", label: "Over",  color: "green" },
       { value: "put",  label: "Under", color: "red" },
@@ -188,7 +188,7 @@ export const DERIV_CONTRACT_TYPES: ContractTypeConfig[] = [
     icon: "bi-plus-slash-minus",
     category: "digits",
     categoryLabel: "Digits",
-    apiType: "forex",
+    apiType: "vanilla_options",
     directions: [
       { value: "call", label: "Even", color: "green" },
       { value: "put",  label: "Odd",  color: "red" },
@@ -210,7 +210,7 @@ export const DERIV_CONTRACT_TYPES: ContractTypeConfig[] = [
     icon: "bi-bar-chart-steps",
     category: "options",
     categoryLabel: "Options",
-    apiType: "forex",
+    apiType: "vanilla_options",
     directions: [
       { value: "call", label: "Grow", color: "green" },
     ],
