@@ -433,9 +433,9 @@ const ConditionList = ({ title, desc, conditions, field, leg, onChange }: { titl
            <div key={c.id} className="d-flex flex-column gap-2 p-3 border border-secondary position-relative group">
              <div className="d-flex justify-content-between align-items-center w-100 mb-2">
                <div />
-               <Button type="button" variant="ghost" size="icon" className="rounded-circle bg-danger" style={{ width: '28px', height: '28px' }} onClick={() => remove(c.id)}>
-                 <X size={16} />
-               </Button>
+               <button type="button" className="icon-btn-remove" onClick={() => remove(c.id)} title="Remove condition">
+                 <X size={13} />
+               </button>
              </div>
              <div className="row g-2 gap-2 align-items-center">
                <IndicatorOrValuePicker value={c.indicatorA} onChange={(v) => update(c.id, "indicatorA", v)} placeholder="Pick indicator" showValues={false} />
@@ -940,81 +940,62 @@ export default function StrategiesPage() {
  return (
  <AppLayout>
  <div className="d-flex flex-column w-100 overflow-hidden p-4 gap-4 mx-auto">
- <div className="d-flex justify-content-between align-items-center flex-shrink-0 mt-4">
- <h1 className="h4 fw-bold font-mono text-uppercase tracking-tight ">Algorithmic Strategies</h1>
- <Button
- className="rounded-none fw-bold text-uppercase letter-spacing-wider font-mono"
- onClick={() => (showForm ? closeForm() : openCreate())}
- data-testid="button-new-strategy"
- >
- {showForm ? "Cancel" : "New Strategy"}
- </Button>
+ <div className="d-flex justify-content-between align-items-center flex-shrink-0">
+  <h1 className="h5 fw-bold font-mono text-uppercase tracking-tight mb-0">Algorithmic Strategies</h1>
+  <Button className="rounded-none fw-bold text-uppercase letter-spacing-wider font-mono" onClick={() => (showForm ? closeForm() : openCreate())} data-testid="button-new-strategy">
+  {showForm ? 'Cancel' : 'New Strategy'}
+  </Button>
  </div>
 
- <div className="d-flex flex-1 gap-4">
- {/* List Panel */}
- <div className={`flex-1 border border-secondary overflow-auto ${showForm ? "d-none d-md-block" : ""}`}>
- <table className="w-100 small font-mono text-start text-nowrap">
- <thead className=" sticky-top border-bottom border-secondary">
- <tr>
-  <th className="p-4 font-normal text-secondary text-uppercase letter-spacing-wider small">Name</th>
-  <th className="p-4 font-normal text-secondary text-uppercase letter-spacing-wider small">Type</th>
-  <th className="p-4 font-normal text-secondary text-uppercase letter-spacing-wider small">Legs</th>
-  <th className="p-4 font-normal text-secondary text-uppercase letter-spacing-wider small">Win Rate</th>
-  <th className="p-4 font-normal text-secondary text-uppercase letter-spacing-wider small">Updated</th>
-  <th className="p-4 font-normal text-secondary text-uppercase letter-spacing-wider small text-end">Actions</th>
- </tr>
- </thead>
- <tbody >
- {isLoading ? (
-  <tr><td colSpan={6} className="p-4 text-center text-secondary text-uppercase">Loading...</td></tr>
- ) : !Array.isArray(strategies) || strategies.length === 0 ? (
-  <tr><td colSpan={6} className="p-4 text-center text-secondary text-uppercase">No strategies found</td></tr>
- ) : (
-  strategies.map(s => (
-  <tr key={s.id} >
-  <td className="p-4 fw-bold text-success">{s.name}</td>
-  <td className="p-4 text-secondary text-uppercase small">{s.type}</td>
-  <td className="p-4 small">{legSummary(s)}</td>
-  <td className="p-4 ">{s.winRate ? `${s.winRate.toFixed(1)}%` : "---"}</td>
-  <td className="p-4 text-secondary small">{format(new Date(s.updatedAt), "yyyy-MM-dd")}</td>
-  <td className="p-4 text-end">
-  <div className="d-inline-flex gap-1">
-  <Button
-  type="button" size="icon" variant="ghost"
-  
-  onClick={() => openEdit(s)}
-  data-testid={`button-edit-strategy-${s.id}`}
-  title="Edit / rename"
-  >
-  <Pencil />
-  </Button>
-  <Button
-  type="button" size="icon" variant="ghost"
-  
-  onClick={() => handleDeleteClick(s.id)}
-  data-testid={`button-delete-strategy-${s.id}`}
-  title="Delete"
-  >
-  <Trash2 />
-  </Button>
-  </div>
-  </td>
-  </tr>
-  ))
- )}
- </tbody>
- </table>
- </div>
+ <div className="d-flex flex-1 gap-0 border border-secondary overflow-hidden" style={{ minHeight: 0 }}>
 
- {/* Form Panel */}
- {showForm && (
- <div className="w-100 border border-secondary flex-shrink-0 d-flex flex-column overflow-hidden">
- <div className="p-4 border-bottom border-secondary flex-shrink-0 d-flex align-items-center justify-content-between">
- <h2 className="small fw-bold font-mono text-uppercase ">
-  {editingId === null ? "Visual Strategy Builder" : `Edit Strategy #${editingId}`}
- </h2>
- </div>
+   {/* ── Left Sidebar: Strategy List */}
+   <div className="d-flex flex-column flex-shrink-0 overflow-hidden" style={{ width: '220px', borderRight: '1px solid var(--bs-border-color)' }}>
+     <div className="d-flex align-items-center px-3 flex-shrink-0" style={{ height: '44px', borderBottom: '1px solid var(--bs-border-color)' }}>
+       <span className="font-mono fw-bold text-uppercase text-secondary" style={{ fontSize: '0.6rem', letterSpacing: '0.12em' }}>Saved Strategies</span>
+     </div>
+     <div className="overflow-auto flex-1">
+       {isLoading ? (
+         <p className="font-mono text-secondary text-uppercase text-center py-3 m-0" style={{ fontSize: '10px' }}>Loading...</p>
+       ) : !Array.isArray(strategies) || strategies.length === 0 ? (
+         <p className="font-mono text-secondary text-uppercase text-center py-3 m-0" style={{ fontSize: '10px' }}>No strategies yet</p>
+       ) : (
+         strategies.map(s => (
+           <button key={s.id} type="button" onClick={() => openEdit(s)} data-testid={`button-edit-strategy-${s.id}`}
+             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.45rem 0.75rem', border: 'none', borderBottom: '1px solid var(--bs-border-color)', background: editingId === s.id ? 'rgba(16,185,129,0.08)' : 'transparent', borderLeft: editingId === s.id ? '2px solid #10b981' : '2px solid transparent', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease' }}
+             onMouseEnter={e => { if (editingId !== s.id) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; }}
+             onMouseLeave={e => { if (editingId !== s.id) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+           >
+             <div style={{ minWidth: 0, flex: 1 }}>
+               <div className="font-mono fw-bold text-truncate" style={{ fontSize: '11px', color: editingId === s.id ? '#10b981' : '#e2e8f0' }}>{s.name}</div>
+               <div className="font-mono text-uppercase" style={{ fontSize: '9px', color: '#475569', marginTop: '1px' }}>{s.type}</div>
+             </div>
+             <button type="button" className="icon-btn-remove ms-2 flex-shrink-0" style={{ width: '20px', height: '20px' }} onClick={e => { e.stopPropagation(); handleDeleteClick(s.id); }} title="Delete">
+               <Trash2 size={11} />
+             </button>
+           </button>
+         ))
+       )}
+     </div>
+     <div className="flex-shrink-0 p-2" style={{ borderTop: '1px solid var(--bs-border-color)' }}>
+       <button type="button" onClick={() => openCreate()} className="w-100 font-mono text-uppercase fw-bold"
+         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0.4rem', border: '1px dashed rgba(16,185,129,0.3)', background: 'transparent', color: '#10b981', cursor: 'pointer', borderRadius: '4px', fontSize: '10px', transition: 'all 0.15s ease' }}
+         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(16,185,129,0.08)'; (e.currentTarget as HTMLElement).style.borderColor = '#10b981'; }}
+         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(16,185,129,0.3)'; }}
+       ><Plus size={12} /> New Strategy</button>
+     </div>
+   </div>
+
+   {/* ── Centre: Form Panel */}
+   <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+     <div className="d-flex align-items-center px-4 flex-shrink-0" style={{ height: '44px', borderBottom: '1px solid var(--bs-border-color)' }}>
+       <h2 className="font-mono fw-bold text-uppercase mb-0" style={{ fontSize: '0.6rem', letterSpacing: '0.12em', color: '#94a3b8' }}>
+         {showForm ? (editingId === null ? 'Visual Strategy Builder' : `Edit Strategy #${editingId}`) : 'Select a Strategy'}
+       </h2>
+     </div>
+
+   {showForm ? (
+     <div className="flex-1 d-flex flex-column overflow-hidden">
  <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex-1 d-flex flex-column gap-4">
  <div className="d-flex flex-column gap-2">
   <Label className="small text-uppercase font-mono text-secondary">Name</Label>
@@ -1029,10 +1010,12 @@ export default function StrategiesPage() {
 
  <div className="d-flex flex-column gap-2">
   <Label className="small text-uppercase font-mono text-secondary">Description</Label>
-  <Input
+  <textarea
   value={description}
   onChange={e => setDescription(e.target.value)}
-  className="rounded-none font-mono border-secondary "
+  rows={3}
+  className="font-mono border-secondary w-100"
+  style={{ background: 'var(--background, #0a0d11)', color: 'var(--foreground, #e2e8f0)', border: '1px solid var(--bs-border-color)', padding: '0.5rem 0.75rem', resize: 'vertical', minHeight: '4.5rem', outline: 'none', fontFamily: 'inherit', fontSize: '0.85rem', borderRadius: 0 }}
   />
  </div>
 
@@ -1059,35 +1042,15 @@ export default function StrategiesPage() {
   </p>
 
   <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "buy" | "sell" | "risk")} className="w-100 pt-2">
-  <TabsList className="d-grid w-100 p-0 border border-secondary" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-  <TabsTrigger
-  value="buy"
-  className="rounded-none text-uppercase font-mono "
-  data-testid="tab-buy-leg"
-  >
+  <TabsList className="strategy-tabs-list">
+  <TabsTrigger value="buy" className="strategy-tab-trigger" data-tab="buy" data-testid="tab-buy-leg">
   ▲ BUY {buyLeg.enabled && buyLeg.conditions.length > 0 ? `(${buyLeg.conditions.length})` : ""}
   </TabsTrigger>
-  <TabsTrigger
-  value="sell"
-  className="rounded-none text-uppercase font-mono bg-danger "
-  data-testid="tab-sell-leg"
-  >
+  <TabsTrigger value="sell" className="strategy-tab-trigger" data-tab="sell" data-testid="tab-sell-leg">
   ▼ SELL {sellLeg.enabled && sellLeg.conditions.length > 0 ? `(${sellLeg.conditions.length})` : ""}
   </TabsTrigger>
-  <TabsTrigger
-  value="risk"
-  className="rounded-none text-uppercase font-mono "
-  data-testid="tab-risk"
-  >
-  🛡 RISK
-  </TabsTrigger>
-  <TabsTrigger
-  value="smc"
-  className="rounded-none text-uppercase font-mono "
-  data-testid="tab-smc"
-  >
-  📈 SMC
-  </TabsTrigger>
+  <TabsTrigger value="risk" className="strategy-tab-trigger" data-tab="risk" data-testid="tab-risk">🛡 RISK</TabsTrigger>
+  <TabsTrigger value="smc" className="strategy-tab-trigger" data-tab="smc" data-testid="tab-smc">📈 SMC</TabsTrigger>
   </TabsList>
   <TabsContent value="buy" className="mt-3">
   <LegEditor side="buy" leg={buyLeg} onChange={setBuyLeg} />
@@ -1213,9 +1176,55 @@ export default function StrategiesPage() {
   {isSaving ? "Saving..." : editingId === null ? "Deploy Strategy" : "Save Changes"}
   </Button>
  </div>
- </form>
- </div>
-  )}
+   </form>
+   </div>
+ ) : (
+   <div className="d-flex flex-1 flex-column align-items-center justify-content-center gap-4 p-4">
+     <div className="text-center" style={{ maxWidth: '320px' }}>
+       <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📋</div>
+       <div className="font-mono fw-bold text-uppercase mb-2" style={{ fontSize: '11px', color: '#e2e8f0', letterSpacing: '0.1em' }}>No Strategy Selected</div>
+       <div className="font-mono" style={{ fontSize: '10px', color: '#475569', lineHeight: 1.6 }}>Select a strategy from the left panel to edit it, or click <span style={{ color: '#10b981' }}>+ New Strategy</span> to build one from scratch.</div>
+     </div>
+     <div className="d-flex gap-3 flex-wrap justify-content-center">
+       {['Define Conditions', 'Set Risk Rules', 'Backtest & Deploy'].map((step, i) => (
+         <div key={step} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '0.75rem 1rem', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', minWidth: '100px' }}>
+           <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#10b981', fontFamily: 'Space Mono, monospace' }}>{i + 1}</div>
+           <div className="font-mono text-uppercase" style={{ fontSize: '8px', color: '#64748b', letterSpacing: '0.08em', textAlign: 'center' }}>{step}</div>
+         </div>
+       ))}
+     </div>
+   </div>
+ )}
+   </div>
+
+   {/* ── Right Sidebar: Help Panel — always fixed 220px */}
+   <div style={{ width: '220px', minWidth: '220px', maxWidth: '220px', flexShrink: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--bs-border-color)' }}>
+      <div className="d-flex align-items-center px-3 flex-shrink-0" style={{ height: '44px', borderBottom: '1px solid var(--bs-border-color)' }}>
+        <span className="font-mono fw-bold text-uppercase text-secondary" style={{ fontSize: '0.6rem', letterSpacing: '0.12em' }}>How It Works</span>
+      </div>
+      <div className="overflow-auto flex-1 p-3 d-flex flex-column gap-3">
+        {[
+          { icon: '1', title: 'Name Your Strategy', body: 'Give it a unique name and optional description.' },
+          { icon: '2', title: 'Pick Target Market', body: 'Options, Forex, Multiplier, or Universal.' },
+          { icon: '3', title: 'Configure Trade Legs', body: 'Enable BUY and/or SELL — each has its own conditions.' },
+          { icon: '4', title: 'Market Filters', body: 'Hard rules — ALL must pass or trading stops.' },
+          { icon: '5', title: 'Entry Triggers', body: 'At least ONE must fire to open a trade.' },
+          { icon: '6', title: 'Confirmations', body: 'Soft rules — each adds to your Confidence Score.' },
+          { icon: '7', title: 'Risk Management', body: 'Win/loss cooldowns to prevent overtrading.' },
+          { icon: '8', title: 'SMC Settings', body: 'Tune Order Blocks, FVGs, and Swing lookbacks.' },
+          { icon: '✓', title: 'Deploy', body: 'Save and use in Auto Trade or Backtest.' },
+        ].map(({ icon, title, body }) => (
+          <div key={icon} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+            <div style={{ flexShrink: 0, width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontFamily: 'Space Mono,monospace', fontWeight: 700, color: '#10b981' }}>{icon}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="font-mono fw-bold" style={{ fontSize: '11px', color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{title}</div>
+              <div className="font-mono" style={{ fontSize: '10px', color: '#64748b', marginTop: '3px', lineHeight: 1.55 }}>{body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
  </div>
  </div>
 </AppLayout>

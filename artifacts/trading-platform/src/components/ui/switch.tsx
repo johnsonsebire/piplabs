@@ -9,16 +9,18 @@ const Switch = React.forwardRef<
     className={className}
     style={{
       display: 'inline-flex',
-      height: '24px',
-      width: '48px',
+      height: '22px',
+      width: '40px',
       flexShrink: 0,
       cursor: 'pointer',
       alignItems: 'center',
-      borderRadius: 0,
-      border: '2px solid #1a2332',
-      backgroundColor: props.checked ? '#10b981' : '#0f1318',
-      borderColor: props.checked ? '#10b981' : '#1a2332',
-      transition: 'all 0.2s',
+      borderRadius: '9999px',
+      border: '2px solid transparent',
+      backgroundColor: props.checked ? '#10b981' : '#1e293b',
+      outline: props.checked ? '2px solid rgba(16,185,129,0.25)' : 'none',
+      transition: 'background-color 0.2s ease, outline 0.2s ease',
+      position: 'relative',
+      padding: 0,
       ...style
     }}
     {...props}
@@ -30,12 +32,12 @@ const Switch = React.forwardRef<
         display: 'block',
         height: '16px',
         width: '16px',
-        borderRadius: 0,
-        border: '1px solid',
-        backgroundColor: props.checked ? '#0a0d11' : '#475569',
-        borderColor: props.checked ? '#0a0d11' : '#475569',
-        transform: props.checked ? 'translateX(24px)' : 'translateX(0)',
-        transition: 'all 0.2s'
+        borderRadius: '50%',
+        backgroundColor: '#ffffff',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+        transform: props.checked ? 'translateX(20px)' : 'translateX(2px)',
+        transition: 'transform 0.2s ease',
+        flexShrink: 0,
       }}
     />
   </SwitchPrimitives.Root>
@@ -43,3 +45,4 @@ const Switch = React.forwardRef<
 Switch.displayName = SwitchPrimitives.Root.displayName
 
 export { Switch }
+
