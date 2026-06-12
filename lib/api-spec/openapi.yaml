@@ -29,6 +29,8 @@ tags:
     description: Strategy backtesting
   - name: ai
     description: AI trade analysis
+  - name: guides
+    description: Trading discipline guides
   - name: dashboard
     description: Dashboard summaries and analytics
   - name: market
@@ -479,6 +481,94 @@ paths:
       responses:
         "204":
           description: Removed
+
+  # ─── Trading Guides ──────────────────────────────────────────────────────────
+
+  /guides:
+    get:
+      operationId: listGuides
+      tags: [guides]
+      summary: List all trading guides for the current user
+      responses:
+        "200":
+          description: A list of trading guides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TradingGuide"
+        "401":
+          description: Unauthorized
+
+    post:
+      operationId: createGuide
+      tags: [guides]
+      summary: Create a new trading guide
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradingGuideInput"
+      responses:
+        "201":
+          description: Guide created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradingGuide"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+
+  /guides/{id}:
+    put:
+      operationId: updateGuide
+      tags: [guides]
+      summary: Update a trading guide
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradingGuideInput"
+      responses:
+        "200":
+          description: Guide updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradingGuide"
+        "404":
+          description: Guide not found
+        "401":
+          description: Unauthorized
+
+    delete:
+      operationId: deleteGuide
+      tags: [guides]
+      summary: Delete a trading guide
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Guide deleted
+        "404":
+          description: Guide not found
+        "401":
+          description: Unauthorized
 
   # ─── Trades ──────────────────────────────────────────────────────────────────
 
@@ -2737,3 +2827,74 @@ components:
           type: string
       required:
         - error
+    TradingRule:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        checked:
+          type: boolean
+      required:
+        - id
+        - text
+        - checked
+
+    TradingGuide:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+        buyRules:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradingRule"
+        sellRules:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradingRule"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - name
+        - isActive
+        - buyRules
+        - sellRules
+        - createdAt
+        - updatedAt
+
+    TradingGuideInput:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+        buyRules:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradingRule"
+        sellRules:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradingRule"
+      required:
+        - id
+        - name
+        - buyRules
+        - sellRules

@@ -439,6 +439,101 @@ export const RemoveFromWatchlistParams = zod.object({
 
 
 /**
+ * @summary List all trading guides for the current user
+ */
+export const ListGuidesResponseItem = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "buyRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+})),
+  "sellRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListGuidesResponse = zod.array(ListGuidesResponseItem)
+
+
+/**
+ * @summary Create a new trading guide
+ */
+export const CreateGuideBody = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "isActive": zod.boolean().optional(),
+  "buyRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+})),
+  "sellRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Update a trading guide
+ */
+export const UpdateGuideParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateGuideBody = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "isActive": zod.boolean().optional(),
+  "buyRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+})),
+  "sellRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+}))
+})
+
+export const UpdateGuideResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "buyRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+})),
+  "sellRules": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "checked": zod.boolean()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a trading guide
+ */
+export const DeleteGuideParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+/**
  * @summary List trades
  */
 export const ListTradesQueryParams = zod.object({

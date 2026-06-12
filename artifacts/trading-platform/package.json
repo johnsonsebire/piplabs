@@ -74,6 +74,7 @@
   },
   "dependencies": {
     "@clerk/shared": "^4.11.0",
+    "@workspace/api-zod": "workspace:*",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "react-markdown": "^10.1.0",

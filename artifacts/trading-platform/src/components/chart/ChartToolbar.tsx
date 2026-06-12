@@ -10,7 +10,8 @@ import {
   AlignEndHorizontal,
   Activity,
   Check,
-  Type
+  Type,
+  BookOpen
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -24,6 +25,7 @@ interface ChartToolbarProps {
   availableIndicators?: Array<{ id: string | number, name: string }>;
   activeIndicatorIds?: Array<string | number>;
   onToggleIndicator?: (id: string | number) => void;
+  onOpenGuides?: () => void;
 }
 
 const TOOL_CATEGORIES = [
@@ -78,7 +80,8 @@ export function ChartToolbar({
   onClearAll,
   availableIndicators,
   activeIndicatorIds,
-  onToggleIndicator
+  onToggleIndicator,
+  onOpenGuides
 }: ChartToolbarProps) {
   const [lastUsedTools, setLastUsedTools] = useState<Record<string, string>>({
     lines: "trend_line",
@@ -256,6 +259,25 @@ export function ChartToolbar({
           </Popover>
         )}
 
+        <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
+
+        {onOpenGuides && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onOpenGuides}
+                className="p-2 rounded transition-colors text-muted hover:text-success"
+                style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <BookOpen style={{ width: '16px', height: '16px' }} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <div className="text-xs font-mono">Discipline Guides</div>
+            </TooltipContent>
+          </Tooltip>
+        )}
+        
         <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
         
         <Tooltip>

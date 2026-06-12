@@ -4,6 +4,8 @@ import { useDerivWs } from "@/hooks/use-deriv-ws";
 import { computeIndicator, parseIndicatorConfig, type IndicatorSeries } from "@/lib/indicators";
 import { ChartToolbar, DrawingTool } from "./ChartToolbar";
 import { ChartDrawings, Drawing } from "./ChartDrawings";
+import { TradingGuideManager } from "./TradingGuideManager";
+import { TradingGuideOverlay } from "./TradingGuideOverlay";
 
 export interface ChartIndicatorInput {
   id: string | number;
@@ -185,6 +187,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const overlayLinesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const [mainReady, setMainReady] = useState(0);
+  const [showGuideManager, setShowGuideManager] = useState(false);
 
   // Drawing state
   const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
@@ -331,30 +334,46 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
   }, []);
 
 
-  // Render candles - Always call setData (even with empty array) to clear the chart and prevent crashes
+  const dataLoadedRef = useRef<string | null>(null);
+
+  // Render candles - Only call setData when historical data arrives, to prevent crashes from rapid setData calls
   useEffect(() => {
     if (seriesRef.current && chartRef.current) {
-      try {
-        // Final validation: ensure no null values in the array before passing to chart
-        const safeCandles = validCandles.filter(c => 
-          c && 
-          c.time != null && 
-          c.open != null && 
-          c.high != null && 
-          c.low != null && 
-          c.close != null &&
-          Number.isFinite(c.time) &&
-          Number.isFinite(c.open) &&
-          Number.isFinite(c.high) &&
-          Number.isFinite(c.low) &&
-          Number.isFinite(c.close)
-        );
-        seriesRef.current.setData(safeCandles as any);
-      } catch (err) {
-        console.warn('Failed to set candle data:', err);
+      const currentConfigId = `${symbol}-${granularitySec}`;
+      
+      // If symbol or granularity changed, clear chart and reset ref
+      if (dataLoadedRef.current !== currentConfigId) {
+        seriesRef.current.setData([]);
+        dataLoadedRef.current = null;
+      }
+
+      // If we have data and haven't loaded this config yet
+      if (validCandles.length > 0 && dataLoadedRef.current !== currentConfigId) {
+        try {
+          const safeCandles = validCandles.filter(c => 
+            c && 
+            c.time != null && 
+            c.open != null && 
+            c.high != null && 
+            c.low != null && 
+            c.close != null &&
+            Number.isFinite(c.time) &&
+            Number.isFinite(c.open) &&
+            Number.isFinite(c.high) &&
+            Number.isFinite(c.low) &&
+            Number.isFinite(c.close)
+          );
+          
+          if (safeCandles.length > 0) {
+            seriesRef.current.setData(safeCandles as any);
+            dataLoadedRef.current = currentConfigId;
+          }
+        } catch (err) {
+          console.warn('Failed to set candle data:', err);
+        }
       }
     }
-  }, [validCandles, mainReady]);
+  }, [validCandles, mainReady, symbol, granularitySec]);
 
   // Live tick update with strict mathematical validation
   useEffect(() => {
@@ -447,7 +466,10 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
         availableIndicators={indicators}
         activeIndicatorIds={activeIndicatorIds}
         onToggleIndicator={handleToggleIndicator}
+        onOpenGuides={() => setShowGuideManager(true)}
       />
+
+      <TradingGuideManager open={showGuideManager} onOpenChange={setShowGuideManager} />
 
       {/* Main Chart Area */}
       <div className="position-relative flex-1 d-flex flex-column overflow-hidden w-100 h-100" style={{ position: 'relative' }}>
@@ -559,6 +581,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
           containerRef={chartContainerRef}
         />
       </div>
+      <TradingGuideOverlay />
       {computed.filter(c => c.pane === "oscillator").map((osc, index) => (
         <OscillatorPanel
           key={osc.id}

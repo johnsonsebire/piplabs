@@ -15,6 +15,7 @@ import aiStrategyRouter from "./ai-strategy";
 import conversationsRouter from "./conversations";
 import mt5AccountsRouter from "./mt5Accounts";
 import copyTradingRouter from "./copyTrading";
+import guidesRouter from "./guides";
 
 const router: IRouter = Router();
 
@@ -33,5 +34,6 @@ router.use(aiStrategyRouter);
 router.use(conversationsRouter);
 router.use(mt5AccountsRouter);
 router.use(copyTradingRouter);
+router.use(guidesRouter);
 
 export default router;

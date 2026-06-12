@@ -441,6 +441,9 @@ importers:
       '@clerk/shared':
         specifier: ^4.11.0
         version: 4.11.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@workspace/api-zod':
+        specifier: workspace:*
+        version: link:../../lib/api-zod
       jspdf:
         specifier: ^4.2.1
         version: 4.2.1

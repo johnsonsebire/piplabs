@@ -1073,6 +1073,31 @@ export interface OpenaiError {
   error: string;
 }
 
+export interface TradingRule {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+export interface TradingGuide {
+  id: string;
+  userId: string;
+  name: string;
+  isActive: boolean;
+  buyRules: TradingRule[];
+  sellRules: TradingRule[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TradingGuideInput {
+  id: string;
+  name: string;
+  isActive?: boolean;
+  buyRules: TradingRule[];
+  sellRules: TradingRule[];
+}
+
 export type ListUsersParams = {
 role?: ListUsersRole;
 page?: number;

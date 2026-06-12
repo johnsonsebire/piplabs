@@ -70,6 +70,8 @@ import type {
   TradeLogInput,
   TradeStats,
   TradeUpdate,
+  TradingGuide,
+  TradingGuideInput,
   UploadBacktestDataset200,
   UploadDatasetInput,
   User,
@@ -1816,6 +1818,296 @@ export const useRemoveFromWatchlist = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRemoveFromWatchlistMutationOptions(options));
+    }
+
+export const getListGuidesUrl = () => {
+
+
+
+
+  return `/api/guides`
+}
+
+/**
+ * @summary List all trading guides for the current user
+ */
+export const listGuides = async ( options?: RequestInit): Promise<TradingGuide[]> => {
+
+  return customFetch<TradingGuide[]>(getListGuidesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGuidesQueryKey = () => {
+    return [
+    `/api/guides`
+    ] as const;
+    }
+
+
+export const getListGuidesQueryOptions = <TData = Awaited<ReturnType<typeof listGuides>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGuidesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuides>>> = ({ signal }) => listGuides({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGuides>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGuidesQueryResult = NonNullable<Awaited<ReturnType<typeof listGuides>>>
+export type ListGuidesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all trading guides for the current user
+ */
+
+export function useListGuides<TData = Awaited<ReturnType<typeof listGuides>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGuides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGuidesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateGuideUrl = () => {
+
+
+
+
+  return `/api/guides`
+}
+
+/**
+ * @summary Create a new trading guide
+ */
+export const createGuide = async (tradingGuideInput: TradingGuideInput, options?: RequestInit): Promise<TradingGuide> => {
+
+  return customFetch<TradingGuide>(getCreateGuideUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tradingGuideInput,)
+  }
+);}
+
+
+
+
+export const getCreateGuideMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuide>>, TError,{data: BodyType<TradingGuideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createGuide>>, TError,{data: BodyType<TradingGuideInput>}, TContext> => {
+
+const mutationKey = ['createGuide'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuide>>, {data: BodyType<TradingGuideInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGuide(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGuideMutationResult = NonNullable<Awaited<ReturnType<typeof createGuide>>>
+    export type CreateGuideMutationBody = BodyType<TradingGuideInput>
+    export type CreateGuideMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new trading guide
+ */
+export const useCreateGuide = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuide>>, TError,{data: BodyType<TradingGuideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createGuide>>,
+        TError,
+        {data: BodyType<TradingGuideInput>},
+        TContext
+      > => {
+      return useMutation(getCreateGuideMutationOptions(options));
+    }
+
+export const getUpdateGuideUrl = (id: string,) => {
+
+
+
+
+  return `/api/guides/${id}`
+}
+
+/**
+ * @summary Update a trading guide
+ */
+export const updateGuide = async (id: string,
+    tradingGuideInput: TradingGuideInput, options?: RequestInit): Promise<TradingGuide> => {
+
+  return customFetch<TradingGuide>(getUpdateGuideUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tradingGuideInput,)
+  }
+);}
+
+
+
+
+export const getUpdateGuideMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuide>>, TError,{id: string;data: BodyType<TradingGuideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGuide>>, TError,{id: string;data: BodyType<TradingGuideInput>}, TContext> => {
+
+const mutationKey = ['updateGuide'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGuide>>, {id: string;data: BodyType<TradingGuideInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateGuide(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGuideMutationResult = NonNullable<Awaited<ReturnType<typeof updateGuide>>>
+    export type UpdateGuideMutationBody = BodyType<TradingGuideInput>
+    export type UpdateGuideMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a trading guide
+ */
+export const useUpdateGuide = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuide>>, TError,{id: string;data: BodyType<TradingGuideInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGuide>>,
+        TError,
+        {id: string;data: BodyType<TradingGuideInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateGuideMutationOptions(options));
+    }
+
+export const getDeleteGuideUrl = (id: string,) => {
+
+
+
+
+  return `/api/guides/${id}`
+}
+
+/**
+ * @summary Delete a trading guide
+ */
+export const deleteGuide = async (id: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteGuideUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteGuideMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGuide>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGuide>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteGuide'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGuide>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteGuide(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGuideMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGuide>>>
+
+    export type DeleteGuideMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a trading guide
+ */
+export const useDeleteGuide = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGuide>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGuide>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteGuideMutationOptions(options));
     }
 
 export const getListTradesUrl = (params?: ListTradesParams,) => {
