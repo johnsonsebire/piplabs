@@ -2,25 +2,23 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { TradingChart } from "@/components/chart/TradingChart";
-import { BottomPanel } from "@/components/chart/BottomPanel";
-import { useDerivWs, TIMEFRAME_OPTIONS } from "@/hooks/use-deriv-ws";
-import { useCreateTrade, TradeInputDirection, TradeInputType, useSearchDerivSymbols, getSearchDerivSymbolsQueryKey, useListIndicators, useListMt5Accounts } from "@workspace/api-client-react";
+import { ChartContainer, ChartConfig } from "@/components/chart/ChartContainer";
+import { useCreateTrade, TradeInputDirection, useListIndicators, useListMt5Accounts } from "@workspace/api-client-react";
 import { ContractTypeSelector } from "@/components/chart/ContractTypeSelector";
 import { type ContractSubtype, getContractType, encodeContractSubtype, GROWTH_RATES, MULTIPLIER_VALUES } from "@/lib/deriv-contract-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { swalSuccess, swalError } from "@/lib/swal";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, PanelRightClose, PanelRightOpen, Search } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, Plus, LayoutGrid, Square, Columns, Rows, Grid2x2, Grid3x3 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Panel, PanelGroup, PanelResizeHandle, ImperativePanelHandle } from "react-resizable-panels";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+export type LayoutType = '1' | '2-h' | '2-v' | '3' | '4';
 
 const DURATION_UNITS: ReadonlyArray<{ value: string; label: string }> = [
   { value: "m", label: "Minutes" },
@@ -31,21 +29,50 @@ const DURATION_UNITS: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 export default function ChartPage() {
-  const [symbol, setSymbol] = useState(() => {
+  const [charts, setCharts] = useState<ChartConfig[]>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('deriv_selected_symbol') || "R_100";
+      const saved = localStorage.getItem('deriv_multi_charts');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch(e) {}
+      }
+      const savedSymbol = localStorage.getItem('deriv_selected_symbol');
+      if (savedSymbol) {
+        return [{ id: '1', symbol: savedSymbol, granularitySec: 60 }];
+      }
     }
-    return "R_100";
+    return [{ id: '1', symbol: "R_100", granularitySec: 60 }];
   });
-  
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('deriv_selected_symbol', symbol);
+      localStorage.setItem('deriv_multi_charts', JSON.stringify(charts));
+      if (charts.length > 0) {
+        localStorage.setItem('deriv_selected_symbol', charts[0].symbol);
+      }
     }
-  }, [symbol]);
-  const [granularitySec, setGranularitySec] = useState<number>(60);
-  const { latestTick, isConnected } = useDerivWs(symbol, granularitySec);
-  // Removed toast hook
+  }, [charts]);
+
+  const [activeChartId, setActiveChartId] = useState<string>(charts[0]?.id || "1");
+  const [maximizedChartId, setMaximizedChartId] = useState<string | null>(null);
+
+  const [layout, setLayout] = useState<LayoutType>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('deriv_multi_charts_layout');
+      if (saved) return saved as LayoutType;
+    }
+    return '1';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('deriv_multi_charts_layout', layout);
+    }
+  }, [layout]);
+
+  const activeChart = charts.find(c => c.id === activeChartId) || charts[0];
+  const activeSymbol = activeChart?.symbol || "R_100";
 
   const [tradeClass, setTradeClass] = useState<"options" | "multiplier" | "forex">("options");
   const [volume, setVolume] = useState("1.00");
@@ -67,7 +94,6 @@ export default function ChartPage() {
   
   const config = getContractType(contractType);
 
-  // When changing contract type, safely update direction and defaults
   const handleContractTypeChange = (newType: ContractSubtype) => {
     setContractType(newType);
     const newConfig = getContractType(newType);
@@ -78,24 +104,14 @@ export default function ChartPage() {
     if (newConfig.defaultDurationUnit) setDurationUnit(newConfig.defaultDurationUnit);
   };
 
-  const [openSearch, setOpenSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  
   const [isTradePanelOpen, setIsTradePanelOpen] = useState(true);
   const tradePanelRef = useRef<ImperativePanelHandle>(null);
   const isMobile = useIsMobile();
-
-  const { data: searchResults, isLoading: isSearching } = useSearchDerivSymbols(
-    { q: debouncedSearchQuery },
-    { query: { queryKey: getSearchDerivSymbolsQueryKey({ q: debouncedSearchQuery }) } }
-  );
 
   const createTrade = useCreateTrade();
   const { data: chartIndicators } = useListIndicators({});
   const { data: mt5Accounts } = useListMt5Accounts();
 
-  // Initialize mt5AccountId when accounts load
   useEffect(() => {
     if (mt5Accounts && mt5Accounts.length > 0 && !mt5AccountId) {
       const matchingAccount = mt5Accounts.find(a => a.type === tradeMode);
@@ -115,15 +131,13 @@ export default function ChartPage() {
       return;
     }
 
-    // Generate the notes payload with encoded contractSubtype
     const notes = isOptions ? encodeContractSubtype(contractType) : undefined;
 
-    // Build base payload
     const payload: any = {
-      symbol,
+      symbol: activeSymbol,
       type: isOptions ? config.apiType : (isForex ? "forex" : "multiplier"),
       direction: finalDirection,
-      stake: isForex ? parseFloat(volume) : parseFloat(stake), // Sending volume as stake for now
+      stake: isForex ? parseFloat(volume) : parseFloat(stake), 
       targetProfit: takeProfit ? parseFloat(takeProfit) : null,
       aiConfirmed,
       mode: tradeMode,
@@ -133,7 +147,7 @@ export default function ChartPage() {
     };
 
     if (isForex && stopLoss) {
-      payload.stopLoss = parseFloat(stopLoss); // Backend to be updated
+      payload.stopLoss = parseFloat(stopLoss);
       payload.pendingOrder = pendingOrder;
     }
 
@@ -156,7 +170,7 @@ export default function ChartPage() {
 
     createTrade.mutate({ data: payload }, {
       onSuccess: () => {
-        swalSuccess("TRADE EXECUTED", `Successfully opened ${direction} on ${symbol}`);
+        swalSuccess("TRADE EXECUTED", `Successfully opened ${finalDirection} on ${activeSymbol}`);
       },
       onError: (err: any) => {
         const errorMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Failed to execute trade";
@@ -165,116 +179,135 @@ export default function ChartPage() {
     });
   };
 
+  const handleLayoutChange = (newLayout: LayoutType) => {
+    let targetCount = 1;
+    if (newLayout === '1') targetCount = 1;
+    if (newLayout === '2-h' || newLayout === '2-v') targetCount = 2;
+    if (newLayout === '3') targetCount = 3;
+    if (newLayout === '4') targetCount = 4;
+
+    const newCharts = [...charts];
+    while (newCharts.length < targetCount) {
+      newCharts.push({ id: Date.now().toString() + Math.random(), symbol: "R_100", granularitySec: 60 });
+    }
+    while (newCharts.length > targetCount) {
+      newCharts.pop();
+    }
+    
+    setCharts(newCharts);
+    setLayout(newLayout);
+    if (maximizedChartId) setMaximizedChartId(null);
+    
+    // Ensure activeChartId is still valid
+    if (!newCharts.find(c => c.id === activeChartId)) {
+      setActiveChartId(newCharts[0].id);
+    }
+  };
+
+  const handleCloseChart = (id: string) => {
+    // Cannot close if layout demands this many charts, so we just reset it to default
+    // Or we dynamically downgrade the layout. Let's downgrade the layout.
+    const updated = charts.filter(c => c.id !== id);
+    if (updated.length === 0) {
+      setCharts([{ id: Date.now().toString(), symbol: "R_100", granularitySec: 60 }]);
+      setLayout('1');
+    } else {
+      setCharts(updated);
+      if (activeChartId === id) setActiveChartId(updated[updated.length - 1].id);
+      
+      // Update layout to match new length
+      if (updated.length === 1) setLayout('1');
+      if (updated.length === 2 && (layout !== '2-h' && layout !== '2-v')) setLayout('2-h');
+      if (updated.length === 3) setLayout('3');
+    }
+    if (maximizedChartId === id) setMaximizedChartId(null);
+  };
+
+  const handleConfigChange = (id: string, updates: Partial<ChartConfig>) => {
+    setCharts(charts.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
+
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) return;
+
+    const draggedIndex = charts.findIndex(c => c.id === draggedId);
+    const targetIndex = charts.findIndex(c => c.id === targetId);
+
+    const newCharts = [...charts];
+    const temp = newCharts[draggedIndex];
+    newCharts[draggedIndex] = newCharts[targetIndex];
+    newCharts[targetIndex] = temp;
+
+    setCharts(newCharts);
+    setDraggedId(null);
+  };
+
+  const getGridStyle = () => {
+    if (maximizedChartId || isMobile) return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' };
+    switch (layout) {
+      case '1': return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' };
+      case '2-h': return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr 1fr' };
+      case '2-v': return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr' };
+      case '3': return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' }; 
+      case '4': return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' };
+      default: return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' };
+    }
+  };
+
   return (
     <AppLayout>
       <div className="w-100 overflow-hidden d-flex flex-column" style={{ height: 'calc(100vh - 3rem)' }}>
         <PanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-100 h-100">
           <Panel defaultSize={75} minSize={30} className="d-flex flex-column bg-background position-relative" style={{ minWidth: 0 }}>
             <div className="d-flex align-items-center px-3 justify-content-between bg-card flex-shrink-0 border-bottom border-secondary" style={{ height: '3rem' }}>
-              <div className="d-flex align-items-center gap-2 flex-nowrap">
-                {/* Combined Selectors Container - Forced Flex Row */}
-                <div className="d-flex flex-row align-items-center border border-secondary bg-background flex-shrink-0 flex-nowrap overflow-hidden" style={{ height: '2rem', borderRadius: '0px' }}>
-                  <Popover open={openSearch} onOpenChange={setOpenSearch}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        role="combobox"
-                        aria-expanded={openSearch}
-                        className="d-flex align-items-center justify-content-between h-100 rounded-none border-0 font-mono font-bold px-2 hover:bg-muted/50 flex-shrink-0"
-                        style={{ width: isMobile ? '140px' : '180px' }}
-                      >
-                        <div className="d-flex align-items-center gap-1.5 truncate">
-                          <Search size={12} className="text-muted-foreground flex-shrink-0" />
-                          <span className="truncate text-xs">{symbol}</span>
-                        </div>
-                        <ChevronsUpDown className="ml-1 h-3 w-3 flex-shrink-0 opacity-50" />
+              <div className="d-flex align-items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 px-2 d-flex align-items-center gap-2 hover:bg-muted/50 border border-transparent hover:border-border">
+                      <LayoutGrid size={16} className="text-muted-foreground" />
+                      <span className="font-bold font-mono uppercase tracking-wider text-xs d-none d-sm-inline">Layout</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start">
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button variant={layout === '1' ? 'default' : 'outline'} size="icon" onClick={() => handleLayoutChange('1')} className="rounded-none w-100 h-10 border-border">
+                        <Square size={16} />
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 rounded-none border-border bg-[#0f1318] shadow-2xl z-[1000]" align="start" style={{ width: '320px', backgroundColor: '#0f1318', borderRadius: 0, border: '1px solid #1a2332' }}>
-                      <Command shouldFilter={false} className="bg-transparent">
-                        <CommandInput
-                          placeholder="Search symbols..."
-                          className="font-mono text-xs border-0 focus:ring-0"
-                          style={{ height: '40px', fontSize: '0.75rem' }}
-                          value={searchQuery}
-                          onValueChange={setSearchQuery}
-                        />
-                        <CommandList style={{ maxHeight: '400px', overflowY: 'auto', borderTop: '1px solid #1a2332', backgroundColor: '#0f1318' }}>
-                          {isSearching && <div className="py-4 text-center text-xs font-mono text-muted-foreground animate-pulse">Searching...</div>}
-                          {!isSearching && (!searchResults || searchResults.length === 0) && (
-                            <CommandEmpty className="py-4 text-center text-xs font-mono text-muted-foreground">No symbols found.</CommandEmpty>
-                          )}
-                          <CommandGroup className="bg-[#0f1318]">
-                            {Array.isArray(searchResults) && searchResults.map((item) => (
-                              <CommandItem
-                                key={item.symbol}
-                                value={item.symbol}
-                                onSelect={() => {
-                                  setSymbol(item.symbol);
-                                  setOpenSearch(false);
-                                  setSearchQuery("");
-                                }}
-                                className="symbol-search-item"
-                              >
-                                <div className="d-flex align-items-center justify-content-between w-100">
-                                  <div className="d-flex flex-column">
-                                    <span className="font-bold symbol-search-name">{item.symbol}</span>
-                                    <span className="text-muted-foreground mt-0.5" style={{ fontSize: '9px' }}>{item.displayName}</span>
-                                  </div>
-                                  {symbol === item.symbol && <Check className="h-3 w-3 text-primary" />}
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-
-                  <div className="w-px h-4 bg-border flex-shrink-0"></div>
-
-                  <Select value={String(granularitySec)} onValueChange={(v) => setGranularitySec(parseInt(v, 10))}>
-                    <SelectTrigger className="w-[72px] h-full py-0 px-2 rounded-none border-0 bg-transparent font-mono text-xs focus:ring-0 focus:ring-offset-0 hover:bg-muted/50 flex-shrink-0 [&>span]:flex [&>span]:items-center [&>span]:h-full" data-testid="select-timeframe">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none border-border max-h-72 bg-[#0f1318] shadow-2xl z-[1000]" style={{ backgroundColor: '#0f1318' }}>
-                      <SelectGroup>
-                        <SelectLabel className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-mono font-bold py-1 bg-[#151c24]/30">Minutes</SelectLabel>
-                        {TIMEFRAME_OPTIONS.filter(tf => tf.group === "MINUTES").map((tf) => (
-                          <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs cursor-pointer">
-                            {tf.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectSeparator className="bg-[#1a2332] my-0.5" />
-                      <SelectGroup>
-                        <SelectLabel className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-mono font-bold py-1 bg-[#151c24]/30">Hours</SelectLabel>
-                        {TIMEFRAME_OPTIONS.filter(tf => tf.group === "HOURS").map((tf) => (
-                          <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs cursor-pointer">
-                            {tf.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectSeparator className="bg-[#1a2332] my-0.5" />
-                      <SelectGroup>
-                        <SelectLabel className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-mono font-bold py-1 bg-[#151c24]/30">Days</SelectLabel>
-                        {TIMEFRAME_OPTIONS.filter(tf => tf.group === "DAYS").map((tf) => (
-                          <SelectItem key={tf.seconds} value={String(tf.seconds)} className="font-mono text-xs cursor-pointer">
-                            {tf.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-
+                      <Button variant={layout === '2-v' ? 'default' : 'outline'} size="icon" onClick={() => handleLayoutChange('2-v')} className="rounded-none w-100 h-10 border-border">
+                        <Columns size={16} />
+                      </Button>
+                      <Button variant={layout === '2-h' ? 'default' : 'outline'} size="icon" onClick={() => handleLayoutChange('2-h')} className="rounded-none w-100 h-10 border-border">
+                        <Rows size={16} />
+                      </Button>
+                      <Button variant={layout === '3' ? 'default' : 'outline'} size="icon" onClick={() => handleLayoutChange('3')} className="rounded-none w-100 h-10 border-border">
+                        <Grid3x3 size={16} />
+                      </Button>
+                      <Button variant={layout === '4' ? 'default' : 'outline'} size="icon" onClick={() => handleLayoutChange('4')} className="rounded-none w-100 h-10 border-border">
+                        <Grid2x2 size={16} />
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
-
+              
               <div className="d-flex align-items-center gap-4">
                 <div className="d-flex align-items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider leading-none">Spot Price</span>
-                  <span className={`font-mono font-bold text-sm leading-none ${latestTick ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {latestTick ? latestTick.quote.toFixed(4) : '---'}
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider leading-none">Active Target:</span>
+                  <span className="font-mono font-bold text-sm leading-none text-primary bg-primary/10 px-2 py-1 rounded">
+                    {activeSymbol}
                   </span>
                 </div>
                 
@@ -298,15 +331,59 @@ export default function ChartPage() {
               </div>
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-              <TradingChart
-                key={`${symbol}-${granularitySec}`}
-                symbol={symbol}
-                granularitySec={granularitySec}
-                indicators={Array.isArray(chartIndicators) ? chartIndicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
-              />
+            <div className="flex-1 w-100 h-100 overflow-hidden bg-[#0a0a0a] p-1">
+              {maximizedChartId ? (
+                <ChartContainer
+                  config={charts.find(c => c.id === maximizedChartId)!}
+                  isActive={activeChartId === maximizedChartId}
+                  isMaximized={true}
+                  indicators={chartIndicators || []}
+                  onConfigChange={handleConfigChange}
+                  onSelect={setActiveChartId}
+                  onMaximize={setMaximizedChartId}
+                  onRestore={() => setMaximizedChartId(null)}
+                  onClose={handleCloseChart}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                />
+              ) : (
+                <div 
+                  className="w-100 h-100" 
+                  style={{ 
+                    display: 'grid', 
+                    ...getGridStyle(),
+                    gap: '4px' 
+                  }}
+                >
+                  {charts.map((chart, idx) => (
+                    <div 
+                      key={chart.id} 
+                      className="w-100 h-100 overflow-hidden" 
+                      style={{ 
+                        minHeight: 0,
+                        ...(layout === '3' && idx === 2 && !isMobile ? { gridColumn: '1 / span 2' } : {})
+                      }}
+                    >
+                      <ChartContainer
+                        config={chart}
+                        isActive={activeChartId === chart.id}
+                        isMaximized={false}
+                        indicators={chartIndicators || []}
+                        onConfigChange={handleConfigChange}
+                        onSelect={setActiveChartId}
+                        onMaximize={setMaximizedChartId}
+                        onRestore={() => setMaximizedChartId(null)}
+                        onClose={handleCloseChart}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <BottomPanel symbol={symbol} />
           </Panel>
 
           <PanelResizeHandle className={cn(
@@ -638,7 +715,7 @@ export default function ChartPage() {
                     className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
                     style={{ backgroundColor: '#ef4444', color: 'white' }}
                     onClick={() => handleExecute(TradeInputDirection.sell)}
-                    disabled={createTrade.isPending || !isConnected}
+                    disabled={createTrade.isPending}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
                   >
@@ -648,7 +725,7 @@ export default function ChartPage() {
                     className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
                     style={{ backgroundColor: '#3b82f6', color: 'white' }}
                     onClick={() => handleExecute(TradeInputDirection.buy)}
-                    disabled={createTrade.isPending || !isConnected}
+                    disabled={createTrade.isPending}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
                   >
@@ -663,7 +740,7 @@ export default function ChartPage() {
                       : 'bg-primary hover:bg-primary/90 text-primary-foreground'
                   }`}
                   onClick={() => handleExecute()}
-                  disabled={createTrade.isPending || !isConnected}
+                  disabled={createTrade.isPending}
                   data-testid="button-execute"
                 >
                   {createTrade.isPending ? 'Executing...' : 'Execute Trade'}
