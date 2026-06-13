@@ -144,7 +144,8 @@ export default function TradeDetailPage() {
         symbol: trade.symbol,
         tradeType: trade.type as any,
         direction: trade.direction as any,
-        tradeId: trade.id
+        tradeId: trade.id,
+        timeframe: trade.duration && trade.durationUnit ? `${trade.duration}${trade.durationUnit}` : "not specified"
       }
     }, {
       onSuccess: () => {
@@ -273,6 +274,7 @@ export default function TradeDetailPage() {
           <div className="border border-border bg-primary/5 p-4 shrink-0">
             <h3 className="text-xs font-bold font-mono text-primary uppercase mb-3">AI Analysis Result</h3>
             <div className="space-y-2 text-sm font-mono text-foreground">
+              <p><span className="text-muted-foreground">Asset:</span> <span className="font-bold">{analyses[0].symbol}</span></p>
               <p><span className="text-muted-foreground">Recommendation:</span> <span className="uppercase font-bold">{analyses[0].recommendation}</span> (Confidence: {analyses[0].confidence}%)</p>
               <p><span className="text-muted-foreground">Reasoning:</span> {analyses[0].reasoning}</p>
             </div>

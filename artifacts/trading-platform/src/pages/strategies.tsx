@@ -765,16 +765,27 @@ function LegEditor({ side, leg, onChange }: LegEditorProps) {
  );
 }
 
-export default function StrategiesPage() {
- const { data: strategies, isLoading } = useListStrategies({});
- const createStrategy = useCreateStrategy();
- const updateStrategy = useUpdateStrategy();
- const deleteStrategy = useDeleteStrategy();
- const testWebhook = useTestStrategyWebhook();
- const queryClient = useQueryClient();
+import { useAiContext } from "@/hooks/useAiContext";
 
- const [showForm, setShowForm] = useState(false);
- const [editingId, setEditingId] = useState<number | null>(null);
+export default function StrategiesPage() {
+  const { data: strategies, isLoading } = useListStrategies({});
+  const createStrategy = useCreateStrategy();
+  const updateStrategy = useUpdateStrategy();
+  const deleteStrategy = useDeleteStrategy();
+  const testWebhook = useTestStrategyWebhook();
+  const queryClient = useQueryClient();
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const setGlobalContext = useAiContext((state) => state.setGlobalContext);
+
+  useEffect(() => {
+    setGlobalContext(`User is on the Strategies page.
+Available strategies: ${strategies?.map(s => s.name).join(', ') || 'None'}
+Currently ${showForm ? (editingId ? 'editing a strategy' : 'creating a new strategy') : 'viewing strategies list'}.`);
+    return () => setGlobalContext(null);
+  }, [strategies, showForm, editingId, setGlobalContext]);
 
  const [name, setName] = useState("");
  const [description, setDescription] = useState("");

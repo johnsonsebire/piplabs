@@ -6,6 +6,8 @@ import { ChartToolbar, DrawingTool } from "./ChartToolbar";
 import { ChartDrawings, Drawing } from "./ChartDrawings";
 import { TradingGuideManager } from "./TradingGuideManager";
 import { TradingGuideOverlay } from "./TradingGuideOverlay";
+import { useAiContext } from "@/hooks/useAiContext";
+import { fetchHistoricalCandles, type DerivHistoricalCandle } from "@/lib/deriv-api";
 
 export interface ChartIndicatorInput {
   id: string | number;
@@ -18,6 +20,7 @@ interface TradingChartProps {
   symbol: string;
   indicators?: ChartIndicatorInput[];
   granularitySec?: number;
+  isActiveChart?: boolean;
 }
 
 // Separate oscillator panel component
@@ -181,7 +184,7 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: Oscil
   );
 }
 
-export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: TradingChartProps) {
+export function TradingChart({ symbol, indicators = [], granularitySec = 60, isActiveChart = false }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -218,7 +221,46 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
     );
   };
 
-  const { candles, latestTick, isConnected } = useDerivWs(symbol, granularitySec);
+  const { candles, latestTick, isConnected, error } = useDerivWs(symbol, granularitySec);
+
+  const setGlobalContext = useAiContext((state) => state.setGlobalContext);
+
+  const [htfContext, setHtfContext] = useState<string>('');
+
+  useEffect(() => {
+    if (!isActiveChart || !symbol) return;
+    let isMounted = true;
+
+    async function fetchHtfData() {
+      try {
+        const [daily, m15, m5] = await Promise.all([
+          fetchHistoricalCandles(symbol, 86400, 50),
+          fetchHistoricalCandles(symbol, 900, 50),
+          fetchHistoricalCandles(symbol, 300, 50),
+        ]);
+
+        if (!isMounted) return;
+
+        const formatCandles = (data: any[], title: string) => {
+          if (!data || data.length === 0) return `${title}: No data`;
+          const lines = data.map(c => `[T: ${new Date(c.time * 1000).toISOString().split('T')[0]} | O: ${c.open} | H: ${c.high} | L: ${c.low} | C: ${c.close}]`).join('\n');
+          return `${title}:\n${lines}`;
+        };
+
+        const dailyStr = formatCandles(daily, "Daily (1D) Last 50 Candles");
+        const m15Str = formatCandles(m15, "15-Minute (15M) Last 50 Candles");
+        const m5Str = formatCandles(m5, "5-Minute (5M) Last 50 Candles");
+
+        setHtfContext(`\n\n--- HIGHER TIMEFRAME CONTEXT ---\n\n${dailyStr}\n\n${m15Str}\n\n${m5Str}`);
+      } catch (err) {
+        console.error("Failed to fetch HTF data for context", err);
+      }
+    }
+
+    fetchHtfData();
+
+    return () => { isMounted = false; };
+  }, [isActiveChart, symbol]);
 
   // Strict data cleaning and mathematical validation to prevent lightweight-charts from crashing
   const validCandles = useMemo(() => {
@@ -259,18 +301,15 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
         
         return true;
       })
-      .sort((a, b) => a.time - b.time);
+      .sort((a, b) => a.time - b.time); // Third pass: ensure strictly chronological
 
-    if (cleaned.length === 0) return [];
-
-    // Remove duplicates by time (required by lightweight-charts)
-    const unique: typeof cleaned = [];
+    // Fourth pass: Remove duplicate timestamps keeping the latest one
+    const uniqueMap = new Map();
     for (const c of cleaned) {
-      if (unique.length === 0 || c.time > unique[unique.length - 1].time) {
-        unique.push(c);
-      }
+      uniqueMap.set(c.time, c);
     }
-    return unique;
+    
+    return Array.from(uniqueMap.values());
   }, [candles]);
 
   const computed = useMemo<IndicatorSeries[]>(() => {
@@ -284,7 +323,34 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
       if (series) out.push(series);
     }
     return out;
-  }, [indicators, validCandles]);
+  }, [indicators, activeIndicatorIds, validCandles]);
+
+  useEffect(() => {
+    if (!isActiveChart) return;
+
+    const activeInds = indicators.filter(ind => activeIndicatorIds.includes(ind.id));
+    const indNames = activeInds.map(i => i.name).join(', ') || 'None';
+    
+    // Get the last 100 candles to give the AI an idea of price action
+    const lastCandles = validCandles.slice(-100).map(c => `[Time: ${new Date(c.time * 1000).toISOString()} | O: ${c.open} | H: ${c.high} | L: ${c.low} | C: ${c.close}]`).join('\n');
+    
+    const contextStr = `User is on the Trading Chart page.
+Active Chart Symbol: ${symbol}
+Timeframe: ${granularitySec} seconds
+Connection Status: ${isConnected ? 'LIVE' : 'DISCONNECTED'}
+Active Indicators: ${indNames}
+
+Recent Price Action (Last 100 Candles):
+${lastCandles || 'No data available'}
+
+Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
+
+    setGlobalContext(contextStr);
+
+    return () => {
+      // Don't clear it immediately on unmount because another chart might become active
+    };
+  }, [isActiveChart, symbol, granularitySec, isConnected, activeIndicatorIds, indicators, validCandles, latestTick, htfContext, setGlobalContext]);
 
   const hasOscillator = computed.some(c => c.pane === "oscillator");
   const oscillatorCount = computed.filter(c => c.pane === "oscillator").length;
@@ -580,6 +646,40 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60 }: T
           setDrawings={setDrawings}
           containerRef={chartContainerRef}
         />
+        {error && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(10, 13, 17, 0.7)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 100
+          }}>
+            <div style={{
+              padding: '16px 24px',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '8px',
+              color: '#ef4444',
+              fontFamily: 'Space Mono, monospace',
+              fontSize: '12px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+            }}>
+              <i className="bi bi-exclamation-triangle"></i>
+              {error === "MarketIsClosed" ? "Market is closed" : error}
+            </div>
+          </div>
+        )}
       </div>
       <TradingGuideOverlay />
       {computed.filter(c => c.pane === "oscillator").map((osc, index) => (

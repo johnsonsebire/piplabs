@@ -1043,6 +1043,8 @@ export interface OpenaiConversationInput {
 
 export interface OpenaiMessageInput {
   content: string;
+  /** Optional context payload to be prepended/appended to the system message */
+  contextPayload?: string;
 }
 
 export interface OpenaiConversationWithMessages {

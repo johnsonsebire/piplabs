@@ -78,6 +78,9 @@ function paramSummary(parsed: ParsedParams, code: string): string {
   }
 }
 
+import { useEffect } from "react";
+import { useAiContext } from "@/hooks/useAiContext";
+
 export default function IndicatorsPage() {
   const { data: me } = useGetMe();
   const { data: indicators, isLoading } = useListIndicators({});
@@ -89,6 +92,15 @@ export default function IndicatorsPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  const setGlobalContext = useAiContext((state) => state.setGlobalContext);
+
+  useEffect(() => {
+    setGlobalContext(`User is on the Indicators page.
+Available indicators: ${indicators?.map(i => i.name).join(', ') || 'None'}
+Currently ${showForm ? (editingId ? 'editing an indicator' : 'creating a new indicator') : 'viewing indicator list'}.`);
+    return () => setGlobalContext(null);
+  }, [indicators, showForm, editingId, setGlobalContext]);
   const [kind, setKind] = useState<Kind>("MA");
   const [isPublic, setIsPublic] = useState(true);
 

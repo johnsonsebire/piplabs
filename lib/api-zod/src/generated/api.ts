@@ -1465,7 +1465,8 @@ export const SendOpenaiMessageParams = zod.object({
 })
 
 export const SendOpenaiMessageBody = zod.object({
-  "content": zod.string()
+  "content": zod.string(),
+  "contextPayload": zod.string().optional().describe('Optional context payload to be prepended\/appended to the system message')
 })
 
 

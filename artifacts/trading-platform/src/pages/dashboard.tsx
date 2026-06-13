@@ -3,6 +3,8 @@ import { useGetDashboardSummary, useGetMe } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useAiContext } from "@/hooks/useAiContext";
+import { useEffect } from "react";
 
 function StatCard({ title, children, badge }: { title: string; children: React.ReactNode; badge?: React.ReactNode }) {
   return (
@@ -24,8 +26,24 @@ export default function Dashboard() {
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary();
   const { data: user, isLoading: isLoadingUser } = useGetMe();
 
+  const setGlobalContext = useAiContext((state) => state.setGlobalContext);
+
   const livePnl = summary?.livePnlToday || 0;
   const demoPnl = summary?.demoPnlToday || 0;
+
+  useEffect(() => {
+    if (summary) {
+      setGlobalContext(`User is on the Dashboard.
+Account Mode: ${summary.accountMode}
+Balance: ${summary.accountBalance} ${summary.currency}
+Live PnL Today: ${livePnl}
+Demo PnL Today: ${demoPnl}
+Win Rate Today: ${summary.winRateToday?.toFixed(1)}%
+Active Trades: ${summary.liveOpenTrades} Live, ${summary.demoOpenTrades} Demo
+Recent Trades Count: ${summary.recentActivity?.length || 0}`);
+    }
+    return () => setGlobalContext(null);
+  }, [summary, livePnl, demoPnl, setGlobalContext]);
 
   return (
     <AppLayout>

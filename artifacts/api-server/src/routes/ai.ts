@@ -41,7 +41,9 @@ Always respond in valid JSON with this exact structure:
   "suggestedEntry": number or null,
   "suggestedTarget": number or null,
   "suggestedStopLoss": number or null
-}`;
+}
+
+IMPORTANT: In the 'reasoning' field, you must clearly start by specifying the Asset name and the Timeframe(s) considered, in the format: 'Asset: [Asset Name], Timeframe: [Timeframe]. [Detailed explanation...]'`;
 
   const userPrompt = `Analyze the following trade setup:
 Asset: ${symbol}

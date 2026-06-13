@@ -208,6 +208,7 @@ export function ChartContainer({
           symbol={config.symbol}
           granularitySec={config.granularitySec}
           indicators={Array.isArray(indicators) ? indicators.map(i => ({ id: i.id, name: i.name, code: i.code, parameters: i.parameters })) : []}
+          isActiveChart={isActive}
         />
       </div>
       <BottomPanel symbol={config.symbol} />

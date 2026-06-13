@@ -27,13 +27,20 @@ export function TradingGuideOverlay() {
           zIndex: 50 
         }}
       >
+        <div 
+          className="d-flex align-items-center justify-content-center cursor-grab bg-card/80 backdrop-blur border border-secondary text-muted-foreground hover:text-white transition-colors shadow-sm"
+          onMouseDown={onMouseDown}
+          style={{ width: '36px', height: '24px', borderRadius: '4px' }}
+        >
+          <GripHorizontal size={14} />
+        </div>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
                 variant="outline" 
                 size="icon" 
-                className="bg-card/80 backdrop-blur border-secondary text-success"
+                className="bg-card/80 backdrop-blur border-secondary text-success shadow-sm"
                 onClick={() => setMinimized(false)}
               >
                 <Maximize2 size={16} />

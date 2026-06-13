@@ -43,7 +43,7 @@ router.post("/openai/conversations", requireAuth, async (req: AuthenticatedReque
     userId: req.userId!,
     title: parsed.data.title ?? "New Conversation",
   }).returning();
-  res.status(201).json(GetOpenaiConversationResponse.parse(conv));
+  res.status(201).json(conv);
 });
 
 router.get("/openai/conversations/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -79,7 +79,11 @@ router.post("/openai/conversations/:id/messages", requireAuth, async (req: Authe
   const id = parseId(req.params.id);
   const params = SendOpenaiMessageParams.safeParse({ id });
   const body = SendOpenaiMessageBody.safeParse(req.body);
-  if (!params.success || !body.success) { res.status(400).json({ error: "Invalid request" }); return; }
+  if (!params.success || !body.success) { 
+    req.log.error({ paramsError: params.error, bodyError: body.error }, "Invalid request payload");
+    res.status(400).json({ error: "Invalid request" }); 
+    return; 
+  }
 
   const [conv] = await db.select().from(conversations)
     .where(and(eq(conversations.id, params.data.id), eq(conversations.userId, req.userId!)));
@@ -94,6 +98,11 @@ router.post("/openai/conversations/:id/messages", requireAuth, async (req: Authe
   const history = await db.select().from(messages).where(eq(messages.conversationId, params.data.id));
   const client = getOpenAIClient();
 
+  let systemPrompt = "You are a helpful trading assistant specializing in PipLabs platform trading, technical analysis, and financial markets. Be extremely brief and concise in your responses. When analyzing a chart or providing trade suggestions, your response must clearly include at the very top:\n1. Asset: [analyzed asset name/symbol]\n2. Timeframe: [timeframe(s) considered in your decision]\nThen strictly output the recommended Entry, Take Profit (TP), and Stop Loss (SL) levels clearly formatted, followed by a 1-2 sentence reasoning behind your decision.";
+  if (body.data.contextPayload) {
+    systemPrompt += `\n\n[USER CURRENT PLATFORM CONTEXT]:\n${body.data.contextPayload}\n\nUse this context (which includes multi-timeframe analysis) to inform your responses, as the user is currently viewing this data. Ensure you check the higher timeframes to make an unbiased and informed decision.`;
+  }
+
   let assistantContent: string;
   try {
     const completion = await client.chat.completions.create({
@@ -101,7 +110,7 @@ router.post("/openai/conversations/:id/messages", requireAuth, async (req: Authe
       messages: [
         {
           role: "system",
-          content: "You are a helpful trading assistant specializing in PipLabs platform trading, technical analysis, and financial markets.",
+          content: systemPrompt,
         },
         ...history.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
       ],

@@ -2780,6 +2780,9 @@ components:
       properties:
         content:
           type: string
+        contextPayload:
+          type: string
+          description: "Optional context payload to be prepended/appended to the system message"
       required:
         - content
 

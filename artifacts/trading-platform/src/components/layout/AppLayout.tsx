@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import { Button } from "@/components/ui/button";
+import { AiChatWidget } from "@/components/chat/AiChatWidget";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -134,6 +135,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className="flex-1 d-flex flex-column position-relative overflow-hidden" style={{ backgroundColor: 'var(--bs-body-bg)' }}>
         {children}
       </main>
+
+      <AiChatWidget />
     </div>
   );
 }

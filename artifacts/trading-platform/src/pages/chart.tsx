@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Panel, PanelGroup, PanelResizeHandle, ImperativePanelHandle } from "react-resizable-panels";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAiContext } from "@/hooks/useAiContext";
 
 export type LayoutType = '1' | '2-h' | '2-v' | '3' | '4';
 
@@ -70,6 +71,20 @@ export default function ChartPage() {
       localStorage.setItem('deriv_multi_charts_layout', layout);
     }
   }, [layout]);
+
+  const setGlobalContext = useAiContext((state) => state.setGlobalContext);
+
+  useEffect(() => {
+    const activeChart = charts.find(c => c.id === activeChartId) || charts[0];
+    if (activeChart) {
+      setGlobalContext(`User is on the Trading Chart page. 
+Active Chart Symbol: ${activeChart.symbol}
+Timeframe/Granularity: ${activeChart.granularitySec} seconds
+Layout: ${layout} grid.
+Number of charts on screen: ${charts.length}`);
+    }
+    return () => setGlobalContext(null);
+  }, [activeChartId, charts, layout, setGlobalContext]);
 
   const activeChart = charts.find(c => c.id === activeChartId) || charts[0];
   const activeSymbol = activeChart?.symbol || "R_100";
