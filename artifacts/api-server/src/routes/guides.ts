@@ -53,7 +53,7 @@ router.post("/guides", requireAuth, async (req: AuthenticatedRequest, res: Respo
 router.put("/guides/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const guideId = req.params.id;
+    const guideId = req.params.id as string;
     const { name, isActive, buyRules, sellRules } = req.body;
 
     // Check if it belongs to user
@@ -62,7 +62,8 @@ router.put("/guides/:id", requireAuth, async (req: AuthenticatedRequest, res: Re
     });
 
     if (!existing) {
-      return res.status(404).json({ error: "Guide not found" });
+      res.status(404).json({ error: "Guide not found" });
+      return;
     }
 
     // Deactivate others if this is active
@@ -93,14 +94,15 @@ router.put("/guides/:id", requireAuth, async (req: AuthenticatedRequest, res: Re
 router.delete("/guides/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const guideId = req.params.id;
+    const guideId = req.params.id as string;
 
     const result = await db.delete(tradingGuidesTable)
       .where(and(eq(tradingGuidesTable.id, guideId), eq(tradingGuidesTable.userId, userId)))
       .returning();
 
     if (result.length === 0) {
-      return res.status(404).json({ error: "Guide not found" });
+      res.status(404).json({ error: "Guide not found" });
+      return;
     }
 
     res.status(204).send();

@@ -1332,6 +1332,32 @@ paths:
                 items:
                   $ref: "#/components/schemas/NewsArticle"
 
+  # ─── Scanner ──────────────────────────────────────────────────────────────────
+
+  /scanner/alert:
+    post:
+      operationId: sendScannerAlert
+      tags: [scanner]
+      summary: Send a market scanner alert (triggering webhooks and emails)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScannerAlertInput"
+      responses:
+        "200":
+          description: Alert dispatched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: object
+
   # ─── OpenAI ──────────────────────────────────────────────────────────────────
 
   /openai/conversations:
@@ -1467,6 +1493,20 @@ paths:
 
 components:
   schemas:
+    ScannerAlertInput:
+      type: object
+      properties:
+        signal:
+          type: object
+          description: "The trading signal that triggered the alert."
+          additionalProperties: true
+        payload:
+          type: object
+          description: "Optional custom payload structure for the webhook."
+          additionalProperties: true
+      required:
+        - signal
+
     HealthStatus:
       type: object
       properties:
@@ -1508,6 +1548,12 @@ components:
           enum: [demo, live]
         openAiApiKey:
           type: ["string", "null"]
+        scannerWebhookUrl:
+          type: ["string", "null"]
+        scannerEmailAlerts:
+          type: boolean
+        scannerSoundAlerts:
+          type: boolean
       required:
         - id
         - clerkId
@@ -1546,6 +1592,12 @@ components:
           enum: [demo, live]
         openAiApiKey:
           type: ["string", "null"]
+        scannerWebhookUrl:
+          type: ["string", "null"]
+        scannerEmailAlerts:
+          type: boolean
+        scannerSoundAlerts:
+          type: boolean
 
     UserRoleUpdate:
       type: object

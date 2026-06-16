@@ -56,7 +56,9 @@ import type {
   OpenaiImageOutput,
   OpenaiMessage,
   OpenaiMessageInput,
+  ScannerAlertInput,
   SearchDerivSymbolsParams,
+  SendScannerAlert200,
   Strategy,
   StrategyInput,
   StrategyUpdate,
@@ -4883,6 +4885,77 @@ export function useGetMarketNews<TData = Awaited<ReturnType<typeof getMarketNews
 
 
 
+
+export const getSendScannerAlertUrl = () => {
+
+
+
+
+  return `/api/scanner/alert`
+}
+
+/**
+ * @summary Send a market scanner alert (triggering webhooks and emails)
+ */
+export const sendScannerAlert = async (scannerAlertInput: ScannerAlertInput, options?: RequestInit): Promise<SendScannerAlert200> => {
+
+  return customFetch<SendScannerAlert200>(getSendScannerAlertUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      scannerAlertInput,)
+  }
+);}
+
+
+
+
+export const getSendScannerAlertMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendScannerAlert>>, TError,{data: BodyType<ScannerAlertInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendScannerAlert>>, TError,{data: BodyType<ScannerAlertInput>}, TContext> => {
+
+const mutationKey = ['sendScannerAlert'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendScannerAlert>>, {data: BodyType<ScannerAlertInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendScannerAlert(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendScannerAlertMutationResult = NonNullable<Awaited<ReturnType<typeof sendScannerAlert>>>
+    export type SendScannerAlertMutationBody = BodyType<ScannerAlertInput>
+    export type SendScannerAlertMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send a market scanner alert (triggering webhooks and emails)
+ */
+export const useSendScannerAlert = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendScannerAlert>>, TError,{data: BodyType<ScannerAlertInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendScannerAlert>>,
+        TError,
+        {data: BodyType<ScannerAlertInput>},
+        TContext
+      > => {
+      return useMutation(getSendScannerAlertMutationOptions(options));
+    }
 
 export const getListOpenaiConversationsUrl = () => {
 

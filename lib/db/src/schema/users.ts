@@ -20,6 +20,9 @@ export const usersTable = pgTable("users", {
   derivConnectedAt: timestamp("deriv_connected_at", { withTimezone: true }),
   preferredTradeMode: text("preferred_trade_mode").notNull().default("demo"),
   openAiApiKey: text("open_ai_api_key"),
+  scannerWebhookUrl: text("scanner_webhook_url"),
+  scannerEmailAlerts: boolean("scanner_email_alerts").notNull().default(false),
+  scannerSoundAlerts: boolean("scanner_sound_alerts").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 });

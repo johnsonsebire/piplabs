@@ -12,12 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { swalSuccess, swalError } from "@/lib/swal";
-import { PanelRightClose, PanelRightOpen, Plus, LayoutGrid, Square, Columns, Rows, Grid2x2, Grid3x3 } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, Plus, LayoutGrid, Square, Columns, Rows, Grid2x2, Grid3x3, LineChart, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Panel, PanelGroup, PanelResizeHandle, ImperativePanelHandle } from "react-resizable-panels";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAiContext } from "@/hooks/useAiContext";
+import { MarketScannerTab } from "@/components/chart/MarketScannerTab";
 
 export type LayoutType = '1' | '2-h' | '2-v' | '3' | '4';
 
@@ -416,352 +418,364 @@ Number of charts on screen: ${charts.length}`);
             onCollapse={() => setIsTradePanelOpen(false)}
             onExpand={() => setIsTradePanelOpen(true)}
             className={cn(
-              "bg-card d-flex flex-column flex-shrink-0 overflow-y-auto transition-all duration-300 ease-in-out",
+              "bg-card d-flex flex-column flex-shrink-0 transition-all duration-300 ease-in-out border-l border-border",
               !isTradePanelOpen && !isMobile && "d-none"
             )}
           >
-            <div className="p-4 border-b border-border d-flex align-items-center justify-content-between flex-shrink-0">
-              <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">Order Entry</h2>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs font-mono text-muted-foreground uppercase">Mode:</Label>
-                <div className="grid grid-cols-2 gap-1 w-[120px]">
-                  <Button
-                    size="sm"
-                    variant={tradeMode === "demo" ? "default" : "outline"}
-                    className={`h-6 rounded-none uppercase font-bold text-[9px] tracking-wider ${tradeMode === "demo" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
-                    onClick={() => setTradeMode("demo")}
+            <Tabs defaultValue="trade" className="h-100 d-flex flex-column">
+              <div className="border-b border-border p-2 bg-[#0a0d11]">
+                <TabsList className="strategy-tabs-list">
+                  <TabsTrigger 
+                    value="trade" 
+                    className="strategy-tab-trigger flex gap-2 items-center"
+                    data-tab="trade"
                   >
-                    DEMO
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={tradeMode === "live" ? "default" : "outline"}
-                    className={`h-6 rounded-none uppercase font-bold text-[9px] tracking-wider ${tradeMode === "live" ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive border-border'}`}
-                    onClick={() => setTradeMode("live")}
+                    <LineChart size={14} />
+                    <span>Trade</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="scanner" 
+                    className="strategy-tab-trigger flex gap-2 items-center"
+                    data-tab="scanner"
                   >
-                    LIVE
-                  </Button>
-                </div>
-                {tradeMode === "live" && <span className="d-flex h-2 w-2 rounded-full bg-destructive animate-pulse ml-1" title="Live Trading Active" />}
-              </div>
-            </div>
-
-            <div className="p-4 space-y-6">
-              <div className="space-y-3 mb-6 border-b border-border pb-6">
-                <Label className="text-xs uppercase font-mono text-muted-foreground">Trade Type</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    type="button"
-                    variant={tradeClass === "options" ? "default" : "outline"}
-                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "options" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
-                    onClick={() => setTradeClass("options")}
-                  >
-                    Options
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={tradeClass === "multiplier" ? "default" : "outline"}
-                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "multiplier" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
-                    onClick={() => setTradeClass("multiplier")}
-                  >
-                    Multiplier
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={tradeClass === "forex" ? "default" : "outline"}
-                    className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "forex" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
-                    onClick={() => setTradeClass("forex")}
-                  >
-                    Forex
-                  </Button>
-                </div>
+                    <Radar size={14} />
+                    <span>Scanner</span>
+                  </TabsTrigger>
+                </TabsList>
               </div>
 
-              {tradeClass === "options" && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Contract Type</Label>
-                  <ContractTypeSelector value={contractType} onChange={handleContractTypeChange} compact />
+              <TabsContent value="trade" className="flex-1 overflow-y-auto m-0 data-[state=active]:d-flex flex-column focus-visible:outline-none">
+                <div className="p-4 border-b border-border d-flex align-items-center justify-content-between flex-shrink-0">
+                  <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-foreground">Order Entry</h2>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-mono text-muted-foreground uppercase">Mode:</Label>
+                    <div className="grid grid-cols-2 gap-1 w-[120px]">
+                      <Button
+                        size="sm"
+                        variant={tradeMode === "demo" ? "default" : "outline"}
+                        className={`h-6 rounded-none uppercase font-bold text-[9px] tracking-wider ${tradeMode === "demo" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                        onClick={() => setTradeMode("demo")}
+                      >
+                        DEMO
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={tradeMode === "live" ? "default" : "outline"}
+                        className={`h-6 rounded-none uppercase font-bold text-[9px] tracking-wider ${tradeMode === "live" ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive border-border'}`}
+                        onClick={() => setTradeMode("live")}
+                      >
+                        LIVE
+                      </Button>
+                    </div>
+                    {tradeMode === "live" && <span className="d-flex h-2 w-2 rounded-full bg-destructive animate-pulse ml-1" title="Live Trading Active" />}
+                  </div>
                 </div>
-              )}
 
-              {tradeClass === "options" && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {config.directions.map((dir) => {
-                      const isSelected = direction === dir.value;
-                      const isGreen = dir.color === "green";
-                      return (
+                <div className="p-4 space-y-6">
+                  <div className="space-y-3 mb-6 border-b border-border pb-6">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground">Trade Type</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        type="button"
+                        variant={tradeClass === "options" ? "default" : "outline"}
+                        className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "options" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                        onClick={() => setTradeClass("options")}
+                      >
+                        Options
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={tradeClass === "multiplier" ? "default" : "outline"}
+                        className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "multiplier" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                        onClick={() => setTradeClass("multiplier")}
+                      >
+                        Multiplier
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={tradeClass === "forex" ? "default" : "outline"}
+                        className={`h-8 rounded-none uppercase font-bold text-[10px] tracking-wider px-1 ${tradeClass === "forex" ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary border-border'}`}
+                        onClick={() => setTradeClass("forex")}
+                      >
+                        Forex
+                      </Button>
+                    </div>
+                  </div>
+
+                  {tradeClass === "options" && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Contract Type</Label>
+                      <ContractTypeSelector value={contractType} onChange={handleContractTypeChange} compact />
+                    </div>
+                  )}
+
+                  {tradeClass === "options" && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {config.directions.map((dir) => {
+                          const isSelected = direction === dir.value;
+                          const isGreen = dir.color === "green";
+                          return (
+                            <Button
+                              key={dir.value}
+                              type="button"
+                              variant={isSelected ? (isGreen ? "default" : "destructive") : "outline"}
+                              className={`rounded-none uppercase font-bold tracking-wider ${
+                                isSelected 
+                                  ? (isGreen ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground')
+                                  : (isGreen ? 'hover:bg-primary/20 hover:text-primary' : 'hover:bg-destructive/20 hover:text-destructive')
+                              }`}
+                              onClick={() => setDirection(dir.value as TradeInputDirection)}
+                              style={{ gridColumn: config.directions.length === 1 ? "span 2" : undefined }}
+                            >
+                              {dir.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {tradeClass === "multiplier" && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
+                      <div className="grid grid-cols-2 gap-2">
                         <Button
-                          key={dir.value}
                           type="button"
-                          variant={isSelected ? (isGreen ? "default" : "destructive") : "outline"}
-                          className={`rounded-none uppercase font-bold tracking-wider ${
-                            isSelected 
-                              ? (isGreen ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground')
-                              : (isGreen ? 'hover:bg-primary/20 hover:text-primary' : 'hover:bg-destructive/20 hover:text-destructive')
-                          }`}
-                          onClick={() => setDirection(dir.value as TradeInputDirection)}
-                          style={{ gridColumn: config.directions.length === 1 ? "span 2" : undefined }}
+                          variant={direction === TradeInputDirection.buy || direction === TradeInputDirection.call ? "default" : "outline"}
+                          className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.buy || direction === TradeInputDirection.call ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary'}`}
+                          onClick={() => setDirection(TradeInputDirection.buy)}
                         >
-                          {dir.label}
+                          Buy
                         </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                        <Button
+                          type="button"
+                          variant={direction === TradeInputDirection.sell || direction === TradeInputDirection.put ? "destructive" : "outline"}
+                          className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.sell || direction === TradeInputDirection.put ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive'}`}
+                          onClick={() => setDirection(TradeInputDirection.sell)}
+                        >
+                          Sell
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
-              {tradeClass === "multiplier" && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Direction</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant={direction === TradeInputDirection.buy || direction === TradeInputDirection.call ? "default" : "outline"}
-                      className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.buy || direction === TradeInputDirection.call ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'hover:bg-primary/20 hover:text-primary'}`}
-                      onClick={() => setDirection(TradeInputDirection.buy)}
-                    >
-                      Buy
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={direction === TradeInputDirection.sell || direction === TradeInputDirection.put ? "destructive" : "outline"}
-                      className={`rounded-none uppercase font-bold tracking-wider ${direction === TradeInputDirection.sell || direction === TradeInputDirection.put ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'hover:bg-destructive/20 hover:text-destructive'}`}
-                      onClick={() => setDirection(TradeInputDirection.sell)}
-                    >
-                      Sell
-                    </Button>
-                  </div>
-                </div>
-              )}
+                  {tradeClass === "forex" && (
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <Label className="text-xs uppercase font-mono text-muted-foreground">Order Type</Label>
+                        <Select value={pendingOrder} onValueChange={(v: any) => setPendingOrder(v)}>
+                          <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                            <SelectItem value="market" className="font-mono text-xs">Market Execution</SelectItem>
+                            <SelectItem value="limit" className="font-mono text-xs">Pending Limit</SelectItem>
+                            <SelectItem value="stop" className="font-mono text-xs">Pending Stop</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-              {tradeClass === "forex" && (
-                <div className="space-y-4">
+                      <div className="space-y-3">
+                        <Label className="text-xs uppercase font-mono text-muted-foreground">MT5 Account</Label>
+                        <Select value={mt5AccountId} onValueChange={setMt5AccountId}>
+                          <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
+                            <SelectValue placeholder="Select Account" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                            {mt5Accounts?.map((acc: any) => (
+                              <SelectItem key={acc.id} value={acc.id} className="font-mono text-xs">{acc.name} ({acc.login})</SelectItem>
+                            ))}
+                            {(!mt5Accounts || mt5Accounts.length === 0) && (
+                              <SelectItem value="none" disabled className="font-mono text-xs">No accounts available</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <Label className="text-xs uppercase font-mono text-muted-foreground">Take Profit</Label>
+                          <Input
+                            type="number"
+                            value={takeProfit}
+                            onChange={(e) => setTakeProfit(e.target.value)}
+                            placeholder="0.00"
+                            className="rounded-none font-mono h-10 border-border bg-background text-green-500"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <Label className="text-xs uppercase font-mono text-muted-foreground">Stop Loss</Label>
+                          <Input
+                            type="number"
+                            value={stopLoss}
+                            onChange={(e) => setStopLoss(e.target.value)}
+                            placeholder="0.00"
+                            className="rounded-none font-mono h-10 border-border bg-background text-red-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground">Order Type</Label>
-                    <Select value={pendingOrder} onValueChange={(v: any) => setPendingOrder(v)}>
-                      <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
-                        <SelectItem value="market" className="font-mono text-xs">Market Execution</SelectItem>
-                        <SelectItem value="limit" className="font-mono text-xs">Pending Limit</SelectItem>
-                        <SelectItem value="stop" className="font-mono text-xs">Pending Stop</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground">Forex Account</Label>
-                    <Select value={mt5AccountId} onValueChange={setMt5AccountId}>
-                      <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono text-xs">
-                        <SelectValue placeholder="Select MT5 Account" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl max-h-[300px]">
-                        {mt5Accounts?.filter(a => a.type === tradeMode).map((acc) => (
-                          <SelectItem key={acc.id} value={acc.id} className="mt5-account-item font-mono text-xs cursor-pointer rounded-none border-b border-[#1a2332] last:border-0">
-                            {acc.name} - {acc.broker} ({acc.login})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label className="text-xs uppercase font-mono text-muted-foreground">Volume (Lots)</Label>
+                    <Label className="text-xs uppercase font-mono text-muted-foreground">Stake / Volume</Label>
                     <Input
                       type="number"
-                      step="0.01"
-                      value={volume}
-                      onChange={(e) => setVolume(e.target.value)}
-                      className="rounded-none font-mono text-lg h-10 border-border bg-background text-center"
+                      value={tradeClass === "forex" ? volume : stake}
+                      onChange={(e) => tradeClass === "forex" ? setVolume(e.target.value) : setStake(e.target.value)}
+                      min="1"
+                      className="text-2xl font-mono h-14 rounded-none border-border bg-background font-bold"
+                      data-testid="input-stake"
                     />
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase font-mono text-muted-foreground text-destructive">Stop Loss</Label>
+
+                  {tradeClass === "options" && config.needsBarrier && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Barrier Target</Label>
                       <Input
-                        type="number"
-                        step="0.0001"
-                        value={stopLoss}
-                        onChange={(e) => setStopLoss(e.target.value)}
-                        placeholder="0.0000"
-                        className="rounded-none font-mono h-10 border-border bg-background text-destructive"
+                        value={barrier}
+                        onChange={(e) => setBarrier(e.target.value)}
+                        placeholder="+0.001"
+                        className="rounded-none font-mono h-10 border-border bg-background"
+                        data-testid="input-barrier"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase font-mono text-muted-foreground text-primary">Take Profit</Label>
+                  )}
+
+                  {tradeClass === "options" && config.hasDuration && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
+                      <div className="d-flex gap-2">
+                        <Input
+                          type="number"
+                          value={duration}
+                          onChange={(e) => setDuration(e.target.value)}
+                          min="1"
+                          className="flex-1 rounded-none font-mono h-10 border-border bg-background"
+                          data-testid="input-duration"
+                        />
+                        <Select value={durationUnit} onValueChange={setDurationUnit}>
+                          <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                            {DURATION_UNITS.map((u) => {
+                              if (config.ticksOnly && u.value !== "t") return null;
+                              return <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>;
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {tradeClass === "multiplier" && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Multiplier</Label>
+                      <Select value={multiplier} onValueChange={setMultiplier}>
+                        <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                          {MULTIPLIER_VALUES.map((u) => (
+                            <SelectItem key={u} value={u} className="font-mono text-xs">x{u}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {tradeClass === "options" && config.needsGrowthRate && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Growth Rate</Label>
+                      <Select value={growthRate} onValueChange={setGrowthRate}>
+                        <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
+                          {GROWTH_RATES.map((u) => (
+                            <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {tradeClass !== "forex" && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-mono text-muted-foreground">Take Profit (Optional)</Label>
                       <Input
                         type="number"
-                        step="0.0001"
                         value={takeProfit}
                         onChange={(e) => setTakeProfit(e.target.value)}
-                        placeholder="0.0000"
-                        className="rounded-none font-mono h-10 border-border bg-background text-primary"
+                        placeholder="0.00"
+                        className="rounded-none font-mono h-10 border-border bg-background"
+                        data-testid="input-takeprofit"
                       />
                     </div>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              {tradeClass !== "forex" && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Stake (USD)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={stake}
-                    onChange={(e) => setStake(e.target.value)}
-                    className="rounded-none font-mono text-lg h-10 border-border bg-background"
-                    data-testid="input-stake"
-                  />
-                </div>
-              )}
 
-              {tradeClass === "options" && config.needsBarrier && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">{config.barrierLabel}</Label>
-                  <div className="space-y-1">
-                    <Input
-                      type="text"
-                      value={barrier}
-                      onChange={(e) => setBarrier(e.target.value)}
-                      placeholder={config.barrierPlaceholder}
-                      className="rounded-none font-mono h-10 border-border bg-background"
+                  <div className="d-flex align-items-center justify-content-between p-3 border border-border bg-background">
+                    <Label className="text-xs uppercase font-mono text-muted-foreground cursor-pointer" htmlFor="ai-confirm">
+                      Request AI Confirmation
+                    </Label>
+                    <Switch
+                      id="ai-confirm"
+                      checked={aiConfirmed}
+                      onCheckedChange={setAiConfirmed}
+                      data-testid="switch-ai-confirm"
                     />
-                    <p className="text-[10px] font-mono text-muted-foreground">
-                      {config.barrierHint}
-                    </p>
                   </div>
                 </div>
-              )}
 
-              {tradeClass === "options" && config.hasDuration && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Duration</Label>
-                  <div className="d-flex gap-2">
-                    <Input
-                      type="number"
-                      value={duration}
-                      onChange={(e) => setDuration(e.target.value)}
-                      className="rounded-none font-mono flex-1 h-10 border-border bg-background"
-                    />
-                    <Select value={durationUnit} onValueChange={setDurationUnit}>
-                      <SelectTrigger className="w-[120px] h-10 rounded-none border-border bg-background font-mono">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
-                        {DURATION_UNITS.map((u) => {
-                          if (config.ticksOnly && u.value !== "t") return null;
-                          return <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>;
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="p-4 mt-auto border-t border-border">
+                  {tradeClass === "forex" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
+                        style={{ backgroundColor: '#ef4444', color: 'white' }}
+                        onClick={() => handleExecute(TradeInputDirection.sell)}
+                        disabled={createTrade.isPending}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
+                      >
+                        <span>Sell by Market</span>
+                      </Button>
+                      <Button
+                        className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
+                        style={{ backgroundColor: '#3b82f6', color: 'white' }}
+                        onClick={() => handleExecute(TradeInputDirection.buy)}
+                        disabled={createTrade.isPending}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                      >
+                        <span>Buy by Market</span>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      className={`w-100 rounded-none h-12 text-sm uppercase font-bold tracking-widest ${
+                        direction === "put" || direction === "sell" 
+                          ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+                          : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                      }`}
+                      onClick={() => handleExecute()}
+                      disabled={createTrade.isPending}
+                      data-testid="button-execute"
+                    >
+                      {createTrade.isPending ? 'Executing...' : 'Execute Trade'}
+                    </Button>
+                  )}
                 </div>
-              )}
+              </TabsContent>
 
-              {tradeClass === "multiplier" && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Multiplier</Label>
-                  <Select value={multiplier} onValueChange={setMultiplier}>
-                    <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
-                      {MULTIPLIER_VALUES.map((u) => (
-                        <SelectItem key={u} value={u} className="font-mono text-xs">x{u}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {tradeClass === "options" && config.needsGrowthRate && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Growth Rate</Label>
-                  <Select value={growthRate} onValueChange={setGrowthRate}>
-                    <SelectTrigger className="w-100 h-10 rounded-none border-border bg-background font-mono">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none border-border bg-[#0f1318] shadow-2xl">
-                      {GROWTH_RATES.map((u) => (
-                        <SelectItem key={u.value} value={u.value} className="font-mono text-xs">{u.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {tradeClass !== "forex" && (
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Take Profit (Optional)</Label>
-                  <Input
-                    type="number"
-                    value={takeProfit}
-                    onChange={(e) => setTakeProfit(e.target.value)}
-                    placeholder="0.00"
-                    className="rounded-none font-mono h-10 border-border bg-background"
-                    data-testid="input-takeprofit"
-                  />
-                </div>
-              )}
-
-
-              <div className="d-flex align-items-center justify-content-between p-3 border border-border bg-background">
-                <Label className="text-xs uppercase font-mono text-muted-foreground cursor-pointer" htmlFor="ai-confirm">
-                  Request AI Confirmation
-                </Label>
-                <Switch
-                  id="ai-confirm"
-                  checked={aiConfirmed}
-                  onCheckedChange={setAiConfirmed}
-                  data-testid="switch-ai-confirm"
-                />
-              </div>
-            </div>
-
-            <div className="p-4 mt-auto border-t border-border">
-              {tradeClass === "forex" ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
-                    style={{ backgroundColor: '#ef4444', color: 'white' }}
-                    onClick={() => handleExecute(TradeInputDirection.sell)}
-                    disabled={createTrade.isPending}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
-                  >
-                    <span>Sell by Market</span>
-                  </Button>
-                  <Button
-                    className="w-100 rounded-none h-14 text-sm uppercase font-bold tracking-widest d-flex flex-column align-items-center justify-content-center gap-1 border-0"
-                    style={{ backgroundColor: '#3b82f6', color: 'white' }}
-                    onClick={() => handleExecute(TradeInputDirection.buy)}
-                    disabled={createTrade.isPending}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
-                  >
-                    <span>Buy by Market</span>
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  className={`w-100 rounded-none h-12 text-sm uppercase font-bold tracking-widest ${
-                    direction === "put" || direction === "sell" 
-                      ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
-                      : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                  }`}
-                  onClick={() => handleExecute()}
-                  disabled={createTrade.isPending}
-                  data-testid="button-execute"
-                >
-                  {createTrade.isPending ? 'Executing...' : 'Execute Trade'}
-                </Button>
-              )}
-            </div>
+              <TabsContent value="scanner" className="flex-1 overflow-y-auto m-0 data-[state=active]:d-flex flex-column focus-visible:outline-none">
+                <MarketScannerTab />
+              </TabsContent>
+            </Tabs>
           </Panel>
         </PanelGroup>
       </div>

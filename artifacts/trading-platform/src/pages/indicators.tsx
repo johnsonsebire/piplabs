@@ -472,15 +472,31 @@ Currently ${showForm ? (editingId ? 'editing an indicator' : 'creating a new ind
             {ind.name}
           </div>
           {!owned && (
-            <Badge variant="outline" className="rounded-none font-mono text-uppercase mt-1" style={{ fontSize: "0.55rem" }}>
+            <span className="font-mono text-uppercase mt-2 d-inline-block" style={{ 
+              fontSize: "0.5rem", 
+              padding: "0.2rem 0.45rem", 
+              borderRadius: "4px",
+              backgroundColor: "rgba(234, 179, 8, 0.1)",
+              border: "1px solid rgba(234, 179, 8, 0.3)",
+              color: "#eab308",
+              letterSpacing: "0.05em"
+            }}>
               Community
-            </Badge>
+            </span>
           )}
         </td>
         <td className="p-3 align-middle">
-          <Badge variant="secondary" className="rounded-none font-mono text-uppercase">
+          <span className="font-mono fw-bold text-uppercase d-inline-block" style={{ 
+            fontSize: "0.6rem", 
+            padding: "0.35rem 0.6rem", 
+            borderRadius: "6px",
+            backgroundColor: "rgba(100, 116, 139, 0.15)",
+            border: "1px solid rgba(100, 116, 139, 0.3)",
+            color: "#94a3b8",
+            letterSpacing: "0.05em"
+          }}>
             {typeLabel}
-          </Badge>
+          </span>
         </td>
         <td className="p-3 align-middle font-mono text-muted-foreground small d-none d-lg-table-cell">
           {paramSummary(parsed, ind.code)}

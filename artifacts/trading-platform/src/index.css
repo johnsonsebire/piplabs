@@ -402,6 +402,20 @@ body {
   box-shadow: 0 0 14px rgba(59, 130, 246, 0.35);
 }
 
+/* Active state — TRADE tab */
+.strategy-tab-trigger[data-tab="trade"][data-state="active"] {
+  background-color: #10b981;
+  color: #000;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+}
+
+/* Active state — SCANNER tab */
+.strategy-tab-trigger[data-tab="scanner"][data-state="active"] {
+  background-color: #3b82f6;
+  color: #fff;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.35);
+}
+
 
 /* ============================
    Table Component

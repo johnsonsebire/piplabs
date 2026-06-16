@@ -12,4 +12,8 @@ export interface UserProfileUpdate {
   preferredTradeMode?: UserProfileUpdatePreferredTradeMode;
   /** @nullable */
   openAiApiKey?: string | null;
+  /** @nullable */
+  scannerWebhookUrl?: string | null;
+  scannerEmailAlerts?: boolean;
+  scannerSoundAlerts?: boolean;
 }

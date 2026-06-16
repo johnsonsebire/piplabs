@@ -236,6 +236,16 @@ export function AiChatWidget() {
                       </ReactMarkdown>
                     </MarkdownErrorBoundary>
                   )}
+                  {msg.createdAt && (
+                    <div 
+                      className={cn(
+                        "text-[10px] mt-2 opacity-70", 
+                        msg.role === "user" ? "text-right" : "text-left"
+                      )}
+                    >
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -256,7 +266,7 @@ export function AiChatWidget() {
             <div className="px-3 py-2 bg-muted/50 border-top border-secondary d-flex align-items-center justify-content-between cursor-pointer" onClick={() => setIncludeContext(!includeContext)}>
               <div className="d-flex align-items-center gap-2 text-xs text-muted-foreground">
                 <Paperclip size={12} className={includeContext ? "text-primary" : ""} />
-                <span>{includeContext ? "Including page context" : "Context excluded"}</span>
+                <span>{includeContext ? "Including chart context" : "Context excluded"}</span>
               </div>
               <div className={cn("w-3 h-3 rounded-sm border d-flex align-items-center justify-content-center", includeContext ? "bg-primary border-primary" : "border-secondary")}>
                 {includeContext && <Check size={8} className="text-primary-foreground" />}

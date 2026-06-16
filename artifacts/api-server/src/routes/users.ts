@@ -51,13 +51,33 @@ router.patch("/users/me", requireAuth, async (req: AuthenticatedRequest, res): P
   if (parsed.data.displayName !== undefined) updateData.displayName = parsed.data.displayName;
   if (parsed.data.preferredTradeMode !== undefined) updateData.preferredTradeMode = parsed.data.preferredTradeMode;
   if ("openAiApiKey" in parsed.data) updateData.openAiApiKey = parsed.data.openAiApiKey ?? null;
+  if ("scannerWebhookUrl" in parsed.data) updateData.scannerWebhookUrl = parsed.data.scannerWebhookUrl ?? null;
+  if (parsed.data.scannerEmailAlerts !== undefined) updateData.scannerEmailAlerts = parsed.data.scannerEmailAlerts;
+  if (parsed.data.scannerSoundAlerts !== undefined) updateData.scannerSoundAlerts = parsed.data.scannerSoundAlerts;
 
   const [user] = await db
     .update(usersTable)
     .set(updateData as any)
     .where(eq(usersTable.id, req.userId!))
     .returning();
-  res.json(UpdateMeResponse.parse({ id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl }));
+  
+  res.json(UpdateMeResponse.parse({
+    id: user.id,
+    clerkId: user.clerkId,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    role: user.role,
+    isActive: user.isActive,
+    derivConnected: !!user.derivApiToken,
+    createdAt: user.createdAt,
+    lastSeenAt: user.lastSeenAt,
+    preferredTradeMode: user.preferredTradeMode,
+    openAiApiKey: user.openAiApiKey,
+    scannerWebhookUrl: user.scannerWebhookUrl,
+    scannerEmailAlerts: user.scannerEmailAlerts,
+    scannerSoundAlerts: user.scannerSoundAlerts,
+  }));
 });
 
 router.get("/users", requireRole("system", "super_admin", "admin"), async (req: AuthenticatedRequest, res): Promise<void> => {

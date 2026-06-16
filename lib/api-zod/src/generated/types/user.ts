@@ -25,4 +25,8 @@ export interface User {
   preferredTradeMode?: UserPreferredTradeMode;
   /** @nullable */
   openAiApiKey?: string | null;
+  /** @nullable */
+  scannerWebhookUrl?: string | null;
+  scannerEmailAlerts?: boolean;
+  scannerSoundAlerts?: boolean;
 }

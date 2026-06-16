@@ -31,7 +31,10 @@ export const GetMeResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
-  "openAiApiKey": zod.string().nullish()
+  "openAiApiKey": zod.string().nullish(),
+  "scannerWebhookUrl": zod.string().nullish(),
+  "scannerEmailAlerts": zod.boolean().optional(),
+  "scannerSoundAlerts": zod.boolean().optional()
 })
 
 
@@ -41,7 +44,10 @@ export const GetMeResponse = zod.object({
 export const UpdateMeBody = zod.object({
   "displayName": zod.string().optional(),
   "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
-  "openAiApiKey": zod.string().nullish()
+  "openAiApiKey": zod.string().nullish(),
+  "scannerWebhookUrl": zod.string().nullish(),
+  "scannerEmailAlerts": zod.boolean().optional(),
+  "scannerSoundAlerts": zod.boolean().optional()
 })
 
 export const UpdateMeResponse = zod.object({
@@ -56,7 +62,10 @@ export const UpdateMeResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
-  "openAiApiKey": zod.string().nullish()
+  "openAiApiKey": zod.string().nullish(),
+  "scannerWebhookUrl": zod.string().nullish(),
+  "scannerEmailAlerts": zod.boolean().optional(),
+  "scannerSoundAlerts": zod.boolean().optional()
 })
 
 
@@ -82,7 +91,10 @@ export const ListUsersResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
-  "openAiApiKey": zod.string().nullish()
+  "openAiApiKey": zod.string().nullish(),
+  "scannerWebhookUrl": zod.string().nullish(),
+  "scannerEmailAlerts": zod.boolean().optional(),
+  "scannerSoundAlerts": zod.boolean().optional()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -109,7 +121,10 @@ export const GetUserResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
-  "openAiApiKey": zod.string().nullish()
+  "openAiApiKey": zod.string().nullish(),
+  "scannerWebhookUrl": zod.string().nullish(),
+  "scannerEmailAlerts": zod.boolean().optional(),
+  "scannerSoundAlerts": zod.boolean().optional()
 })
 
 
@@ -137,7 +152,10 @@ export const UpdateUserResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "lastSeenAt": zod.coerce.date().nullish(),
   "preferredTradeMode": zod.enum(['demo', 'live']).optional(),
-  "openAiApiKey": zod.string().nullish()
+  "openAiApiKey": zod.string().nullish(),
+  "scannerWebhookUrl": zod.string().nullish(),
+  "scannerEmailAlerts": zod.boolean().optional(),
+  "scannerSoundAlerts": zod.boolean().optional()
 })
 
 
@@ -1391,6 +1409,22 @@ export const GetMarketNewsResponseItem = zod.object({
   "imageUrl": zod.string().nullish()
 })
 export const GetMarketNewsResponse = zod.array(GetMarketNewsResponseItem)
+
+
+/**
+ * @summary Send a market scanner alert (triggering webhooks and emails)
+ */
+export const SendScannerAlertBody = zod.object({
+  "signal": zod.record(zod.string(), zod.unknown()).describe('The trading signal that triggered the alert.'),
+  "payload": zod.record(zod.string(), zod.unknown()).optional().describe('Optional custom payload structure for the webhook.')
+})
+
+export const SendScannerAlertResponse = zod.object({
+  "success": zod.boolean().optional(),
+  "results": zod.object({
+
+}).passthrough().optional()
+})
 
 
 /**

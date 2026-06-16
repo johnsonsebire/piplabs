@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { conversations, messages } from "@workspace/db";
 import {
@@ -71,7 +71,9 @@ router.get("/openai/conversations/:id/messages", requireAuth, async (req: Authen
   const id = parseId(req.params.id);
   const params = ListOpenaiMessagesParams.safeParse({ id });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const msgs = await db.select().from(messages).where(eq(messages.conversationId, params.data.id));
+  const msgs = await db.select().from(messages)
+    .where(eq(messages.conversationId, params.data.id))
+    .orderBy(asc(messages.createdAt));
   res.json(ListOpenaiMessagesResponse.parse(msgs));
 });
 
@@ -95,10 +97,12 @@ router.post("/openai/conversations/:id/messages", requireAuth, async (req: Authe
     content: body.data.content,
   }).returning();
 
-  const history = await db.select().from(messages).where(eq(messages.conversationId, params.data.id));
+  const history = await db.select().from(messages)
+    .where(eq(messages.conversationId, params.data.id))
+    .orderBy(asc(messages.createdAt));
   const client = getOpenAIClient();
 
-  let systemPrompt = "You are a helpful trading assistant specializing in PipLabs platform trading, technical analysis, and financial markets. Be extremely brief and concise in your responses. When analyzing a chart or providing trade suggestions, your response must clearly include at the very top:\n1. Asset: [analyzed asset name/symbol]\n2. Timeframe: [timeframe(s) considered in your decision]\nThen strictly output the recommended Entry, Take Profit (TP), and Stop Loss (SL) levels clearly formatted, followed by a 1-2 sentence reasoning behind your decision.";
+  let systemPrompt = "You are a helpful trading assistant specializing in PipLabs platform trading, technical analysis, and financial markets. Be extremely brief and concise in your responses. When analyzing a chart or providing trade suggestions, your response must clearly include at the very top:\n1. Asset: [analyzed asset name/symbol]\n2. Timeframe: [timeframe(s) considered in your decision]\n3. Direction: [BUY or SELL]\nThen strictly output the recommended Entry, Take Profit (TP), and Stop Loss (SL) levels clearly formatted, followed by a 1-2 sentence reasoning behind your decision.";
   if (body.data.contextPayload) {
     systemPrompt += `\n\n[USER CURRENT PLATFORM CONTEXT]:\n${body.data.contextPayload}\n\nUse this context (which includes multi-timeframe analysis) to inform your responses, as the user is currently viewing this data. Ensure you check the higher timeframes to make an unbiased and informed decision.`;
   }

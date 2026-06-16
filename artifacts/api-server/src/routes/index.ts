@@ -9,6 +9,7 @@ import aiRouter from "./ai";
 import dashboardRouter from "./dashboard";
 import newsRouter from "./news";
 import openaiRouter from "./openai";
+import scannerRouter from "./scanner";
 import autotradeRouter from "./autotrade";
 
 import aiStrategyRouter from "./ai-strategy";
@@ -29,6 +30,7 @@ router.use(aiRouter);
 router.use(dashboardRouter);
 router.use(newsRouter);
 router.use(openaiRouter);
+router.use(scannerRouter);
 router.use(autotradeRouter);
 router.use(aiStrategyRouter);
 router.use(conversationsRouter);

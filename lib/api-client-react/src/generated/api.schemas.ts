@@ -5,6 +5,23 @@
  * PipLabs Universal Trading Platform API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * The trading signal that triggered the alert.
+ */
+export type ScannerAlertInputSignal = { [key: string]: unknown };
+
+/**
+ * Optional custom payload structure for the webhook.
+ */
+export type ScannerAlertInputPayload = { [key: string]: unknown };
+
+export interface ScannerAlertInput {
+  /** The trading signal that triggered the alert. */
+  signal: ScannerAlertInputSignal;
+  /** Optional custom payload structure for the webhook. */
+  payload?: ScannerAlertInputPayload;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -44,6 +61,10 @@ export interface User {
   preferredTradeMode?: UserPreferredTradeMode;
   /** @nullable */
   openAiApiKey?: string | null;
+  /** @nullable */
+  scannerWebhookUrl?: string | null;
+  scannerEmailAlerts?: boolean;
+  scannerSoundAlerts?: boolean;
 }
 
 export interface UserList {
@@ -66,6 +87,10 @@ export interface UserProfileUpdate {
   preferredTradeMode?: UserProfileUpdatePreferredTradeMode;
   /** @nullable */
   openAiApiKey?: string | null;
+  /** @nullable */
+  scannerWebhookUrl?: string | null;
+  scannerEmailAlerts?: boolean;
+  scannerSoundAlerts?: boolean;
 }
 
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];
@@ -1223,4 +1248,11 @@ export const GetMarketNewsCategory = {
   commodities: 'commodities',
   general: 'general',
 } as const;
+
+export type SendScannerAlert200Results = { [key: string]: unknown };
+
+export type SendScannerAlert200 = {
+  success?: boolean;
+  results?: SendScannerAlert200Results;
+};
 
