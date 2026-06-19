@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { swalSuccess, swalError } from "@/lib/swal";
 import { PanelRightClose, PanelRightOpen, Plus, LayoutGrid, Square, Columns, Rows, Grid2x2, Grid3x3, LineChart, Radar } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getSymbolDisplayName } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Panel, PanelGroup, PanelResizeHandle, ImperativePanelHandle } from "react-resizable-panels";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -324,7 +324,7 @@ Number of charts on screen: ${charts.length}`);
                 <div className="d-flex align-items-center gap-2">
                   <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider leading-none">Active Target:</span>
                   <span className="font-mono font-bold text-sm leading-none text-primary bg-primary/10 px-2 py-1 rounded">
-                    {activeSymbol}
+                    {getSymbolDisplayName(activeSymbol)}
                   </span>
                 </div>
                 

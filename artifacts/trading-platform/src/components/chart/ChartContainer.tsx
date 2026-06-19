@@ -9,6 +9,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronsUpDown, Search, Maximize2, Minimize2, X, GripHorizontal } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { getSymbolDisplayName } from "@/lib/utils";
 
 export type ChartConfig = {
   id: string;
@@ -93,7 +94,7 @@ export function ChartContainer({
                 >
                   <div className="d-flex align-items-center gap-1.5 truncate">
                     <Search size={12} className="text-muted-foreground flex-shrink-0" />
-                    <span className="truncate text-xs">{config.symbol}</span>
+                    <span className="truncate text-xs">{getSymbolDisplayName(config.symbol)}</span>
                   </div>
                   <ChevronsUpDown className="ml-1 h-3 w-3 flex-shrink-0 opacity-50" />
                 </Button>
