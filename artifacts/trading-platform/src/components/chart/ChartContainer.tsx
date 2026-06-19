@@ -90,7 +90,7 @@ export function ChartContainer({
                   role="combobox"
                   aria-expanded={openSearch}
                   className="d-flex align-items-center justify-content-between h-100 rounded-none border-0 font-mono font-bold px-2 hover:bg-muted/50 flex-shrink-0"
-                  style={{ width: '140px' }}
+                  style={{ width: '220px' }}
                 >
                   <div className="d-flex align-items-center gap-1.5 truncate">
                     <Search size={12} className="text-muted-foreground flex-shrink-0" />
