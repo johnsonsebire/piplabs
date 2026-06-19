@@ -241,7 +241,31 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
 
   // Drawing state
   const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
-  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [drawingsMap, setDrawingsMap] = useState<Record<string, Drawing[]>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('chart_drawings_all');
+        return stored ? JSON.parse(stored) : {};
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  const drawings = drawingsMap[symbol] || [];
+
+  const updateDrawings = (newDrawingsOrUpdater: React.SetStateAction<Drawing[]>) => {
+    setDrawingsMap(prev => {
+      const current = prev[symbol] || [];
+      const updated = typeof newDrawingsOrUpdater === 'function' ? newDrawingsOrUpdater(current) : newDrawingsOrUpdater;
+      const newState = { ...prev, [symbol]: updated };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('chart_drawings_all', JSON.stringify(newState));
+      }
+      return newState;
+    });
+  };
 
   // Indicators state
   const [activeIndicatorIds, setActiveIndicatorIds] = useState<Array<string | number>>(() => {
@@ -610,7 +634,7 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
       <ChartToolbar 
         activeTool={activeTool} 
         onToolSelect={setActiveTool} 
-        onClearAll={() => setDrawings([])} 
+        onClearAll={() => updateDrawings([])} 
         availableIndicators={indicators}
         activeIndicatorIds={activeIndicatorIds}
         onToggleIndicator={handleToggleIndicator}
@@ -742,8 +766,9 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
           series={seriesRef.current} 
           activeTool={activeTool}
           drawings={drawings}
-          setDrawings={setDrawings}
+          setDrawings={updateDrawings}
           containerRef={chartContainerRef}
+          validCandles={validCandles}
         />
         {error && (
           <div style={{

@@ -12,6 +12,7 @@ import { swalSuccess, swalError, swalWarning, swalConfirm } from "@/lib/swal";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Link } from "wouter";
+import { getSymbolDisplayName } from "@/lib/utils";
 import { SessionLiveChart } from "@/components/SessionLiveChart";
 import { Bot, Terminal, Activity, List, ChevronDown } from "lucide-react";
 import { ContractTypeSelector } from "@/components/chart/ContractTypeSelector";
@@ -54,7 +55,7 @@ function SessionTrades({ sessionId }: { sessionId: number }) {
           <tbody className="divide-y divide-border">
             {trades.map((t: any) => (
               <tr key={t.id} className="hover:bg-muted/5">
-                <td className="p-2 font-bold">{t.symbol}</td>
+                <td className="p-2 font-bold">{getSymbolDisplayName(t.symbol)}</td>
                 <td className="p-2 uppercase">{t.direction}</td>
                 <td className="p-2">${t.stake}</td>
                 <td className="p-2">{new Date(t.openedAt).toLocaleDateString()}</td>
@@ -151,7 +152,7 @@ function SessionLogs({ sessionId }: { sessionId: number }) {
             <span className="session-log-time">
               {new Date(log.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
             </span>
-            <span className="session-log-symbol">{log.symbol}</span>
+            <span className="session-log-symbol">{getSymbolDisplayName(log.symbol)}</span>
             <span className={`session-log-action ${getActionClass(log.action)}`}>
               {log.action}
             </span>
@@ -466,7 +467,7 @@ export default function AutoTradePage() {
                   </tr>
                 ) : (
                   filteredSessions.map(s => {
-                    let pairsDisplay = s.symbol;
+                    let pairsDisplay = getSymbolDisplayName(s.symbol);
                     try {
                       const arr = typeof s.symbols === "string" ? JSON.parse(s.symbols) : s.symbols;
                       if (Array.isArray(arr) && arr.length > 1) pairsDisplay = `${arr.length} Pairs (${s.pairMode})`;
@@ -572,7 +573,7 @@ export default function AutoTradePage() {
                     <div className="d-flex flex-wrap gap-1 mb-1">
                       {formData.symbols.map((sym, idx) => (
                         <div key={idx} className="d-flex align-items-center gap-1 border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-wider font-mono" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
-                          {sym}
+                          {getSymbolDisplayName(sym)}
                           <button type="button" onClick={() => setFormData({...formData, symbols: formData.symbols.filter((_, i) => i !== idx)})} className="text-primary hover:text-danger px-1 ms-1 transition-colors bg-transparent border-0">&times;</button>
                         </div>
                       ))}
@@ -601,7 +602,7 @@ export default function AutoTradePage() {
                           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bs-secondary-bg-subtle)'; e.currentTarget.style.color = '#fff'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--bs-card-bg)'; e.currentTarget.style.color = 'var(--bs-secondary)'; }}
                         >
-                          +{sym}
+                          +{getSymbolDisplayName(sym)}
                         </button>
                       ))}
                     </div>

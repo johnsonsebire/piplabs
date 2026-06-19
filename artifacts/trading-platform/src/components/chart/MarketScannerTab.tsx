@@ -11,7 +11,7 @@ import { useGetMe, useUpdateMe, useGetWatchlist, useListStrategies, customFetch,
 import { useDebounce } from "@/hooks/use-debounce";
 import { swalSuccess, swalError } from "@/lib/swal";
 import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
+import { cn, getSymbolDisplayName } from "@/lib/utils";
 
 export function MarketScannerTab() {
   const { data: user } = useGetMe();
@@ -444,10 +444,10 @@ export function MarketScannerTab() {
                     </button>
                     <div className="d-flex align-items-center gap-2">
                       <div className="w-[18px] h-[18px] rounded-full bg-[#1a2332] border border-border flex items-center justify-center text-[8px] font-bold text-muted-foreground uppercase">
-                        {item.symbol.replace(/^(frx|cry|OTC_)/, '').charAt(0)}
+                        {getSymbolDisplayName(item.symbol).charAt(0)}
                       </div>
                       <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                      <span className="text-[11px] font-mono font-bold text-foreground leading-none">{item.symbol.replace(/^(frx|cry|OTC_)/, '')}</span>
+                      <span className="text-[11px] font-mono font-bold text-foreground leading-none">{getSymbolDisplayName(item.symbol)}</span>
                     </div>
                   </div>
                   <div className="d-flex align-items-center gap-4 w-[120px] justify-content-end">

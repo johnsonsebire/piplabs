@@ -4,6 +4,7 @@ import type { Trade } from "@workspace/api-client-react";
 import { formatDistanceToNowStrict, format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { getSymbolDisplayName } from "@/lib/utils";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -338,7 +339,7 @@ export function OpenTradesWidget({ symbol }: { symbol: string }) {
                     <Td>
                       <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
                         <span style={{ fontWeight: 700, color: isActive ? C.primary : C.fg, fontSize: "0.6875rem" }}>
-                          {t.symbol}{isActive && <span style={{ marginLeft: "0.35rem", fontSize: "0.5rem", color: C.primary, fontWeight: 400 }}>● NOW</span>}
+                          {getSymbolDisplayName(t.symbol)}{isActive && <span style={{ marginLeft: "0.35rem", fontSize: "0.5rem", color: C.primary, fontWeight: 400 }}>● NOW</span>}
                         </span>
                         <span style={{ fontFamily: C.sans, fontSize: "0.5625rem", color: C.mutedFg }}>{t.displayName}</span>
                       </div>
@@ -526,7 +527,7 @@ export function OrderHistoryWidget() {
                     </Td>
                     <Td>
                       <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                        <span style={{ fontWeight: 700, color: C.fg }}>{t.symbol}</span>
+                        <span style={{ fontWeight: 700, color: C.fg }}>{getSymbolDisplayName(t.symbol)}</span>
                         <span style={{ fontFamily: C.sans, fontSize: "0.5625rem", color: C.mutedFg }}>{t.displayName}</span>
                       </div>
                     </Td>
@@ -612,7 +613,7 @@ export function ChartOpenTradesPanel({ symbol, isExpanded, onToggle }: { symbol:
     <div style={{ display: "flex", flexDirection: "column", height: "100%", backgroundColor: C.bg }}>
       <div style={{ height: "2rem", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0.75rem", borderBottom: `1px solid ${C.border}`, backgroundColor: C.card, flexShrink: 0 }}>
         <span style={{ fontFamily: C.mono, fontSize: "0.5625rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.mutedFg }}>
-          Open Trades · {symbol} {trades.length > 0 && `(${trades.length})`}
+          Open Trades · {getSymbolDisplayName(symbol)} {trades.length > 0 && `(${trades.length})`}
         </span>
         <button onClick={onToggle} style={{ background: "none", border: "none", color: C.mutedFg, cursor: "pointer", padding: "2px", display: "flex", alignItems: "center" }}>
           <i className={`bi ${isExpanded ? "bi-chevron-up" : "bi-chevron-down"}`} style={{ fontSize: "0.65rem" }} />
@@ -627,7 +628,7 @@ export function ChartOpenTradesPanel({ symbol, isExpanded, onToggle }: { symbol:
               return (
                 <div key={t.id} style={{ padding: "0.5rem 0.75rem", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <span style={{ fontFamily: C.mono, fontSize: "0.5625rem", fontWeight: 700, color: C.fg }}>#{t.id} · {t.symbol}</span>
+                    <span style={{ fontFamily: C.mono, fontSize: "0.5625rem", fontWeight: 700, color: C.fg }}>#{t.id} · {getSymbolDisplayName(t.symbol)}</span>
                     <span style={{ fontFamily: C.mono, fontSize: "0.5rem", color: dir.color, textTransform: "uppercase" }}>{dir.label} · ${t.stake.toFixed(2)}</span>
                   </div>
                   <span style={{ fontFamily: C.mono, fontSize: "0.625rem", fontWeight: 700, color: pnlColor(t.currentProfit) }}>{pnlText(t.currentProfit)}</span>

@@ -20,6 +20,7 @@ interface ChartDrawingsProps {
   drawings: Drawing[];
   setDrawings: React.Dispatch<React.SetStateAction<Drawing[]>>;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  validCandles?: any[];
 }
 
 export function ChartDrawings({
@@ -29,6 +30,7 @@ export function ChartDrawings({
   drawings,
   setDrawings,
   containerRef,
+  validCandles = [],
 }: ChartDrawingsProps) {
   const [svgRect, setSvgRect] = useState({ width: 0, height: 0 });
   const [renderTrigger, setRenderTrigger] = useState(0);
@@ -449,7 +451,23 @@ export function ChartDrawings({
       {drawings.map((d) => {
         // Map points to SVG coordinates
         const coords = d.points.map((pt) => {
-          const x = chart.timeScale().timeToCoordinate(pt.time as Time);
+          let x = chart.timeScale().timeToCoordinate(pt.time as Time);
+          
+          if (x === null && validCandles && validCandles.length > 0) {
+            // Snapping to nearest available candle in this timeframe
+            const targetTime = pt.time as number;
+            let closest = validCandles[0].time;
+            let minDiff = Math.abs(closest - targetTime);
+            for (let i = 1; i < validCandles.length; i++) {
+              const diff = Math.abs(validCandles[i].time - targetTime);
+              if (diff < minDiff) {
+                minDiff = diff;
+                closest = validCandles[i].time;
+              }
+            }
+            x = chart.timeScale().timeToCoordinate(closest as Time);
+          }
+          
           const y = series.priceToCoordinate(pt.price);
           return { x, y };
         });

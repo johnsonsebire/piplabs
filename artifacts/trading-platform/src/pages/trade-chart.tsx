@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { parseIndicatorConfig, computeIndicator } from "@/lib/indicators";
+import { getSymbolDisplayName } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -820,7 +821,7 @@ export default function TradeChartPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">
-                  Trade #{trade.id} · {symbol}
+                  Trade #{trade.id} · {getSymbolDisplayName(symbol)}
                 </h1>
                 <p className="text-sm text-muted-foreground font-mono mt-0.5">
                   Backtest #{backtest.id} · {entryDate?.toLocaleString()} → {exitDate?.toLocaleString()}
@@ -896,7 +897,7 @@ export default function TradeChartPage() {
                   <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 max-w-md">
                     <p className="text-sm font-mono text-destructive">Error: {candleError}</p>
                     <p className="text-xs font-mono text-muted-foreground mt-2">
-                      Symbol "{symbol}" may not have historical data available for this period.
+                      Symbol "{getSymbolDisplayName(symbol)}" may not have historical data available for this period.
                     </p>
                   </div>
                 </div>

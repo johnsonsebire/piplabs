@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDerivWs } from "@/hooks/use-deriv-ws";
 import { useListStrategies, useListIndicators } from "@workspace/api-client-react";
 import { computeIndicator, parseIndicatorConfig } from "@/lib/indicators";
+import { getSymbolDisplayName } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
 type SessionLiveChartProps = {
@@ -520,12 +521,12 @@ export function SessionLiveChart({ sessionId, symbol, strategyId }: SessionLiveC
             {isConnected ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="animate-pulse">SCANNING {symbol}</span>
+                <span className="animate-pulse">SCANNING {getSymbolDisplayName(symbol)}</span>
               </>
             ) : (
               <>
                 <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-                <span className="text-muted-foreground">CONNECTING {symbol}...</span>
+                <span className="text-muted-foreground">CONNECTING {getSymbolDisplayName(symbol)}...</span>
               </>
             )}
           </span>

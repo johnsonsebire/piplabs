@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useListStrategies, useListIndicators } from "@workspace/api-client-react";
 import { computeIndicator, parseIndicatorConfig } from "@/lib/indicators";
+import { getSymbolDisplayName } from "@/lib/utils";
 
 type AutoTrade = {
   id: number;
@@ -834,7 +835,7 @@ export default function AutoTradeChartPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold font-mono uppercase tracking-tight text-foreground">
-                  Trade #{trade.id} · {trade.symbol}
+                  Trade #{trade.id} · {getSymbolDisplayName(trade.symbol)}
                 </h1>
                 <p className="text-sm text-muted-foreground font-mono mt-0.5">
                   Auto Trade ·{" "}
@@ -925,7 +926,7 @@ export default function AutoTradeChartPage() {
           <Card className="border-border rounded-xl overflow-hidden">
             <div className="p-5 border-b border-border bg-gradient-to-r from-primary/5 to-transparent flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-bold font-mono uppercase tracking-wider text-foreground">Price Chart — {trade.symbol}</h2>
+              <h2 className="text-sm font-bold font-mono uppercase tracking-wider text-foreground">Price Chart — {getSymbolDisplayName(trade.symbol)}</h2>
               <span className="text-[10px] font-mono text-muted-foreground ml-auto">
                 Real candles from Deriv
               </span>
@@ -943,7 +944,7 @@ export default function AutoTradeChartPage() {
                   <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 max-w-md">
                     <p className="text-sm font-mono text-destructive">Error: {candleError}</p>
                     <p className="text-xs font-mono text-muted-foreground mt-2">
-                      Symbol "{trade.symbol}" may not have historical data available for this period.
+                      Symbol "{getSymbolDisplayName(trade.symbol)}" may not have historical data available for this period.
                     </p>
                   </div>
                 </div>
