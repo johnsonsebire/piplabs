@@ -18,6 +18,13 @@ export async function requireAuth(
   next: NextFunction,
 ): Promise<void> {
   const auth = getAuth(req);
+  logger.info({ 
+    authUserId: auth.userId, 
+    headers: req.headers,
+    hasSecretKey: !!process.env.CLERK_SECRET_KEY,
+    hasPubKey: !!process.env.CLERK_PUBLISHABLE_KEY,
+    authObj: auth
+  }, "requireAuth debug details");
   if (!auth.userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;

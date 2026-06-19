@@ -1188,6 +1188,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/AIAnalysis"
 
+  /ai/analyze-trend:
+    post:
+      operationId: analyzeMultiTimeframeTrend
+      tags: [ai]
+      summary: AI trend confirmation across multiple timeframes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MultiTimeframeTrendInput"
+      responses:
+        "200":
+          description: AI multi-timeframe trend result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultiTimeframeTrendOutput"
+
   /ai/analyses:
     get:
       operationId: listAIAnalyses
@@ -2882,6 +2901,54 @@ components:
           type: string
       required:
         - error
+
+    MultiTimeframeTrendInput:
+      type: object
+      properties:
+        symbol:
+          type: string
+        candleDepth:
+          type: integer
+        timeframesData:
+          type: object
+          additionalProperties: true
+      required:
+        - symbol
+        - candleDepth
+        - timeframesData
+
+    MultiTimeframeTrendOutput:
+      type: object
+      properties:
+        timeframes:
+          type: array
+          items:
+            type: object
+            properties:
+              timeframe:
+                type: string
+              trend:
+                type: string
+                enum: [bullish, bearish]
+              strength:
+                type: number
+            required:
+              - timeframe
+              - trend
+              - strength
+        marketState:
+          type: string
+          enum: [RANGING, TRENDING]
+        volatility:
+          type: string
+          enum: [Low, Medium, High]
+        reasoning:
+          type: string
+      required:
+        - timeframes
+        - marketState
+        - volatility
+        - reasoning
     TradingRule:
       type: object
       properties:

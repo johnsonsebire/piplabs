@@ -134,8 +134,8 @@ let cachedSymbols: unknown[] | null = null;
 let symbolsCachedAt = 0;
 const SYMBOLS_CACHE_TTL_MS = 60 * 60 * 1000;
 
-router.get("/deriv/active-symbols", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { q, instrumentType } = req.query as Record<string, string | undefined>;
+router.get("/deriv/active-symbols", async (_req, res): Promise<void> => {
+  const { q, instrumentType } = _req.query as Record<string, string | undefined>;
 
   if (!cachedSymbols || Date.now() - symbolsCachedAt > SYMBOLS_CACHE_TTL_MS) {
     try {

@@ -64,7 +64,7 @@ export function useDerivWs(symbol: string, granularitySec: number = 60): UseDeri
     ws.send(JSON.stringify({
       ticks_history: sym,
       adjust_start_time: 1,
-      count: 500,
+      count: 1000,
       end: "latest",
       granularity: gran,
       start: 1,

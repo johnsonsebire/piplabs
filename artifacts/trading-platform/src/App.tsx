@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
 import { dark } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
@@ -135,6 +135,64 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+import { useAuth } from "@clerk/react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
+
+function AuthConfigurator({ children }: { children: React.ReactNode }) {
+  const { getToken, isLoaded, userId } = useAuth();
+  const [ready, setReady] = useState(false);
+  
+  useEffect(() => {
+    if (!isLoaded) return; // Wait for Clerk to load
+
+    setAuthTokenGetter(getToken);
+
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      let [resource, config] = args;
+      
+      const url = typeof resource === 'string' 
+        ? resource 
+        : (resource instanceof Request ? resource.url : resource.toString());
+      
+      if (url.startsWith('/api') || url.includes('/api/')) {
+        try {
+          const token = await getToken();
+          console.log(`[Fetch Interceptor] Request to ${url} - UserID: ${userId} - Token Present: ${!!token}`);
+          
+          if (token) {
+            if (resource instanceof Request) {
+              resource.headers.set('Authorization', `Bearer ${token}`);
+            } else {
+              config = config || {};
+              const headers = new Headers(config.headers);
+              if (!headers.has('Authorization')) {
+                headers.set('Authorization', `Bearer ${token}`);
+                config.headers = Object.fromEntries(headers.entries());
+              }
+              args[1] = config;
+            }
+          }
+        } catch (err) {
+          console.error("Error getting Clerk token for fetch:", err);
+        }
+      }
+      return originalFetch(...args);
+    };
+
+    setReady(true);
+
+    return () => {
+      window.fetch = originalFetch;
+      setAuthTokenGetter(null);
+    };
+  }, [getToken, isLoaded, userId]);
+
+  if (!ready) return null;
+
+  return <>{children}</>;
+}
+
 function HomeRedirect() {
   return (
     <>
@@ -191,66 +249,68 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
-        <TooltipProvider>
-          <Switch>
-            <Route path="/" component={HomeRedirect} />
-            <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
-            
-            {/* Protected Routes */}
-            <Route path="/dashboard">
-              <ProtectedRoute component={Dashboard} />
-            </Route>
-            <Route path="/chart">
-              <ProtectedRoute component={ChartPage} />
-            </Route>
-            <Route path="/trades">
-              <ProtectedRoute component={TradesPage} />
-            </Route>
-            <Route path="/trades/:id">
-              <ProtectedRoute component={TradeDetailPage} />
-            </Route>
-            <Route path="/strategies">
-              <ProtectedRoute component={StrategiesPage} />
-            </Route>
-            <Route path="/ai-builder">
-              <ProtectedRoute component={AIBuilderPage} />
-            </Route>
-            <Route path="/indicators">
-              <ProtectedRoute component={IndicatorsPage} />
-            </Route>
-            <Route path="/backtest">
-              <ProtectedRoute component={BacktestPage} />
-            </Route>
-            <Route path="/backtest/:id/replay">
-              <ProtectedRoute component={BacktestReplayPage} />
-            </Route>
-            <Route path="/backtest/chart">
-              <ProtectedRoute component={TradeChartPage} />
-            </Route>
-            <Route path="/news">
-              <ProtectedRoute component={NewsPage} />
-            </Route>
-            <Route path="/autotrade">
-              <ProtectedRoute component={AutoTradePage} />
-            </Route>
-            <Route path="/autotrade/chart">
-              <ProtectedRoute component={AutoTradeChartPage} />
-            </Route>
-            <Route path="/mt5-accounts">
-              <ProtectedRoute component={MT5AccountsPage} />
-            </Route>
-            <Route path="/copy-trading">
-              <ProtectedRoute component={CopyTradingPage} />
-            </Route>
-            <Route path="/settings">
-              <ProtectedRoute component={SettingsPage} />
-            </Route>
-            
-            <Route component={NotFound} />
-          </Switch>
-          <Toaster />
-        </TooltipProvider>
+        <AuthConfigurator>
+          <TooltipProvider>
+            <Switch>
+              <Route path="/" component={HomeRedirect} />
+              <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/sign-up/*?" component={SignUpPage} />
+              
+              {/* Protected Routes */}
+              <Route path="/dashboard">
+                <ProtectedRoute component={Dashboard} />
+              </Route>
+              <Route path="/chart">
+                <ProtectedRoute component={ChartPage} />
+              </Route>
+              <Route path="/trades">
+                <ProtectedRoute component={TradesPage} />
+              </Route>
+              <Route path="/trades/:id">
+                <ProtectedRoute component={TradeDetailPage} />
+              </Route>
+              <Route path="/strategies">
+                <ProtectedRoute component={StrategiesPage} />
+              </Route>
+              <Route path="/ai-builder">
+                <ProtectedRoute component={AIBuilderPage} />
+              </Route>
+              <Route path="/indicators">
+                <ProtectedRoute component={IndicatorsPage} />
+              </Route>
+              <Route path="/backtest">
+                <ProtectedRoute component={BacktestPage} />
+              </Route>
+              <Route path="/backtest/:id/replay">
+                <ProtectedRoute component={BacktestReplayPage} />
+              </Route>
+              <Route path="/backtest/chart">
+                <ProtectedRoute component={TradeChartPage} />
+              </Route>
+              <Route path="/news">
+                <ProtectedRoute component={NewsPage} />
+              </Route>
+              <Route path="/autotrade">
+                <ProtectedRoute component={AutoTradePage} />
+              </Route>
+              <Route path="/autotrade/chart">
+                <ProtectedRoute component={AutoTradeChartPage} />
+              </Route>
+              <Route path="/mt5-accounts">
+                <ProtectedRoute component={MT5AccountsPage} />
+              </Route>
+              <Route path="/copy-trading">
+                <ProtectedRoute component={CopyTradingPage} />
+              </Route>
+              <Route path="/settings">
+                <ProtectedRoute component={SettingsPage} />
+              </Route>
+              
+              <Route component={NotFound} />
+            </Switch>
+            <Toaster />
+          </TooltipProvider>
+        </AuthConfigurator>
       </QueryClientProvider>
     </ClerkProvider>
   );

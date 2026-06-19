@@ -113,10 +113,15 @@ $env:BASE_PATH='/'
 $env:PORT = $null
 $env:VITE_PORT = $null
 
-# Launch both services in parallel in this window
-# Output will be interleaved and prefixed by package name
+Write-Host "  Starting services (streaming logs)..." -ForegroundColor Cyan
+Write-Host ""
+
+# Launch both services in parallel — pnpm handles the process management.
+# API server `dev` = build + start
+# Trading platform `dev` = Vite dev server
 pnpm --filter @workspace/api-server --filter @workspace/trading-platform run --parallel dev
 
 Write-Host ""
 Write-Host "  Services stopped." -ForegroundColor Yellow
 pause
+

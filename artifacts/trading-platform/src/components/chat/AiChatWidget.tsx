@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAiContext } from "@/hooks/useAiContext";
+import { useAuth } from "@clerk/react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 
@@ -34,6 +35,7 @@ export function AiChatWidget() {
   const [includeContext, setIncludeContext] = useState(true);
   
   const { globalContext } = useAiContext();
+  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +43,10 @@ export function AiChatWidget() {
   const { data: convos } = useQuery({
     queryKey: ["/api/openai/conversations"],
     queryFn: async () => {
-      const res = await fetch("/api/openai/conversations");
+      const token = await getToken();
+      const res = await fetch("/api/openai/conversations", {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      });
       if (!res.ok) throw new Error("Failed to load conversations");
       return res.json() as Promise<Array<{ id: number; title: string; createdAt: string }>>;
     }
@@ -50,7 +55,10 @@ export function AiChatWidget() {
   const { data: messages } = useQuery({
     queryKey: ["/api/openai/conversations", activeConvId, "messages"],
     queryFn: async () => {
-      const res = await fetch(`/api/openai/conversations/${activeConvId}/messages`);
+      const token = await getToken();
+      const res = await fetch(`/api/openai/conversations/${activeConvId}/messages`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      });
       if (!res.ok) throw new Error("Failed to load messages");
       return res.json() as Promise<Array<{ id: number; role: string; content: string; createdAt: string }>>;
     },
@@ -60,9 +68,13 @@ export function AiChatWidget() {
 
   const createConvo = useMutation({
     mutationFn: async (data: { title: string }) => {
+      const token = await getToken();
       const res = await fetch("/api/openai/conversations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to create conversation");
@@ -72,9 +84,13 @@ export function AiChatWidget() {
 
   const sendMsg = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: { content: string; contextPayload?: string } }) => {
+      const token = await getToken();
       const res = await fetch(`/api/openai/conversations/${id}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to send message");

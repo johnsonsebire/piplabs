@@ -135,6 +135,45 @@ router.post("/openai/conversations/:id/messages", requireAuth, async (req: Authe
   res.status(201).json(assistantMsg);
 });
 
+router.post("/openai/analyze-trend", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { MultiTimeframeTrendInput, MultiTimeframeTrendOutput } = await import("@workspace/api-zod");
+  const parsed = MultiTimeframeTrendInput.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { symbol, candleDepth, timeframesData } = parsed.data;
+
+  const systemPrompt = `You are an expert quantitative trader and market analyst.
+You will be provided with historical price data (OHLC) for multiple timeframes for the asset ${symbol}.
+Your task is to analyze the data and determine:
+1. The trend (bullish or bearish) and its strength (1 to 100) for each provided timeframe.
+2. The overall market state (RANGING or TRENDING).
+3. The overall volatility (Low, Medium, or High).
+4. A brief 1-2 sentence reasoning for your conclusion.
+
+Respond ONLY with valid JSON matching the exact schema requested.`;
+
+  const userPrompt = `Asset: ${symbol}\nCandle Depth: ${candleDepth}\n\nTimeframes Data:\n${JSON.stringify(timeframesData, null, 2)}`;
+
+  const client = getOpenAIClient();
+  try {
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    });
+
+    const aiContent = completion.choices[0]?.message?.content || "{}";
+    const result = JSON.parse(aiContent);
+    res.json(MultiTimeframeTrendOutput.parse(result));
+  } catch (err) {
+    req.log.error({ err }, "OpenAI trend analysis error");
+    res.status(502).json({ error: "Trend analysis service unavailable" });
+  }
+});
+
 router.post("/openai/images", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const parsed = GenerateOpenaiImageBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }

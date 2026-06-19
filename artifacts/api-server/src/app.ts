@@ -40,12 +40,11 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
+  clerkMiddleware({
+    debug: true,
+    clockSkewInMs: 120000,
+    authorizedParties: ["http://localhost:21210", "http://127.0.0.1:21210"],
+  })
 );
 
 app.use("/api", router);

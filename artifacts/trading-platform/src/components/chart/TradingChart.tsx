@@ -8,6 +8,7 @@ import { TradingGuideManager } from "./TradingGuideManager";
 import { TradingGuideOverlay } from "./TradingGuideOverlay";
 import { useAiContext } from "@/hooks/useAiContext";
 import { fetchHistoricalCandles, type DerivHistoricalCandle } from "@/lib/deriv-api";
+import { MultiTimeframeTrendWidget } from "./MultiTimeframeTrendWidget";
 
 export interface ChartIndicatorInput {
   id: string | number;
@@ -21,6 +22,52 @@ interface TradingChartProps {
   indicators?: ChartIndicatorInput[];
   granularitySec?: number;
   isActiveChart?: boolean;
+}
+
+function CandleCountdown({ granularitySec, candleCount }: { granularitySec: number, candleCount: number }) {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const remainder = now % granularitySec;
+      const secondsLeft = granularitySec - remainder;
+      
+      if (secondsLeft <= 0) {
+        setTimeLeft("00:00");
+        return;
+      }
+      
+      const h = Math.floor(secondsLeft / 3600);
+      const m = Math.floor((secondsLeft % 3600) / 60);
+      const s = secondsLeft % 60;
+      
+      if (h > 0) {
+        setTimeLeft(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      } else {
+        setTimeLeft(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      }
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [granularitySec]);
+
+  return (
+    <>
+      <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332" }} />
+      <div className="d-flex align-items-center" style={{ gap: "6px" }}>
+        <span style={{ fontSize: "9px", color: "#94a3b8" }}>DEPTH</span>
+        <span style={{ fontSize: "9px", color: "#10b981", fontWeight: "bold" }}>{candleCount}</span>
+      </div>
+      <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332" }} />
+      <div className="d-flex align-items-center" style={{ gap: "6px" }}>
+        <span style={{ fontSize: "9px", color: "#94a3b8" }}>CLOSE IN</span>
+        <span style={{ fontSize: "9px", color: "#3b82f6", fontWeight: "bold", fontVariantNumeric: "tabular-nums" }}>{timeLeft}</span>
+      </div>
+    </>
+  );
 }
 
 // Separate oscillator panel component
@@ -226,6 +273,7 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
   const setGlobalContext = useAiContext((state) => state.setGlobalContext);
 
   const [htfContext, setHtfContext] = useState<string>('');
+  const [trendWidgetData, setTrendWidgetData] = useState<any>(null);
 
   useEffect(() => {
     if (!isActiveChart || !symbol) return;
@@ -234,9 +282,9 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
     async function fetchHtfData() {
       try {
         const [daily, m15, m5] = await Promise.all([
-          fetchHistoricalCandles(symbol, 86400, 50),
-          fetchHistoricalCandles(symbol, 900, 50),
-          fetchHistoricalCandles(symbol, 300, 50),
+          fetchHistoricalCandles(symbol, 86400, 100),
+          fetchHistoricalCandles(symbol, 900, 100),
+          fetchHistoricalCandles(symbol, 300, 100),
         ]);
 
         if (!isMounted) return;
@@ -247,9 +295,9 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
           return `${title}:\n${lines}`;
         };
 
-        const dailyStr = formatCandles(daily, "Daily (1D) Last 50 Candles");
-        const m15Str = formatCandles(m15, "15-Minute (15M) Last 50 Candles");
-        const m5Str = formatCandles(m5, "5-Minute (5M) Last 50 Candles");
+        const dailyStr = formatCandles(daily, "Daily (1D) Last 100 Candles");
+        const m15Str = formatCandles(m15, "15-Minute (15M) Last 100 Candles");
+        const m5Str = formatCandles(m5, "5-Minute (5M) Last 100 Candles");
 
         setHtfContext(`\n\n--- HIGHER TIMEFRAME CONTEXT ---\n\n${dailyStr}\n\n${m15Str}\n\n${m5Str}`);
       } catch (err) {
@@ -331,16 +379,25 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
     const activeInds = indicators.filter(ind => activeIndicatorIds.includes(ind.id));
     const indNames = activeInds.map(i => i.name).join(', ') || 'None';
     
-    // Get the last 100 candles to give the AI an idea of price action
-    const lastCandles = validCandles.slice(-100).map(c => `[Time: ${new Date(c.time * 1000).toISOString()} | O: ${c.open} | H: ${c.high} | L: ${c.low} | C: ${c.close}]`).join('\n');
+    // Get all valid candles (up to 300) to give the AI the full context of the chart
+    const maxCandles = 300;
+    const lastCandles = validCandles.slice(-maxCandles).map(c => `[Time: ${new Date(c.time * 1000).toISOString()} | O: ${c.open} | H: ${c.high} | L: ${c.low} | C: ${c.close}]`).join('\n');
     
+    const widgetContextStr = trendWidgetData ? `
+Multi-Timeframe Trend Widget Data:
+- Market State: ${trendWidgetData.marketState} (${trendWidgetData.marketStrength}% Strength)
+- Trading Session: ${trendWidgetData.session}
+- Trend Breakdown:
+${trendWidgetData.timeframes.map((tf: any) => `  * ${tf.timeframe}: ${tf.trend}`).join('\n')}
+` : '';
+
     const contextStr = `User is on the Trading Chart page.
 Active Chart Symbol: ${symbol}
 Timeframe: ${granularitySec} seconds
 Connection Status: ${isConnected ? 'LIVE' : 'DISCONNECTED'}
 Active Indicators: ${indNames}
-
-Recent Price Action (Last 100 Candles):
+${widgetContextStr}
+Recent Price Action (All Loaded Chart Candles, max ${maxCandles}):
 ${lastCandles || 'No data available'}
 
 Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
@@ -350,7 +407,7 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
     return () => {
       // Don't clear it immediately on unmount because another chart might become active
     };
-  }, [isActiveChart, symbol, granularitySec, isConnected, activeIndicatorIds, indicators, validCandles, latestTick, htfContext, setGlobalContext]);
+  }, [isActiveChart, symbol, granularitySec, isConnected, activeIndicatorIds, indicators, validCandles, latestTick, htfContext, trendWidgetData, setGlobalContext]);
 
   const hasOscillator = computed.some(c => c.pane === "oscillator");
   const oscillatorCount = computed.filter(c => c.pane === "oscillator").length;
@@ -431,6 +488,31 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
           );
           
           if (safeCandles.length > 0) {
+            // Determine precision dynamically based on the recent data
+            let maxDecimals = 2;
+            for (let i = Math.max(0, safeCandles.length - 50); i < safeCandles.length; i++) {
+              const str = safeCandles[i].close.toString();
+              if (str.includes("e-")) {
+                const dec = parseInt(str.split("e-")[1], 10);
+                if (dec > maxDecimals) maxDecimals = dec;
+              } else {
+                const parts = str.split(".");
+                if (parts.length > 1 && parts[1].length > maxDecimals) {
+                  maxDecimals = parts[1].length;
+                }
+              }
+            }
+            // Cap at 6 decimals to avoid extremely long labels
+            if (maxDecimals > 6) maxDecimals = 6;
+            
+            seriesRef.current.applyOptions({
+              priceFormat: {
+                type: 'price',
+                precision: maxDecimals,
+                minMove: 1 / Math.pow(10, maxDecimals),
+              }
+            });
+
             seriesRef.current.setData(safeCandles as any);
             dataLoadedRef.current = currentConfigId;
           }
@@ -560,53 +642,70 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
           </div>
         </div>
       )}
-      <div 
-        style={{ 
-          position: "absolute", 
-          top: "8px", 
-          left: "8px", 
-          zIndex: 10, 
-          backgroundColor: "rgba(10, 13, 17, 0.85)", 
-          border: "1px solid #1a2332", 
-          padding: "4px 8px", 
-          display: "flex", 
-          flexDirection: "row", 
-          alignItems: "center", 
-          flexWrap: "wrap", 
-          gap: "8px" 
+      <div
+        style={{
+          position: "absolute",
+          top: "8px",
+          left: "8px",
+          zIndex: 10,
+          display: "flex",
+          gap: "8px",
+          alignItems: "flex-start",
         }}
-        className="font-mono text-[9px] uppercase tracking-wider"
       >
-        <div className="d-flex align-items-center gap-1.5">
-          <div 
-            style={{ 
-              height: "6px", 
-              width: "6px", 
-              borderRadius: "50%", 
-              backgroundColor: isConnected ? "#10b981" : "#ef4444" 
-            }} 
-            className={isConnected ? "animate-pulse" : ""}
-          />
-          <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: "bold" }}>
-            {isConnected ? "LIVE • DERIV WS" : "DISCONNECTED"}
-          </span>
-        </div>
-
-        {computed.filter(c => c.pane === "overlay").length > 0 && (
-          <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332" }} />
-        )}
-
-        {computed.filter(c => c.pane === "overlay").map((c, idx, arr) => (
-          <div key={c.id} className="d-flex align-items-center gap-1.5">
-            <div style={{ height: "2px", width: "10px", background: c.color }} />
-            <span style={{ fontSize: "9px", color: "#94a3b8" }}>
-              {c.name}
+        <div 
+          style={{ 
+            backgroundColor: "rgba(10, 13, 17, 0.85)", 
+            border: "1px solid #1a2332", 
+            padding: "4px 8px", 
+            display: "flex", 
+            flexDirection: "row", 
+            alignItems: "center", 
+            flexWrap: "wrap", 
+            gap: "8px",
+            borderRadius: "4px",
+            height: "fit-content"
+          }}
+          className="font-mono text-[9px] uppercase tracking-wider"
+        >
+          <div className="d-flex align-items-center" style={{ gap: "6px" }}>
+            <div 
+              style={{ 
+                height: "6px", 
+                width: "6px", 
+                borderRadius: "50%", 
+                backgroundColor: isConnected ? "#10b981" : "#ef4444" 
+              }} 
+              className={isConnected ? "animate-pulse" : ""}
+            />
+            <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: "bold" }}>
+              {isConnected ? "LIVE • DERIV WS" : "DISCONNECTED"}
             </span>
-            {idx < arr.length - 1 && (
-              <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332", marginLeft: "8px" }} />
-            )}
           </div>
-        ))}
+
+          <CandleCountdown granularitySec={granularitySec || 60} candleCount={validCandles.length} />
+
+          {computed.filter(c => c.pane === "overlay").length > 0 && (
+            <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332" }} />
+          )}
+
+          {computed.filter(c => c.pane === "overlay").map((c, idx, arr) => (
+            <div key={c.id} className="d-flex align-items-center" style={{ gap: "6px" }}>
+              <div style={{ height: "2px", width: "10px", background: c.color }} />
+              <span style={{ fontSize: "9px", color: "#94a3b8" }}>
+                {c.name}
+              </span>
+              {idx < arr.length - 1 && (
+                <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332", marginLeft: "8px" }} />
+              )}
+            </div>
+          ))}
+        </div>
+        <MultiTimeframeTrendWidget 
+          symbol={symbol} 
+          granularitySec={granularitySec || 60} 
+          onTrendUpdate={setTrendWidgetData} 
+        />
       </div>
       <div 
         style={{
