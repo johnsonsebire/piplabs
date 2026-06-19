@@ -146,10 +146,15 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: Oscil
     };
   }, [mainChart]);
 
+  const paramsRef = useRef<string>("");
   // Render oscillator data
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+
+    const paramsStr = JSON.stringify({ color: oscillator.color, thickness: oscillator.thickness, additional: oscillator.additionalSeries?.map(a => a.color) });
+    const paramsChanged = paramsRef.current !== paramsStr;
+    paramsRef.current = paramsStr;
 
     try {
       // Main line
@@ -162,8 +167,15 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: Oscil
           lastValueVisible: true 
         });
         linesRef.current.set(oscillator.id, line);
+        line.setData(oscillator.data as any);
+      } else {
+        line.applyOptions({ color: oscillator.color, lineWidth: oscillator.thickness as any });
+        if (paramsChanged) {
+          line.setData(oscillator.data as any);
+        } else if (oscillator.data.length > 0) {
+          line.update(oscillator.data[oscillator.data.length - 1] as any);
+        }
       }
-      line.setData(oscillator.data as any);
 
       // Guides (horizontal lines)
       if (oscillator.guides) {
@@ -211,8 +223,14 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: Oscil
               }) as any;
             }
             linesRef.current.set(key, ls as any);
+            ls?.setData(aux.data as any);
+          } else {
+            if (paramsChanged) {
+              ls?.setData(aux.data as any);
+            } else if (aux.data.length > 0) {
+              ls?.update(aux.data[aux.data.length - 1] as any);
+            }
           }
-          ls?.setData(aux.data as any);
         }
       }
     } catch (err) {
@@ -586,10 +604,16 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
     }
   }, [latestTick, validCandles]);
 
+  const prevIndsRef = useRef<string>("");
+
   // Render overlay indicators
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+
+    const indsStr = JSON.stringify(indicators);
+    const paramsChanged = prevIndsRef.current !== indsStr;
+    prevIndsRef.current = indsStr;
 
     try {
       const wanted = new Set<string>();
@@ -600,10 +624,15 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
         if (!line) {
           line = chart.addLineSeries({ color: c.color, lineWidth: c.thickness as any, priceLineVisible: false, lastValueVisible: false });
           overlayLinesRef.current.set(c.id, line);
+          line.setData(c.data as any);
         } else {
           line.applyOptions({ color: c.color, lineWidth: c.thickness as any });
+          if (paramsChanged) {
+            line.setData(c.data as any);
+          } else if (c.data.length > 0) {
+            line.update(c.data[c.data.length - 1] as any);
+          }
         }
-        line.setData(c.data as any);
 
         if (c.additionalSeries) {
           for (let i = 0; i < c.additionalSeries.length; i++) {
@@ -614,8 +643,14 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
             if (!ls) {
               ls = chart.addLineSeries({ color: aux.color, lineWidth: (aux.thickness ?? 1) as any, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
               overlayLinesRef.current.set(key, ls);
+              ls.setData(aux.data as any);
+            } else {
+              if (paramsChanged) {
+                ls.setData(aux.data as any);
+              } else if (aux.data.length > 0) {
+                ls.update(aux.data[aux.data.length - 1] as any);
+              }
             }
-            ls.setData(aux.data as any);
           }
         }
       }
