@@ -250,6 +250,33 @@ export function ChartDrawings({
     };
   }, [selectionBox, chart, series, containerRef, drawings]);
 
+  const resolveTimeFromParam = (param: any): number | null => {
+    if (!chart || !series) return null;
+    if (param.time) return param.time as number;
+    
+    if (param.point) {
+      const t = chart.timeScale().coordinateToTime(param.point.x);
+      if (t) return t as number;
+      
+      // Extrapolate into the future if clicked right of the data
+      if (param.logical !== undefined && param.logical !== null && validCandles && validCandles.length >= 2) {
+        const lastCandle = validCandles[validCandles.length - 1];
+        const secondLast = validCandles[validCandles.length - 2];
+        const interval = (lastCandle.time as number) - (secondLast.time as number);
+        
+        const lastCoord = chart.timeScale().timeToCoordinate(lastCandle.time);
+        if (lastCoord !== null) {
+          const lastLogical = chart.timeScale().coordinateToLogical(lastCoord);
+          if (lastLogical !== null && param.logical > lastLogical) {
+            const diff = param.logical - lastLogical;
+            return (lastCandle.time as number) + Math.round(diff) * interval;
+          }
+        }
+      }
+    }
+    return null;
+  };
+
   // Handle Chart Clicks and Crosshair moves for creation
   useEffect(() => {
     if (!chart || !series) return;
@@ -265,12 +292,12 @@ export function ChartDrawings({
         return;
       }
 
-      if (!param.point || !param.time) return;
+      if (!param.point) return;
+      const time = resolveTimeFromParam(param);
+      if (time === null) return;
 
       const price = series.coordinateToPrice(param.point.y);
       if (price === null) return;
-
-      const time = param.time as number;
 
       setDrawings((prev) => {
         const active = prev.find((d) => !d.completed);
@@ -316,12 +343,13 @@ export function ChartDrawings({
     };
 
     const handleCrosshairMove = (param: any) => {
-      if (!currentDrawingRef.current || !param.point || !param.time) return;
+      if (!currentDrawingRef.current || !param.point) return;
+
+      const time = resolveTimeFromParam(param);
+      if (time === null) return;
 
       const price = series.coordinateToPrice(param.point.y);
       if (price === null) return;
-
-      const time = param.time as number;
 
       setDrawings((prev) =>
         prev.map((d) => {
