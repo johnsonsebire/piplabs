@@ -15,6 +15,14 @@ export const BUILT_IN_INDICATORS = [
   { id: "CCI", name: "Commodity Channel Index", category: "Technicals", type: "oscillator" },
   { id: "ATR", name: "Average True Range", category: "Technicals", type: "oscillator" },
   { id: "ADX", name: "Average Directional Index", category: "Technicals", type: "oscillator" },
+  { id: "SUPERT", name: "Supertrend", category: "Technicals", type: "overlay" },
+  { id: "PSAR", name: "Parabolic SAR", category: "Technicals", type: "overlay" },
+  { id: "DONCH", name: "Donchian Channels", category: "Technicals", type: "overlay" },
+  { id: "KELT", name: "Keltner Channels", category: "Technicals", type: "overlay" },
+  { id: "VWAP", name: "Volume-Weighted Average Price", category: "Technicals", type: "overlay" },
+  { id: "OBV", name: "On-Balance Volume (OBV)", category: "Technicals", type: "oscillator" },
+  { id: "CMF", name: "Chaikin Money Flow (CMF)", category: "Technicals", type: "oscillator" },
+  { id: "ICH", name: "Ichimoku Cloud", category: "Technicals", type: "overlay" },
 ];
 
 interface IndicatorsDialogProps {

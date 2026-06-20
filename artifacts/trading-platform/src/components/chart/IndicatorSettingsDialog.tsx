@@ -37,7 +37,7 @@ export function IndicatorSettingsDialog({ indicator, open, onOpenChange, onSave 
 
   // Determine what fields to show based on baseId (e.g. "MA", "RSI")
   const baseId = indicator.baseId;
-  const isCustom = typeof baseId === "number" || (typeof baseId === "string" && !["MA", "EMA", "RSI", "MACD", "BB", "STOCH", "CCI", "ATR", "ADX"].includes(baseId));
+  const isCustom = typeof baseId === "number" || (typeof baseId === "string" && !["MA", "EMA", "RSI", "MACD", "BB", "STOCH", "CCI", "ATR", "ADX", "ICH", "SUPERT", "PSAR", "DONCH", "KELT", "OBV", "CMF", "VWAP"].includes(baseId));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,7 +69,7 @@ export function IndicatorSettingsDialog({ indicator, open, onOpenChange, onSave 
           )}
 
           {/* Period (for many indicators) */}
-          {["MA", "EMA", "RSI", "BB", "CCI", "ATR", "ADX"].includes(baseId as string) && (
+          {["MA", "EMA", "RSI", "BB", "CCI", "ATR", "ADX", "DONCH", "KELT", "CMF", "SUPERT"].includes(baseId as string) && (
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Period</Label>
               <Input 
@@ -95,6 +95,54 @@ export function IndicatorSettingsDialog({ indicator, open, onOpenChange, onSave 
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Signal Length</Label>
                 <Input type="number" value={config.signal || 9} onChange={(e) => updateConfig("signal", parseInt(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+              </div>
+            </>
+          )}
+
+          {/* Ichimoku specific */}
+          {baseId === "ICH" && (
+            <>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Conversion</Label>
+                <Input type="number" value={config.conversionPeriod || 9} onChange={(e) => updateConfig("conversionPeriod", parseInt(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Base Line</Label>
+                <Input type="number" value={config.basePeriod || 26} onChange={(e) => updateConfig("basePeriod", parseInt(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Lagging Span 2</Label>
+                <Input type="number" value={config.laggingSpan2Period || 52} onChange={(e) => updateConfig("laggingSpan2Period", parseInt(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Displacement</Label>
+                <Input type="number" value={config.displacement || 26} onChange={(e) => updateConfig("displacement", parseInt(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+              </div>
+            </>
+          )}
+
+          {/* Supertrend / Keltner Multiplier */}
+          {["SUPERT", "KELT"].includes(baseId as string) && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Multiplier</Label>
+              <Input type="number" step="0.1" value={config.multiplier || (baseId === "SUPERT" ? 3 : 2)} onChange={(e) => updateConfig("multiplier", parseFloat(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+            </div>
+          )}
+
+          {/* Parabolic SAR specific */}
+          {baseId === "PSAR" && (
+            <>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Start</Label>
+                <Input type="number" step="0.01" value={config.start || 0.02} onChange={(e) => updateConfig("start", parseFloat(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Increment</Label>
+                <Input type="number" step="0.01" value={config.increment || 0.02} onChange={(e) => updateConfig("increment", parseFloat(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Max Value</Label>
+                <Input type="number" step="0.01" value={config.maximum || 0.2} onChange={(e) => updateConfig("maximum", parseFloat(e.target.value))} className="col-span-3 font-mono text-sm bg-[#151a21] border-border" />
               </div>
             </>
           )}

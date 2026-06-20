@@ -676,11 +676,19 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
         wanted.add(c.id);
         let line = overlayLinesRef.current.get(c.id);
         if (!line) {
-          line = chart.addLineSeries({ color: c.color, lineWidth: c.thickness as any, priceLineVisible: false, lastValueVisible: false });
+          const isPSAR = c.id.startsWith("PSAR");
+          line = chart.addLineSeries({ 
+            color: c.color, 
+            lineWidth: c.thickness as any, 
+            lineStyle: isPSAR ? 3 : 0, // 3 is Dotted, 0 is Solid
+            priceLineVisible: false, 
+            lastValueVisible: false 
+          });
           overlayLinesRef.current.set(c.id, line);
           line.setData(c.data as any);
         } else {
-          line.applyOptions({ color: c.color, lineWidth: c.thickness as any });
+          const isPSAR = c.id.startsWith("PSAR");
+          line.applyOptions({ color: c.color, lineWidth: c.thickness as any, lineStyle: isPSAR ? 3 : 0 });
           if (paramsChanged) {
             line.setData(c.data as any);
           } else if (c.data.length > 0) {
@@ -695,10 +703,25 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
             const aux = c.additionalSeries[i];
             let ls = overlayLinesRef.current.get(key);
             if (!ls) {
-              ls = chart.addLineSeries({ color: aux.color, lineWidth: (aux.thickness ?? 1) as any, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
-              overlayLinesRef.current.set(key, ls);
-              ls.setData(aux.data as any);
-            } else {
+              if (aux.type === "histogram") {
+                ls = chart.addHistogramSeries({
+                  color: aux.color,
+                  priceFormat: { type: 'volume' },
+                  priceLineVisible: false,
+                  lastValueVisible: false,
+                }) as any;
+              } else {
+                ls = chart.addLineSeries({ 
+                  color: aux.color, 
+                  lineWidth: (aux.thickness ?? 1) as any, 
+                  lineStyle: 2, // 2 is Dashed
+                  priceLineVisible: false, 
+                  lastValueVisible: false 
+                }) as any;
+              }
+              overlayLinesRef.current.set(key, ls as any);
+              ls?.setData(aux.data as any);
+            } else if (ls) {
               if (paramsChanged) {
                 ls.setData(aux.data as any);
               } else if (aux.data.length > 0) {
