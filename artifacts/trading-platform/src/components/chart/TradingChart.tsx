@@ -9,6 +9,9 @@ import { TradingGuideOverlay } from "./TradingGuideOverlay";
 import { useAiContext } from "@/hooks/useAiContext";
 import { fetchHistoricalCandles, type DerivHistoricalCandle } from "@/lib/deriv-api";
 import { MultiTimeframeTrendWidget } from "./MultiTimeframeTrendWidget";
+import { IndicatorsDialog } from "./IndicatorsDialog";
+import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
+import { Settings2, X } from "lucide-react";
 
 export interface ChartIndicatorInput {
   id: string | number;
@@ -22,6 +25,13 @@ interface TradingChartProps {
   indicators?: ChartIndicatorInput[];
   granularitySec?: number;
   isActiveChart?: boolean;
+}
+
+export interface ActiveIndicator {
+  instanceId: string;
+  baseId: string | number;
+  name: string;
+  config: any;
 }
 
 function CandleCountdown({ granularitySec, candleCount }: { granularitySec: number, candleCount: number }) {
@@ -285,12 +295,32 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
     });
   };
 
-  // Indicators state
-  const [activeIndicatorIds, setActiveIndicatorIds] = useState<Array<string | number>>(() => {
+  // Indicators state (v2)
+  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem('deriv_active_indicators');
+        const stored = localStorage.getItem('deriv_active_indicators_v2');
         if (stored) return JSON.parse(stored);
+        
+        // Migrate old data
+        const oldStored = localStorage.getItem('deriv_active_indicators');
+        if (oldStored) {
+          const oldArray = JSON.parse(oldStored);
+          if (Array.isArray(oldArray) && oldArray.length > 0 && typeof oldArray[0] !== 'object') {
+             return oldArray.map(id => {
+               // Try to find the name if it's a built-in
+               let name = "Indicator";
+               const builtin = ["MA","EMA","RSI","MACD","BB","STOCH","CCI","ATR","ADX"].find(b => b === id);
+               if (builtin) name = builtin;
+               return {
+                  instanceId: id + '_' + Date.now() + Math.random(),
+                  baseId: id,
+                  name,
+                  config: {}
+               };
+             });
+          }
+        }
       } catch (e) {
         return [];
       }
@@ -300,14 +330,23 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('deriv_active_indicators', JSON.stringify(activeIndicatorIds));
+      localStorage.setItem('deriv_active_indicators_v2', JSON.stringify(activeIndicators));
     }
-  }, [activeIndicatorIds]);
+  }, [activeIndicators]);
 
-  const handleToggleIndicator = (id: string | number) => {
-    setActiveIndicatorIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+  const [showIndicatorsDialog, setShowIndicatorsDialog] = useState(false);
+  const [editingIndicator, setEditingIndicator] = useState<ActiveIndicator | null>(null);
+
+  const handleAddIndicator = (ind: ActiveIndicator) => {
+    setActiveIndicators(prev => [...prev, ind]);
+  };
+
+  const handleRemoveIndicator = (instanceId: string) => {
+    setActiveIndicators(prev => prev.filter(i => i.instanceId !== instanceId));
+  };
+
+  const handleUpdateIndicatorConfig = (instanceId: string, newConfig: any) => {
+    setActiveIndicators(prev => prev.map(i => i.instanceId === instanceId ? { ...i, config: newConfig } : i));
   };
 
   const { candles, latestTick, isConnected, error } = useDerivWs(symbol, granularitySec);
@@ -405,21 +444,36 @@ export function TradingChart({ symbol, indicators = [], granularitySec = 60, isA
   const computed = useMemo<IndicatorSeries[]>(() => {
     if (validCandles.length === 0) return [];
     const out: IndicatorSeries[] = [];
-    const activeInds = indicators.filter(ind => activeIndicatorIds.includes(ind.id));
-    for (const ind of activeInds) {
-      const cfg = parseIndicatorConfig(ind.parameters, ind.code || undefined);
+    
+    for (const activeInd of activeIndicators) {
+      // Find the base configuration if it's a custom indicator
+      const customInd = indicators.find(i => i.id === activeInd.baseId);
+      
+      let baseCode = customInd?.code || undefined;
+      let baseParams = customInd?.parameters || undefined;
+      
+      // If it's a built-in, we just use its baseId as the type
+      if (!customInd) {
+        baseParams = JSON.stringify({ type: activeInd.baseId });
+      }
+
+      const cfg = parseIndicatorConfig(baseParams, baseCode);
       if (!cfg) continue;
-      const series = computeIndicator(String(ind.id), ind.name, cfg, validCandles);
+
+      // Merge the active indicator's custom config (color, period, etc.)
+      const mergedCfg = { ...cfg, ...activeInd.config };
+
+      // Pass instanceId so LightweightCharts tracks each instance separately
+      const series = computeIndicator(activeInd.instanceId, activeInd.name, mergedCfg, validCandles);
       if (series) out.push(series);
     }
     return out;
-  }, [indicators, activeIndicatorIds, validCandles]);
+  }, [indicators, activeIndicators, validCandles]);
 
   useEffect(() => {
     if (!isActiveChart) return;
 
-    const activeInds = indicators.filter(ind => activeIndicatorIds.includes(ind.id));
-    const indNames = activeInds.map(i => i.name).join(', ') || 'None';
+    const indNames = activeIndicators.map(i => i.name).join(', ') || 'None';
     
     // Get all valid candles (up to 300) to give the AI the full context of the chart
     const maxCandles = 300;
@@ -449,7 +503,7 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
     return () => {
       // Don't clear it immediately on unmount because another chart might become active
     };
-  }, [isActiveChart, symbol, granularitySec, isConnected, activeIndicatorIds, indicators, validCandles, latestTick, htfContext, trendWidgetData, setGlobalContext]);
+  }, [isActiveChart, symbol, granularitySec, isConnected, activeIndicators, indicators, validCandles, latestTick, htfContext, trendWidgetData, setGlobalContext]);
 
   const hasOscillator = computed.some(c => c.pane === "oscillator");
   const oscillatorCount = computed.filter(c => c.pane === "oscillator").length;
@@ -670,10 +724,22 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
         activeTool={activeTool} 
         onToolSelect={setActiveTool} 
         onClearAll={() => updateDrawings([])} 
-        availableIndicators={indicators}
-        activeIndicatorIds={activeIndicatorIds}
-        onToggleIndicator={handleToggleIndicator}
+        onOpenIndicators={() => setShowIndicatorsDialog(true)}
         onOpenGuides={() => setShowGuideManager(true)}
+      />
+
+      <IndicatorsDialog 
+        open={showIndicatorsDialog} 
+        onOpenChange={setShowIndicatorsDialog}
+        customIndicators={indicators}
+        onAddIndicator={handleAddIndicator}
+      />
+
+      <IndicatorSettingsDialog 
+        open={!!editingIndicator}
+        onOpenChange={(open) => !open && setEditingIndicator(null)}
+        indicator={editingIndicator}
+        onSave={handleUpdateIndicatorConfig}
       />
 
       <TradingGuideManager open={showGuideManager} onOpenChange={setShowGuideManager} />
@@ -754,8 +820,31 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
               <span style={{ fontSize: "9px", color: "#94a3b8" }}>
                 {c.name}
               </span>
+              <div className="d-flex align-items-center gap-1 ms-1">
+                <button 
+                  style={{ background: 'transparent', border: 'none', padding: 0, color: '#94a3b8', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                  onClick={() => {
+                    const ind = activeIndicators.find(i => i.instanceId === c.id);
+                    if (ind) setEditingIndicator(ind);
+                  }}
+                  title="Settings"
+                >
+                  <Settings2 style={{ width: '10px', height: '10px' }} />
+                </button>
+                <button 
+                  style={{ background: 'transparent', border: 'none', padding: 0, color: '#94a3b8', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                  onClick={() => handleRemoveIndicator(c.id)}
+                  title="Remove"
+                >
+                  <X style={{ width: '10px', height: '10px' }} />
+                </button>
+              </div>
               {idx < arr.length - 1 && (
-                <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332", marginLeft: "8px" }} />
+                <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332", marginLeft: "4px" }} />
               )}
             </div>
           ))}
@@ -842,13 +931,37 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
       </div>
       <TradingGuideOverlay />
       {computed.filter(c => c.pane === "oscillator").map((osc, index) => (
-        <OscillatorPanel
-          key={osc.id}
-          oscillator={osc}
-          validCandles={validCandles}
-          mainChart={chartRef.current}
-          isFirst={index === 0}
-        />
+        <div key={osc.id} style={{ position: 'relative' }}>
+          <OscillatorPanel
+            oscillator={osc}
+            validCandles={validCandles}
+            mainChart={chartRef.current}
+            isFirst={index === 0}
+          />
+          <div style={{ position: 'absolute', top: '4px', right: '8px', zIndex: 50, display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 4px', backgroundColor: 'rgba(10, 13, 17, 0.8)' }}>
+            <button 
+              style={{ background: 'transparent', border: 'none', padding: 0, color: '#94a3b8', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onClick={() => {
+                const ind = activeIndicators.find(i => i.instanceId === osc.id);
+                if (ind) setEditingIndicator(ind);
+              }}
+              title="Settings"
+            >
+              <Settings2 style={{ width: '12px', height: '12px' }} />
+            </button>
+            <button 
+              style={{ background: 'transparent', border: 'none', padding: 0, color: '#94a3b8', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onClick={() => handleRemoveIndicator(osc.id)}
+              title="Remove"
+            >
+              <X style={{ width: '12px', height: '12px' }} />
+            </button>
+          </div>
+        </div>
       ))}
       </div>
     </div>

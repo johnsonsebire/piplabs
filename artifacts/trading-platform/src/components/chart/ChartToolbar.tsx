@@ -22,9 +22,7 @@ interface ChartToolbarProps {
   activeTool: DrawingTool;
   onToolSelect: (tool: DrawingTool) => void;
   onClearAll: () => void;
-  availableIndicators?: Array<{ id: string | number, name: string }>;
-  activeIndicatorIds?: Array<string | number>;
-  onToggleIndicator?: (id: string | number) => void;
+  onOpenIndicators?: () => void;
   onOpenGuides?: () => void;
 }
 
@@ -78,9 +76,7 @@ export function ChartToolbar({
   activeTool, 
   onToolSelect, 
   onClearAll,
-  availableIndicators,
-  activeIndicatorIds,
-  onToggleIndicator,
+  onOpenIndicators,
   onOpenGuides
 }: ChartToolbarProps) {
   const [lastUsedTools, setLastUsedTools] = useState<Record<string, string>>({
@@ -120,19 +116,6 @@ export function ChartToolbar({
                 <TooltipTrigger asChild>
                   <div className="position-relative">
                     <button
-                      onClick={() => {
-                        if (!hasMultipleTools) {
-                          handleToolSelect(category.id, category.tools[0].id);
-                        } else {
-                          // If clicking the main icon, re-select the last used tool, unless already active, then maybe open popover?
-                          // Actually, standard behavior: click icon selects it. Click small arrow (or long press) opens popover.
-                          // For simplicity, we just select it. Popover opens on right click or if we use a split button.
-                          // Let's just use PopoverTrigger for the whole button but only if it has multiple tools.
-                          // Wait, if PopoverTrigger wraps it, clicking always opens popover?
-                          // Let's make it so clicking it selects it. 
-                          // To open the menu, we can have a small arrow indicator that triggers the popover.
-                        }
-                      }}
                       className={`p-2 rounded transition-colors d-flex align-items-center justify-content-center`}
                       style={{ 
                         border: 'none', 
@@ -145,9 +128,7 @@ export function ChartToolbar({
                     >
                       <PopoverTrigger asChild>
                         <div className="d-flex align-items-center justify-content-center w-100 h-100" onClick={(e) => {
-                          if (hasMultipleTools) {
-                            // Let popover handle it
-                          } else {
+                          if (!hasMultipleTools) {
                             e.preventDefault();
                             handleToolSelect(category.id, category.tools[0].id);
                           }
@@ -206,92 +187,55 @@ export function ChartToolbar({
             </Popover>
           );
         })}
-        
-        <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
-        
-        {availableIndicators && availableIndicators.length > 0 && onToggleIndicator && (
-          <Popover>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <PopoverTrigger asChild>
-                  <button
-                    className="p-2 rounded transition-colors d-flex align-items-center justify-content-center"
-                    style={{
-                      border: 'none',
-                      background: 'transparent',
-                      color: activeIndicatorIds && activeIndicatorIds.length > 0 ? '#10b981' : '#94a3b8',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Activity style={{ width: '16px', height: '16px' }} />
-                  </button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <div className="text-xs font-mono">Indicators</div>
-              </TooltipContent>
-            </Tooltip>
 
-            <PopoverContent side="right" align="start" sideOffset={10} className="p-1 rounded-sm border-secondary shadow-lg" style={{ width: 'auto', backgroundColor: '#0f1318', minWidth: '160px', zIndex: 1000 }}>
-              <div className="d-flex flex-column gap-1">
-                {availableIndicators.map(ind => {
-                  const isActive = activeIndicatorIds?.includes(ind.id);
-                  return (
-                    <button
-                      key={ind.id}
-                      className="d-flex align-items-center justify-content-between gap-3 px-2 py-1.5 rounded transition-colors text-start"
-                      style={{
-                        border: 'none',
-                        background: isActive ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
-                        color: isActive ? '#10b981' : '#94a3b8',
-                        cursor: 'pointer',
-                        fontSize: '12px'
-                      }}
-                      onClick={() => onToggleIndicator(ind.id)}
-                    >
-                      <span className="font-mono">{ind.name}</span>
-                      {isActive && <Check style={{ width: '12px', height: '12px' }} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
+        <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
+
+        {onOpenIndicators && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="p-2 rounded transition-colors d-flex align-items-center justify-content-center text-muted-foreground hover:text-primary"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: '32px', height: '32px', color: '#94a3b8' }}
+                onClick={onOpenIndicators}
+              >
+                <Activity style={{ width: '16px', height: '16px' }} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <div className="text-xs font-mono">Indicators, metrics, & strategies</div>
+            </TooltipContent>
+          </Tooltip>
         )}
-
-        <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
 
         {onOpenGuides && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
+                className="p-2 rounded transition-colors d-flex align-items-center justify-content-center text-muted-foreground hover:text-primary"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: '32px', height: '32px', color: '#94a3b8' }}
                 onClick={onOpenGuides}
-                className="p-2 rounded transition-colors text-muted hover:text-success"
-                style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}
               >
                 <BookOpen style={{ width: '16px', height: '16px' }} />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <div className="text-xs font-mono">Discipline Guides</div>
+              <div className="text-xs font-mono">Trading Guides & Mentorship</div>
             </TooltipContent>
           </Tooltip>
         )}
-        
-        <div style={{ width: '32px', height: '1px', backgroundColor: '#1a2332', margin: '8px 0' }} />
-        
+
         <Tooltip>
           <TooltipTrigger asChild>
             <button
+              className="p-2 rounded transition-colors d-flex align-items-center justify-content-center mt-auto mb-2 text-muted-foreground hover:text-destructive"
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: '32px', height: '32px' }}
               onClick={onClearAll}
-              className="p-2 rounded transition-colors text-muted hover:text-danger"
-              style={{ border: 'none', background: 'transparent', color: '#94a3b8' }}
             >
               <Trash2 style={{ width: '16px', height: '16px' }} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <div className="text-xs font-mono">Clear All Drawings</div>
+            <div className="text-xs font-mono">Clear all drawings</div>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
