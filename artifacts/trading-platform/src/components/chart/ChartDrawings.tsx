@@ -168,9 +168,26 @@ export function ChartDrawings({
           if (applyDx) {
             const currentX = chart.timeScale().timeToCoordinate(pt.time as Time);
             if (currentX !== null) {
-              const translatedTime = chart.timeScale().coordinateToTime(currentX + dx);
-              if (translatedTime !== null) {
-                newTime = translatedTime as number;
+              const targetX = currentX + dx;
+              const t = chart.timeScale().coordinateToTime(targetX);
+              if (t !== null) {
+                newTime = t as number;
+              } else {
+                // Extrapolate for dragging into future
+                const targetLogical = chart.timeScale().coordinateToLogical(targetX);
+                if (targetLogical !== null && validCandles && validCandles.length >= 2) {
+                  const lastCandle = validCandles[validCandles.length - 1];
+                  const secondLast = validCandles[validCandles.length - 2];
+                  const interval = (lastCandle.time as number) - (secondLast.time as number);
+                  const lastCoord = chart.timeScale().timeToCoordinate(lastCandle.time);
+                  if (lastCoord !== null) {
+                    const lastLogical = chart.timeScale().coordinateToLogical(lastCoord);
+                    if (lastLogical !== null && targetLogical > lastLogical) {
+                      const diff = targetLogical - lastLogical;
+                      newTime = (lastCandle.time as number) + Math.round(diff) * interval;
+                    }
+                  }
+                }
               }
             }
           }
@@ -204,7 +221,7 @@ export function ChartDrawings({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, chart, series, setDrawings]);
+  }, [isDragging, chart, series, setDrawings, validCandles]);
 
   // Handle Box Selection
   useEffect(() => {
