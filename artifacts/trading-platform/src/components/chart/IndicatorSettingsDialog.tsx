@@ -58,7 +58,7 @@ export function IndicatorSettingsDialog({ indicator, open, onOpenChange, onSave 
                 <SelectTrigger className="col-span-3 font-mono text-sm bg-[#151a21] border-border">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f1318] border-border">
+                <SelectContent className="bg-[#0f1318] border-border z-[100]">
                   <SelectItem value="SMA">Simple (SMA)</SelectItem>
                   <SelectItem value="EMA">Exponential (EMA)</SelectItem>
                   <SelectItem value="WMA">Weighted (WMA)</SelectItem>
