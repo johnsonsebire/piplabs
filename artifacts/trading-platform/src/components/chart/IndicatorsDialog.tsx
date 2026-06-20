@@ -74,7 +74,7 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-4xl p-0 bg-[#0f1318] border-border text-foreground shadow-2xl h-[80vh] d-flex flex-column overflow-hidden"
+        className="max-w-4xl p-0 bg-[#0f1318] border-border text-foreground shadow-2xl h-[500px] d-flex flex-column overflow-hidden"
         style={{ maxWidth: '850px', padding: 0 }}
       >
         <DialogHeader className="p-4 border-b border-border bg-[#151a21] flex-shrink-0">
