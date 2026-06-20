@@ -75,7 +75,7 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         className="max-w-4xl p-0 bg-[#0f1318] border-border text-foreground shadow-2xl d-flex flex-column overflow-hidden"
-        style={{ maxWidth: '850px', maxHeight: '500px', padding: 0 }}
+        style={{ maxWidth: '850px', height: '500px', maxHeight: '90vh', padding: 0 }}
       >
         <DialogHeader className="p-4 border-b border-border bg-[#151a21] flex-shrink-0">
           <DialogTitle className="font-mono text-lg d-flex align-items-center gap-2">
@@ -84,7 +84,7 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
           </DialogTitle>
         </DialogHeader>
 
-        <div className="d-flex flex-row flex-1 overflow-hidden w-100">
+        <div className="d-flex flex-row flex-1 overflow-hidden w-100" style={{ minHeight: 0 }}>
           {/* Sidebar */}
           <div className="border-r border-border bg-[#0f1318] p-4 d-flex flex-column gap-1 flex-shrink-0" style={{ width: '250px', overflowY: 'auto' }}>
             <div className="position-relative mb-4 flex-shrink-0">
@@ -134,7 +134,7 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
           </div>
 
           {/* Main Content */}
-          <div className="flex-grow-1 bg-[#0a0d11] overflow-auto h-100 w-100" style={{ flex: 1 }}>
+          <div className="flex-grow-1 bg-[#0a0d11] w-100" style={{ flex: 1, overflowY: 'auto' }}>
             <div className="p-4 d-flex flex-column gap-1 w-100">
               {displayedIndicators.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground font-mono text-sm">
