@@ -41,10 +41,10 @@ export function AiChatWidget() {
 
   // Queries & Mutations using basic fetch
   const { data: convos } = useQuery({
-    queryKey: ["/api/openai/conversations"],
+    queryKey: ["/api/conversations"],
     queryFn: async () => {
       const token = await getToken();
-      const res = await fetch("/api/openai/conversations", {
+      const res = await fetch("/api/conversations", {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
       if (!res.ok) throw new Error("Failed to load conversations");
@@ -53,10 +53,10 @@ export function AiChatWidget() {
   });
 
   const { data: messages } = useQuery({
-    queryKey: ["/api/openai/conversations", activeConvId, "messages"],
+    queryKey: ["/api/conversations", activeConvId, "messages"],
     queryFn: async () => {
       const token = await getToken();
-      const res = await fetch(`/api/openai/conversations/${activeConvId}/messages`, {
+      const res = await fetch(`/api/conversations/${activeConvId}/messages`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
       if (!res.ok) throw new Error("Failed to load messages");
@@ -69,7 +69,7 @@ export function AiChatWidget() {
   const createConvo = useMutation({
     mutationFn: async (data: { title: string }) => {
       const token = await getToken();
-      const res = await fetch("/api/openai/conversations", {
+      const res = await fetch("/api/conversations", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -85,7 +85,7 @@ export function AiChatWidget() {
   const sendMsg = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: { content: string; contextPayload?: string } }) => {
       const token = await getToken();
-      const res = await fetch(`/api/openai/conversations/${id}/messages`, {
+      const res = await fetch(`/api/conversations/${id}/messages`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -130,7 +130,7 @@ export function AiChatWidget() {
         const res = await createConvo.mutateAsync({ title: "New Chat" });
         targetConvId = res.id;
         setActiveConvId(res.id);
-        queryClient.invalidateQueries({ queryKey: ["/api/openai/conversations"], exact: true });
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations"], exact: true });
       } catch (err) {
         console.error("Failed to create conversation", err);
         return;
@@ -138,7 +138,7 @@ export function AiChatWidget() {
     }
 
     const payloadContext = includeContext && globalContext ? globalContext : undefined;
-    const queryKey = ["/api/openai/conversations", targetConvId, "messages"];
+    const queryKey = ["/api/conversations", targetConvId, "messages"];
 
     // Optimistically add the user's message to the UI
     queryClient.setQueryData(queryKey, (old: any) => {
