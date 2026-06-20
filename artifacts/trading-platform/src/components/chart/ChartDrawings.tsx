@@ -678,7 +678,7 @@ export function ChartDrawings({
       <div
         style={{
           position: 'absolute',
-          top: '10px',
+          top: '50px',
           left: '50%',
           transform: 'translateX(-50%)',
           background: 'rgba(15, 19, 24, 0.9)',
