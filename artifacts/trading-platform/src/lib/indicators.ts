@@ -1,6 +1,6 @@
 import type { Candle } from "@/hooks/use-deriv-ws";
 
-export type IndicatorKind = "MA" | "RSI" | "MACD" | "STOCH" | "BB" | "CCI" | "ATR" | "ADX" | "ICH" | "SUPERT" | "PSAR" | "DONCH" | "KELT" | "OBV" | "CMF" | "VWAP" | "CUSTOM";
+export type IndicatorKind = "MA" | "RSI" | "MACD" | "STOCH" | "BB" | "CCI" | "ATR" | "ADX" | "ICH" | "SUPERT" | "PSAR" | "DONCH" | "KELT" | "OBV" | "CMF" | "VWAP" | "WILLFRAC" | "CUSTOM";
 
 export interface IndicatorConfig {
   type: IndicatorKind;
@@ -48,6 +48,7 @@ export interface IndicatorSeries {
   guides?: { value: number; color: string }[];
   oscillatorKey?: string;
   additionalSeries?: { name: string; color: string; data: any[]; thickness?: number; type?: "line" | "histogram" | "area" | "baseline"; baseValue?: number; topColor?: string; bottomColor?: string }[];
+  markers?: { time: number; position: 'aboveBar' | 'belowBar'; color: string; shape: 'arrowUp' | 'arrowDown'; text?: string }[];
 }
 
 function sma(values: number[], period: number): (number | null)[] {
@@ -665,6 +666,44 @@ export function computeIndicator(id: string, name: string, cfg: IndicatorConfig,
         { name: "Leading Span A", color: "#10b981", data: toPoints(extCandles, shiftedA) },
         { name: "Leading Span B", color: "#ef4444", data: toPoints(extCandles, shiftedB) },
       ]
+    };
+  }
+
+  if (cfg.type === "WILLFRAC") {
+    // Williams Fractal
+    const markers: { time: number; position: 'aboveBar' | 'belowBar'; color: string; shape: 'arrowUp' | 'arrowDown' }[] = [];
+    
+    // Need at least 5 candles. Fractal is set on the middle candle (i).
+    for (let i = 2; i < candles.length - 2; i++) {
+      const isUpFractal = candles[i].high > candles[i - 1].high && candles[i].high > candles[i - 2].high &&
+                          candles[i].high > candles[i + 1].high && candles[i].high > candles[i + 2].high;
+                          
+      const isDownFractal = candles[i].low < candles[i - 1].low && candles[i].low < candles[i - 2].low &&
+                            candles[i].low < candles[i + 1].low && candles[i].low < candles[i + 2].low;
+
+      // In TradingView standard, Bearish (Up) fractals are marked Above Bar with a Down Arrow
+      if (isUpFractal) {
+        markers.push({
+          time: candles[i].time,
+          position: 'aboveBar',
+          color: color,
+          shape: 'arrowDown'
+        });
+      }
+      
+      // Bullish (Down) fractals are marked Below Bar with an Up Arrow
+      if (isDownFractal) {
+        markers.push({
+          time: candles[i].time,
+          position: 'belowBar',
+          color: color,
+          shape: 'arrowUp'
+        });
+      }
+    }
+
+    return {
+      id, name, pane: "overlay", color, thickness, data: [], markers
     };
   }
 

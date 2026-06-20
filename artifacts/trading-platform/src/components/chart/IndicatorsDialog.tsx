@@ -23,6 +23,7 @@ export const BUILT_IN_INDICATORS = [
   { id: "OBV", name: "On-Balance Volume (OBV)", category: "Technicals", type: "oscillator" },
   { id: "CMF", name: "Chaikin Money Flow (CMF)", category: "Technicals", type: "oscillator" },
   { id: "ICH", name: "Ichimoku Cloud", category: "Technicals", type: "overlay" },
+  { id: "WILLFRAC", name: "Williams Fractal", category: "Technicals", type: "overlay" },
 ];
 
 interface IndicatorsDialogProps {

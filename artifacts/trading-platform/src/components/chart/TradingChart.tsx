@@ -671,7 +671,13 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
 
     try {
       const wanted = new Set<string>();
+      const allMarkers: any[] = [];
+
       for (const c of computed) {
+        if (c.markers && c.markers.length > 0) {
+          allMarkers.push(...c.markers);
+        }
+
         if (c.pane !== "overlay") continue;
         wanted.add(c.id);
         let line = overlayLinesRef.current.get(c.id);
@@ -733,6 +739,12 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
       }
       for (const [id, line] of overlayLinesRef.current.entries()) {
         if (!wanted.has(id)) { chart.removeSeries(line); overlayLinesRef.current.delete(id); }
+      }
+
+      if (seriesRef.current) {
+        // Lightweight Charts requires markers to be sorted by time
+        allMarkers.sort((a, b) => a.time - b.time);
+        seriesRef.current.setMarkers(allMarkers);
       }
     } catch (err) {
       console.warn('Failed to render overlay indicators:', err);
