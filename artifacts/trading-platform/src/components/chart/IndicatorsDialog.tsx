@@ -75,7 +75,7 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         className="max-w-4xl p-0 bg-[#0f1318] border-border text-foreground shadow-2xl d-flex flex-column overflow-hidden"
-        style={{ maxWidth: '850px', height: '500px', maxHeight: '90vh', padding: 0 }}
+        style={{ maxWidth: '850px', maxHeight: '500px', padding: 0 }}
       >
         <DialogHeader className="p-4 border-b border-border bg-[#151a21] flex-shrink-0">
           <DialogTitle className="font-mono text-lg d-flex align-items-center gap-2">
@@ -86,8 +86,8 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
 
         <div className="d-flex flex-row flex-1 overflow-hidden w-100">
           {/* Sidebar */}
-          <div className="border-r border-border bg-[#0f1318] p-4 d-flex flex-column gap-1 flex-shrink-0" style={{ width: '250px' }}>
-            <div className="position-relative mb-4">
+          <div className="border-r border-border bg-[#0f1318] p-4 d-flex flex-column gap-1 flex-shrink-0" style={{ width: '250px', overflowY: 'auto' }}>
+            <div className="position-relative mb-4 flex-shrink-0">
               <Search className="position-absolute text-muted-foreground" style={{ left: '10px', top: '10px', width: '16px', height: '16px' }} />
               <Input 
                 placeholder="Search" 
@@ -98,35 +98,35 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
               />
             </div>
             
-            <div className="text-xs font-mono text-muted-foreground text-uppercase tracking-wider mb-2 mt-2" style={{ letterSpacing: '0.1em' }}>Personal</div>
+            <div className="text-xs font-mono text-muted-foreground text-uppercase tracking-wider mb-2 mt-2 flex-shrink-0" style={{ letterSpacing: '0.1em' }}>Personal</div>
             <Button 
               variant="ghost" 
-              className={`w-100 justify-content-start text-sm font-mono ${activeCategory === "Favorites" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              className={`w-100 justify-content-start text-sm font-mono flex-shrink-0 ${activeCategory === "Favorites" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
               onClick={() => setActiveCategory("Favorites")}
             >
               <Star className="w-4 h-4 me-2" /> Favorites
             </Button>
             <Button 
               variant="ghost" 
-              className={`w-100 justify-content-start text-sm font-mono ${activeCategory === "My Scripts" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              className={`w-100 justify-content-start text-sm font-mono flex-shrink-0 ${activeCategory === "My Scripts" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
               onClick={() => setActiveCategory("My Scripts")}
             >
               <Activity className="w-4 h-4 me-2" /> My scripts
             </Button>
 
-            <div className="text-xs font-mono text-muted-foreground text-uppercase tracking-wider mb-2 mt-4" style={{ letterSpacing: '0.1em' }}>Built-in</div>
+            <div className="text-xs font-mono text-muted-foreground text-uppercase tracking-wider mb-2 mt-4 flex-shrink-0" style={{ letterSpacing: '0.1em' }}>Built-in</div>
             <Button 
               variant="ghost" 
-              className={`w-100 justify-content-start text-sm font-mono ${activeCategory === "Technicals" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              className={`w-100 justify-content-start text-sm font-mono flex-shrink-0 ${activeCategory === "Technicals" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
               onClick={() => setActiveCategory("Technicals")}
             >
               <Activity className="w-4 h-4 me-2" /> Technicals
             </Button>
 
-            <div className="text-xs font-mono text-muted-foreground text-uppercase tracking-wider mb-2 mt-4" style={{ letterSpacing: '0.1em' }}>Community</div>
+            <div className="text-xs font-mono text-muted-foreground text-uppercase tracking-wider mb-2 mt-4 flex-shrink-0" style={{ letterSpacing: '0.1em' }}>Community</div>
             <Button 
               variant="ghost" 
-              className={`w-100 justify-content-start text-sm font-mono ${activeCategory === "SMC" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              className={`w-100 justify-content-start text-sm font-mono flex-shrink-0 ${activeCategory === "SMC" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}
               onClick={() => setActiveCategory("SMC")}
             >
               <Activity className="w-4 h-4 me-2" /> Smart Money Concepts
