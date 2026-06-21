@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { AiChatWidget } from "@/components/chat/AiChatWidget";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -101,6 +102,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             <span className="font-mono text-secondary" style={{ fontSize: '0.5625rem' }}>CONNECTED</span>
           </div>
           
+          {/* Notification bell */}
+          <NotificationBell />
+
           {/* User email */}
           <Link href="/settings" style={{ textDecoration: 'none' }}>
             <div 

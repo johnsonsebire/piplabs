@@ -13,6 +13,7 @@ import { swalSuccess, swalError } from "@/lib/swal";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn, getSymbolDisplayName } from "@/lib/utils";
 import { fetchHistoricalCandles } from "@/lib/deriv-api";
+import { useNotifications } from "@/hooks/useNotifications";
 
 const SCANNER_STRATEGY_KEY = "scanner_selected_strategy";
 const SCANNER_AUTOSTART_KEY = "scanner_autostart";
@@ -23,7 +24,12 @@ export function MarketScannerTab() {
   const queryClient = useQueryClient();
   const { data: watchlist = [] } = useGetWatchlist ? useGetWatchlist() : { data: [] };
   const { data: strategiesRes } = useListStrategies ? useListStrategies() : { data: [] };
+  const pushNotification = useNotifications((state) => state.push);
   const strategies = Array.isArray(strategiesRes) ? strategiesRes : ((strategiesRes as any)?.strategies || []);
+
+  // Keep a live ref so callbacks always see the latest strategies without stale closures
+  const strategiesRef = useRef<any[]>(strategies);
+  useEffect(() => { strategiesRef.current = strategies; }, [strategies]);
 
   const [isScanning, setIsScanning] = useState(false);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>(() => {
@@ -171,7 +177,7 @@ export function MarketScannerTab() {
         console.error("Audio playback failed", e);
       }
     }
-    const stratName = (Array.isArray(strategiesRes) ? strategiesRes : []).find((s: any) => s.id.toString() === signalData.strategyId?.toString())?.name || "Strategy";
+    const stratName = (Array.isArray(strategiesRes) ? strategiesRes : []).find((s: any) => s.id.toString() === signalData.strategyId?.toString())?.name || strategiesRef.current.find((s: any) => s.id.toString() === signalData.strategyId?.toString())?.name || "Strategy";
     const humanSymbol = `${signalData.assetName} (${signalData.symbol})`;
     const formattedPayload = {
       text: `Strategy: ${stratName} ${signalData.direction}\nASSET: ${signalData.assetName}\nSYMBOL: ${humanSymbol}\nDURATION: 30 MINUTES\nAnalysis: ${signalData.direction} Signal\nTime: ${signalData.timestamp}`,
@@ -196,9 +202,14 @@ export function MarketScannerTab() {
 
   // Real scanner: evaluate ticks against selected strategy
   const startRealScanner = useCallback((watchlistItems: any[], strategyId: string) => {
-    const stratName = (Array.isArray(strategiesRes) ? strategiesRes : []).find((s: any) => s.id.toString() === strategyId)?.name || "Unknown";
+    const stratName = strategiesRef.current.find((s: any) => s.id.toString() === strategyId)?.name || "Unknown";
     addLog(`▶ Scanner active — monitoring ${watchlistItems.length} symbol${watchlistItems.length !== 1 ? 's' : ''} with strategy "${stratName}"`, "info");
     addLog(`  Symbols: ${watchlistItems.map(w => w.symbol || w).slice(0, 10).join(', ')}${watchlistItems.length > 10 ? ` +${watchlistItems.length - 10} more` : ''}`, "info");
+    pushNotification({
+      category: "system",
+      title: "Scanner Started",
+      message: `Monitoring ${watchlistItems.length} symbol${watchlistItems.length !== 1 ? 's' : ''} with strategy "${stratName}"`,
+    });
 
     // Log every N ticks per symbol to show real activity
     const tickCountRef: Record<string, number> = {};
@@ -277,6 +288,12 @@ You MUST reply with exactly "VALID" or "INVALID" on the first line, followed by 
                     
                     if (chatRes && chatRes.result === 'VALID') {
                       addLog(`✅ AI Confirmed ${direction} signal on ${sym}: ${chatRes.reasoning}`, "alert");
+                      pushNotification({
+                        category: "signal",
+                        title: `✅ AI Confirmed ${direction} — ${assetName}`,
+                        message: chatRes.reasoning || "Signal confirmed by AI analysis.",
+                        meta: { symbol: sym, direction: direction as "BUY" | "SELL", aiResult: "VALID" },
+                      });
                       triggerAlert({ symbol: sym, assetName, direction, strategyId, timestamp: new Date().toISOString() });
                     } else {
                       addLog(`❌ AI Rejected ${direction} signal on ${sym}: ${chatRes?.reasoning || 'No reason provided'}`, "info");
@@ -287,6 +304,12 @@ You MUST reply with exactly "VALID" or "INVALID" on the first line, followed by 
                 })();
               } else {
                 addLog(`⚡ ${strength} ${direction} signal on ${assetName} (${sym}) | Price: ${data.price.toFixed(4)} | Move: ${data.pctChange >= 0 ? '+' : ''}${data.pctChange.toFixed(3)}%`, "alert");
+                pushNotification({
+                  category: "signal",
+                  title: `⚡ ${strength} ${direction} — ${assetName}`,
+                  message: `Price: ${data.price.toFixed(4)} | Move: ${data.pctChange >= 0 ? '+' : ''}${data.pctChange.toFixed(3)}%`,
+                  meta: { symbol: sym, direction: direction as "BUY" | "SELL" },
+                });
                 triggerAlert({ symbol: sym, assetName, direction, strategyId, timestamp: new Date().toISOString() });
               }
             }
@@ -295,7 +318,7 @@ You MUST reply with exactly "VALID" or "INVALID" on the first line, followed by 
         return current;
       });
     }, 3000);
-  }, [addLog, triggerAlert, strategiesRes, scannerCooldown, scannerAiConfirmation]);
+  }, [addLog, triggerAlert, scannerCooldown, scannerAiConfirmation, pushNotification]);
 
   const stopScanner = useCallback(() => {
     if (scannerIntervalRef.current) {
@@ -303,8 +326,9 @@ You MUST reply with exactly "VALID" or "INVALID" on the first line, followed by 
       scannerIntervalRef.current = null;
     }
     addLog("■ Scanner stopped.", "info");
+    pushNotification({ category: "system", title: "Scanner Stopped", message: "The market scanner has been stopped." });
     setIsScanning(false);
-  }, [addLog]);
+  }, [addLog, pushNotification]);
 
   const toggleScanner = () => {
     if (!selectedStrategyId) { swalError("Missing Strategy", "Please select a strategy to run the scanner."); return; }
