@@ -251,12 +251,54 @@ export function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst =
       console.warn('Failed to render oscillator:', err);
     }
   }, [oscillator, validCandles]);
+  const [panelHeight, setPanelHeight] = useState(120);
+  const isDraggingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (mode !== "expanded") return; // Only allow resize when expanded
+    e.preventDefault();
+    isDraggingRef.current = true;
+    startYRef.current = e.clientY;
+    startHeightRef.current = panelHeight;
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    // The panel is at the bottom. Moving mouse UP (negative dy) should INCREASE height.
+    const dy = e.clientY - startYRef.current;
+    const newHeight = Math.max(80, Math.min(600, startHeightRef.current - dy));
+    setPanelHeight(newHeight);
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", handleMouseUp);
+  };
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
   const panelStyle: React.CSSProperties = mode === "maximized" 
     ? { position: 'absolute', inset: 0, zIndex: 50, backgroundColor: '#0a0f0d', display: 'flex', flexDirection: 'column' }
-    : { borderTop: '1px solid #1a2332', position: 'relative', flexShrink: 0, height: mode === "minimized" ? '32px' : '120px', display: 'flex', flexDirection: 'column' };
+    : { borderTop: '1px solid #1a2332', position: 'relative', flexShrink: 0, height: mode === "minimized" ? '32px' : `${panelHeight}px`, display: 'flex', flexDirection: 'column' };
 
   return (
     <div style={panelStyle}>
+      {mode === "expanded" && (
+        <div 
+          style={{ position: 'absolute', top: -3, left: 0, right: 0, height: 6, cursor: 'row-resize', zIndex: 100 }} 
+          onMouseDown={handleMouseDown} 
+        />
+      )}
       <div style={{ 
         height: '32px', 
         display: 'flex', 
