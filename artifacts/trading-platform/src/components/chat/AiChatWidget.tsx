@@ -176,9 +176,9 @@ export function AiChatWidget() {
       {/* Floating Button */}
       <Button
         size="icon"
-        className="position-fixed rounded-circle shadow-lg z-50 p-0 d-flex align-items-center justify-content-center"
-        style={{ bottom: "24px", right: "24px", width: "56px", height: "56px" }}
-        onClick={() => setIsOpen(true)}
+        className="position-fixed rounded-circle shadow-lg p-0 d-flex align-items-center justify-content-center"
+        style={{ bottom: "24px", right: "24px", width: "56px", height: "56px", zIndex: 9999 }}
+        onClick={() => setIsOpen(!isOpen)}
       >
         <Bot size={28} />
       </Button>
@@ -186,13 +186,14 @@ export function AiChatWidget() {
       {/* Chat Panel */}
       {isOpen && (
         <div 
-          className="position-fixed shadow-2xl border border-secondary rounded-lg d-flex flex-column bg-background z-50 overflow-hidden"
+          className="position-fixed shadow-2xl border border-secondary rounded-lg d-flex flex-column bg-background overflow-hidden"
           style={{ 
             bottom: "90px", 
             right: "24px", 
             width: "380px", 
             height: "600px",
-            maxHeight: "calc(100vh - 120px)"
+            maxHeight: "calc(100vh - 120px)",
+            zIndex: 9999
           }}
         >
           {/* Header */}
