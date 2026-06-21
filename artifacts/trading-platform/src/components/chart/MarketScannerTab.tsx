@@ -169,14 +169,23 @@ export function MarketScannerTab() {
       }
     }
     const stratName = (Array.isArray(strategiesRes) ? strategiesRes : []).find((s: any) => s.id.toString() === signalData.strategyId?.toString())?.name || "Strategy";
+    const humanSymbol = `${signalData.assetName} (${signalData.symbol})`;
     const formattedPayload = {
-      text: `Strategy: ${stratName} ${signalData.direction}\nASSET: ${signalData.assetName}\nSYMBOL: ${signalData.symbol}\nDURATION: 30 MINUTES\nAnalysis: ${signalData.direction} Signal\nTime: ${signalData.timestamp}`,
-      fields: { Strategy: `${stratName} ${signalData.direction}`, Asset: signalData.assetName, SYMBOL: signalData.symbol, Time: signalData.timestamp }
+      text: `Strategy: ${stratName} ${signalData.direction}\nASSET: ${signalData.assetName}\nSYMBOL: ${humanSymbol}\nDURATION: 30 MINUTES\nAnalysis: ${signalData.direction} Signal\nTime: ${signalData.timestamp}`,
+      fields: { 
+        Strategy: `${stratName} ${signalData.direction}`, 
+        Asset: signalData.assetName, 
+        SYMBOL: humanSymbol, 
+        Symbol: humanSymbol,
+        Direction: signalData.direction,
+        Duration: "30 Minutes",
+        Time: signalData.timestamp 
+      }
     };
     try {
       const data = await customFetch<any>('/api/scanner/alert', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signal: signalData, payload: formattedPayload })
+        body: JSON.stringify({ signal: { ...signalData, symbol: humanSymbol }, payload: formattedPayload })
       });
       if (data?.results?.webhook === 'success') addLog("✓ Webhook delivered successfully.", "info");
     } catch { addLog("✗ Webhook delivery failed.", "error"); }

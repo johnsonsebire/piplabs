@@ -11,6 +11,8 @@ export type Drawing = {
   color: string;
   completed: boolean;
   text?: string;
+  width?: number;
+  height?: number;
 };
 
 interface ChartDrawingsProps {
@@ -44,7 +46,9 @@ export function ChartDrawings({
     startX: number, 
     startY: number, 
     initialPoints: Point[],
-    pointIndex?: number 
+    pointIndex?: number,
+    initialWidth?: number,
+    initialHeight?: number
   } | null>(null);
   
   const [isDragging, setIsDragging] = useState(false);
@@ -54,6 +58,20 @@ export function ChartDrawings({
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, currentX: number, currentY: number } | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [isBrushing, setIsBrushing] = useState(false);
+
+  // Instant deselection when clicking the chart canvas (handles click+drag panning too)
+  useEffect(() => {
+    const handleCanvasMouseDown = (e: MouseEvent) => {
+      if (activeTool === "cursor" && !isShiftDown) {
+        if ((e.target as HTMLElement).tagName === "CANVAS") {
+          setSelectedIds([]);
+        }
+      }
+    };
+    window.addEventListener("mousedown", handleCanvasMouseDown);
+    return () => window.removeEventListener("mousedown", handleCanvasMouseDown);
+  }, [activeTool, isShiftDown]);
 
   // Keyboard events (Delete & Shift)
   useEffect(() => {
@@ -174,6 +192,16 @@ export function ChartDrawings({
 
       setDrawings((prev) => prev.map((d) => {
         if (d.id !== id) return d;
+
+        if (pointIndex === 999 && d.type === "text") {
+          const w = dragStateRef.current?.initialWidth ?? 100;
+          const h = dragStateRef.current?.initialHeight ?? 40;
+          return {
+            ...d,
+            width: Math.max(50, w + dx),
+            height: Math.max(30, h + dy)
+          };
+        }
 
         const newPoints = initialPoints.map((pt, idx) => {
           // If we are resizing a specific corner of a rectangle:
@@ -322,8 +350,8 @@ export function ChartDrawings({
       // Don't create if we are dragging or clicking on an existing shape
       if (dragStateRef.current) return;
 
-      if (activeTool === "cursor") {
-        if (!isShiftDown) {
+      if (activeTool === "cursor" || activeTool === "brush") {
+        if (!isShiftDown && activeTool === "cursor") {
           setSelectedIds([]); // Clear selection when clicking empty chart space
         }
         return;
@@ -372,6 +400,31 @@ export function ChartDrawings({
         } else {
           // Complete existing drawing (trend line, ray, fib, rectangle)
           currentDrawingRef.current = null;
+          
+          if (active.type === "long_position" || active.type === "short_position") {
+            const entryTime = active.points[0].time;
+            const entryPrice = active.points[0].price;
+            const exitTime = time;
+            
+            // Generate default TP and SL (2% reward, 1% risk based on entry price)
+            const risk = entryPrice * 0.01;
+            const reward = entryPrice * 0.02;
+            
+            const tpPrice = active.type === "long_position" ? entryPrice + reward : entryPrice - reward;
+            const slPrice = active.type === "long_position" ? entryPrice - risk : entryPrice + risk;
+            
+            return prev.map(d => d.id === active.id ? { 
+               ...d, 
+               points: [
+                 { time: entryTime, price: entryPrice }, // p0: Entry
+                 { time: exitTime, price: entryPrice },  // p1: Exit Time (determines width)
+                 { time: entryTime, price: tpPrice },    // p2: Take Profit
+                 { time: entryTime, price: slPrice }     // p3: Stop Loss
+               ],
+               completed: true 
+            } : d);
+          }
+          
           return prev.map((d) =>
             d.id === active.id ? { ...d, points: [...d.points, { time, price }], completed: true } : d
           );
@@ -410,7 +463,7 @@ export function ChartDrawings({
 
   if (!chart || !series) return null;
 
-  const handleShapeMouseDown = (e: React.MouseEvent, id: string, points: Point[], pointIndex?: number) => {
+  const handleShapeMouseDown = (e: React.MouseEvent, id: string, points: Point[], pointIndex?: number, explicitWidth?: number, explicitHeight?: number) => {
     if (activeTool !== "cursor") return;
     e.stopPropagation();
 
@@ -422,12 +475,15 @@ export function ChartDrawings({
       }
     }
     
+    const targetDrawing = drawings.find(d => d.id === id);
     dragStateRef.current = {
       id,
       startX: e.clientX,
       startY: e.clientY,
       initialPoints: [...points],
-      pointIndex
+      pointIndex,
+      initialWidth: explicitWidth ?? targetDrawing?.width,
+      initialHeight: explicitHeight ?? targetDrawing?.height
     };
     setIsDragging(true);
   };
@@ -442,6 +498,60 @@ export function ChartDrawings({
       });
     } else if (activeTool === "cursor" && !isShiftDown) {
       setSelectedIds([]);
+    } else if (activeTool === "brush") {
+      setIsBrushing(true);
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const time = pixelXToTime(x);
+        const price = series.coordinateToPrice(y);
+        if (time !== null && price !== null) {
+          const newDrawing: Drawing = {
+            id: Date.now().toString(),
+            type: "brush",
+            points: [{ time, price }],
+            color: "#3b82f6",
+            completed: false,
+          };
+          currentDrawingRef.current = newDrawing;
+          setDrawings(prev => [...prev, newDrawing]);
+        }
+      }
+    }
+  };
+
+  const handleSvgMouseMove = (e: React.MouseEvent) => {
+    if (activeTool === "brush" && isBrushing && currentDrawingRef.current && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const time = pixelXToTime(x);
+      const price = series.coordinateToPrice(y);
+      
+      if (time !== null && price !== null) {
+        setDrawings(prev => prev.map(d => {
+          if (d.id === currentDrawingRef.current?.id) {
+            // Decimate points slightly to optimize brush rendering
+            const lastPt = d.points[d.points.length - 1];
+            const dist = Math.sqrt(Math.pow((lastPt.time as number) - time, 2) + Math.pow(lastPt.price - price, 2));
+            if (dist > 0) { // Add point if moved
+               return { ...d, points: [...d.points, { time, price }] };
+            }
+          }
+          return d;
+        }));
+      }
+    }
+  };
+
+  const handleSvgMouseUp = () => {
+    if (activeTool === "brush" && isBrushing) {
+      setIsBrushing(false);
+      if (currentDrawingRef.current) {
+        setDrawings(prev => prev.map(d => d.id === currentDrawingRef.current?.id ? { ...d, completed: true } : d));
+        currentDrawingRef.current = null;
+      }
     }
   };
 
@@ -500,6 +610,9 @@ export function ChartDrawings({
     <>
     <svg
       onMouseDown={handleSvgMouseDown}
+      onMouseMove={handleSvgMouseMove}
+      onMouseUp={handleSvgMouseUp}
+      onMouseLeave={handleSvgMouseUp}
       style={{
         position: "absolute",
         top: 0,
@@ -508,7 +621,7 @@ export function ChartDrawings({
         width: `calc(100% - ${rightAxisWidth}px)`,
         height: "100%",
         overflow: "hidden",
-        pointerEvents: isShiftDown && activeTool === "cursor" ? "all" : "none",
+        pointerEvents: (isShiftDown && activeTool === "cursor") || activeTool === "brush" ? "all" : "none",
         zIndex: 20,
       }}
     >
@@ -571,14 +684,19 @@ export function ChartDrawings({
 
         if (d.type === "text") {
           const isEditing = editingTextId === d.id;
+          const textLines = (d.text || "").split("\n");
+          const maxLineLen = Math.max(...textLines.map(l => l.length), 10);
+          const width = d.width ?? Math.max(100, maxLineLen * 8 + 24);
+          const height = d.height ?? Math.max(40, textLines.length * 18 + 24);
+          
           return (
             <g key={d.id}>
               {isEditing ? (
-                <foreignObject x={coords[0].x!} y={coords[0].y! - 20} width="300" height="40" style={{ pointerEvents: 'all' }}>
-                  <input
-                    type="text"
-                    defaultValue={d.text}
+                <foreignObject x={coords[0].x!} y={coords[0].y!} width={Math.max(width, 300)} height={Math.max(height, 150)} style={{ pointerEvents: 'all' }}>
+                  <textarea
+                    defaultValue={d.text === "Text" ? "" : d.text}
                     autoFocus
+                    placeholder="Enter your note..."
                     onBlur={(e) => {
                        const val = e.target.value;
                        if (!val.trim()) {
@@ -588,44 +706,69 @@ export function ChartDrawings({
                        }
                        setEditingTextId(null);
                     }}
-                    onKeyDown={(e) => {
-                       if (e.key === "Enter") {
-                         e.currentTarget.blur();
-                       }
-                    }}
                     style={{
-                       background: 'rgba(15, 19, 24, 0.8)',
-                       border: `1px dashed ${d.color}`,
+                       background: 'rgba(15, 19, 24, 0.95)',
+                       border: `1px solid ${d.color}`,
                        color: d.color,
                        outline: 'none',
-                       fontSize: '14px',
-                       fontFamily: 'sans-serif',
+                       fontSize: '13px',
+                       fontFamily: 'monospace',
                        width: '100%',
-                       padding: '2px 4px',
-                       borderRadius: '4px'
+                       height: '100%',
+                       padding: '8px',
+                       borderRadius: '6px',
+                       resize: 'none',
+                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
                     }}
                   />
                 </foreignObject>
               ) : (
-                <text
-                  x={coords[0].x!}
-                  y={coords[0].y!}
-                  fill={d.color}
-                  fontSize="14"
-                  fontFamily="sans-serif"
+                <foreignObject 
+                  x={coords[0].x!} 
+                  y={coords[0].y!} 
+                  width={width} 
+                  height={height}
                   onMouseDown={(e) => handleShapeMouseDown(e, d.id, d.points)}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
-                    if (activeTool === "cursor") {
-                      setEditingTextId(d.id);
-                    }
+                    if (activeTool === "cursor") setEditingTextId(d.id);
                   }}
-                  style={{ pointerEvents: getPointerEvents(), cursor: getCursor(), userSelect: "none" }}
+                  style={{ pointerEvents: getPointerEvents(), cursor: getCursor() }}
                 >
-                  {d.text}
-                </text>
+                  <div style={{
+                    background: `${d.color}20`,
+                    borderLeft: `3px solid ${d.color}`,
+                    color: '#e2e8f0',
+                    padding: '8px 12px',
+                    borderRadius: '0 6px 6px 0',
+                    fontSize: '12px',
+                    fontFamily: 'monospace',
+                    lineHeight: '1.4',
+                    whiteSpace: 'pre-wrap',
+                    backdropFilter: 'blur(4px)',
+                    height: '100%',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}>
+                    {d.text}
+                  </div>
+                </foreignObject>
               )}
+              {/* Move Handle */}
               {renderAnchor(d.id, d.points, coords[0].x!, coords[0].y!, 0, "move")}
+              {/* Resize Handle */}
+              {selectedIds.includes(d.id) && activeTool === "cursor" && (
+                <circle
+                  cx={coords[0].x! + width}
+                  cy={coords[0].y! + height}
+                  r={5}
+                  fill="#ffffff"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  onMouseDown={(e) => handleShapeMouseDown(e, d.id, d.points, 999, width, height)}
+                  style={{ cursor: 'nwse-resize', pointerEvents: 'all' }}
+                />
+              )}
             </g>
           );
         }
@@ -751,9 +894,78 @@ export function ChartDrawings({
             </g>
           );
         }
+        if (d.type === "brush") {
+          const pathD = "M " + coords.map(c => `${c.x},${c.y}`).join(" L ");
+          return (
+            <g key={d.id} onMouseDown={(e) => handleShapeMouseDown(e, d.id, d.points)}>
+               <path d={pathD} fill="none" stroke={d.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: getPointerEvents(), cursor: getCursor() }} />
+               {/* Invisible wider path for hit area */}
+               <path d={pathD} fill="none" stroke="transparent" strokeWidth={15} style={{ pointerEvents: getPointerEvents(), cursor: getCursor() }} />
+            </g>
+          );
+        }
 
-
-
+        if (d.type === "long_position" || d.type === "short_position") {
+          if (coords.length < 4) return null;
+          const xStart = Math.min(coords[0].x!, coords[1].x!);
+          const width = Math.max(20, Math.abs(coords[1].x! - coords[0].x!));
+          const yEntry = coords[0].y!;
+          const yTp = coords[2].y!;
+          const ySl = coords[3].y!;
+          
+          const isLong = d.type === "long_position";
+          
+          const pEntry = d.points[0].price;
+          const pTp = d.points[2].price;
+          const pSl = d.points[3].price;
+          
+          // Profit box
+          const profitY = Math.min(yEntry, yTp);
+          const profitH = Math.abs(yEntry - yTp);
+          const profitColor = isLong ? "rgba(34, 197, 94, 0.25)" : "rgba(34, 197, 94, 0.25)"; 
+          
+          // Loss box
+          const lossY = Math.min(yEntry, ySl);
+          const lossH = Math.abs(yEntry - ySl);
+          const lossColor = "rgba(239, 68, 68, 0.25)";
+          
+          const riskPrice = Math.abs(pEntry - pSl);
+          const rewardPrice = Math.abs(pEntry - pTp);
+          const rrRatio = riskPrice > 0 ? (rewardPrice / riskPrice).toFixed(2) : "0.00";
+          const profitPct = ((rewardPrice / pEntry) * 100).toFixed(2);
+          const lossPct = ((riskPrice / pEntry) * 100).toFixed(2);
+          
+          return (
+             <g key={d.id}>
+               <g onMouseDown={(e) => handleShapeMouseDown(e, d.id, d.points)} style={{ pointerEvents: getPointerEvents(), cursor: getCursor() }}>
+                  {/* Target Box */}
+                  <rect x={xStart} y={profitY} width={width} height={profitH} fill={profitColor} stroke="rgba(34, 197, 94, 0.5)" strokeWidth={1} />
+                  <text x={xStart + width/2} y={profitY + profitH/2} fill="#22c55e" fontSize="10" fontFamily="monospace" textAnchor="middle" alignmentBaseline="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    Target: {pTp.toFixed(5)} ({profitPct}%)
+                  </text>
+                  
+                  {/* Stop Box */}
+                  <rect x={xStart} y={lossY} width={width} height={lossH} fill={lossColor} stroke="rgba(239, 68, 68, 0.5)" strokeWidth={1} />
+                  <text x={xStart + width/2} y={lossY + lossH/2} fill="#ef4444" fontSize="10" fontFamily="monospace" textAnchor="middle" alignmentBaseline="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    Stop: {pSl.toFixed(5)} ({lossPct}%)
+                  </text>
+                  
+                  {/* Entry Line & Badge */}
+                  <line x1={xStart} y1={yEntry} x2={xStart + width} y2={yEntry} stroke={d.color} strokeWidth={2} />
+                  <rect x={xStart + width/2 - 25} y={yEntry - 8} width={50} height={16} fill={d.color} rx={2} />
+                  <text x={xStart + width/2} y={yEntry + 3} fill="#000" fontSize="9" fontFamily="monospace" textAnchor="middle" style={{ pointerEvents: 'none', fontWeight: 'bold' }}>
+                    R/R: {rrRatio}
+                  </text>
+               </g>
+               
+               {/* Anchors */}
+               {renderAnchor(d.id, d.points, xStart, yEntry, 0, "move")}
+               {renderAnchor(d.id, d.points, coords[1].x!, yEntry, 1, "ew-resize")}
+               {renderAnchor(d.id, d.points, xStart + width/2, yTp, 2, "ns-resize")}
+               {renderAnchor(d.id, d.points, xStart + width/2, ySl, 3, "ns-resize")}
+             </g>
+          );
+        }
         return null;
       })}
     </svg>

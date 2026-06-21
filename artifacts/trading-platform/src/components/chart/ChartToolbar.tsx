@@ -11,12 +11,15 @@ import {
   Activity,
   Check,
   Type,
-  BookOpen
+  BookOpen,
+  PenTool,
+  ArrowUpRight,
+  ArrowDownRight
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-export type DrawingTool = "cursor" | "horizontal_line" | "vertical_line" | "trend_line" | "ray" | "rectangle" | "fib_retracement" | "text";
+export type DrawingTool = "cursor" | "horizontal_line" | "vertical_line" | "trend_line" | "ray" | "rectangle" | "fib_retracement" | "text" | "brush" | "long_position" | "short_position";
 
 interface ChartToolbarProps {
   activeTool: DrawingTool;
@@ -55,11 +58,21 @@ const TOOL_CATEGORIES = [
     ]
   },
   {
+    id: "positions",
+    icon: ArrowUpRight,
+    label: "Positions",
+    tools: [
+      { id: "long_position", icon: ArrowUpRight, label: "Long Position" },
+      { id: "short_position", icon: ArrowDownRight, label: "Short Position" },
+    ]
+  },
+  {
     id: "shapes",
     icon: Square,
     label: "Geometric Shapes",
     tools: [
       { id: "rectangle", icon: Square, label: "Rectangle" },
+      { id: "brush", icon: PenTool, label: "Brush" },
     ]
   },
   {
@@ -67,7 +80,7 @@ const TOOL_CATEGORIES = [
     icon: Type,
     label: "Annotations",
     tools: [
-      { id: "text", icon: Type, label: "Text" },
+      { id: "text", icon: Type, label: "Text Note" },
     ]
   }
 ] as const;
@@ -81,6 +94,7 @@ export function ChartToolbar({
 }: ChartToolbarProps) {
   const [lastUsedTools, setLastUsedTools] = useState<Record<string, string>>({
     lines: "trend_line",
+    positions: "long_position",
     shapes: "rectangle",
     fibonacci: "fib_retracement",
     annotations: "text",
