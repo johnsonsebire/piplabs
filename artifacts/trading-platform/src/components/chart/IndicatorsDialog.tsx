@@ -79,8 +79,8 @@ export function IndicatorsDialog({ open, onOpenChange, customIndicators, onAddIn
         style={{ maxWidth: '850px', height: '500px', maxHeight: '90vh', padding: 0 }}
       >
         <DialogHeader className="p-4 border-b border-border bg-[#151a21] flex-shrink-0">
-          <DialogTitle className="font-mono d-flex align-items-center gap-2" style={{ fontSize: '12px', fontWeight: 600, lineHeight: '1.3' }}>
-            <Activity className="w-3 h-3 text-primary" />
+          <DialogTitle className="font-mono" style={{ fontSize: '12px', fontWeight: 600, lineHeight: '1.3', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Activity style={{ width: '12px', height: '12px', flexShrink: 0 }} className="text-primary" />
             Indicators, metrics and strategies
           </DialogTitle>
         </DialogHeader>

@@ -43,8 +43,8 @@ export function IndicatorSettingsDialog({ indicator, open, onOpenChange, onSave 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-[#0f1318] border-border text-foreground shadow-2xl" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className="font-mono flex items-center gap-2" style={{ fontSize: '12px', fontWeight: 600, lineHeight: '1.3' }}>
-            <Settings2 className="w-3 h-3 text-primary" />
+          <DialogTitle className="font-mono" style={{ fontSize: '12px', fontWeight: 600, lineHeight: '1.3', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Settings2 style={{ width: '12px', height: '12px', flexShrink: 0 }} className="text-primary" />
             {indicator.name} Settings
           </DialogTitle>
         </DialogHeader>
