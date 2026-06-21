@@ -11,7 +11,7 @@ import { fetchHistoricalCandles, type DerivHistoricalCandle } from "@/lib/deriv-
 import { MultiTimeframeTrendWidget } from "./MultiTimeframeTrendWidget";
 import { IndicatorsDialog } from "./IndicatorsDialog";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
-import { Settings2, X } from "lucide-react";
+import { Settings2, X, Maximize2, Minimize2, ChevronUp, ChevronDown } from "lucide-react";
 
 export interface ChartIndicatorInput {
   id: string | number;
@@ -85,14 +85,17 @@ interface OscillatorPanelProps {
   oscillator: IndicatorSeries;
   validCandles: any[];
   mainChart: IChartApi | null;
-  isFirst: boolean;
-  configStr: string;
+  isFirst?: boolean;
+  configStr?: string;
+  onSettings: () => void;
+  onRemove: () => void;
 }
 
-function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst, configStr }: OscillatorPanelProps) {
+export function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst = false, configStr = "", onSettings, onRemove }: OscillatorPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const linesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+  const [mode, setMode] = useState<"minimized" | "expanded" | "maximized">("expanded");
 
   // Create chart instance
   useEffect(() => {
@@ -248,14 +251,94 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst, configS
       console.warn('Failed to render oscillator:', err);
     }
   }, [oscillator, validCandles]);
+  const panelStyle: React.CSSProperties = mode === "maximized" 
+    ? { position: 'absolute', inset: 0, zIndex: 50, backgroundColor: '#0a0f0d', display: 'flex', flexDirection: 'column' }
+    : { borderTop: '1px solid #1a2332', position: 'relative', flexShrink: 0, height: mode === "minimized" ? '32px' : '120px', display: 'flex', flexDirection: 'column' };
 
   return (
-    <div style={{ borderTop: '1px solid #1a2332', position: 'relative', flexShrink: 0, height: '120px' }}>
-      <div style={{ position: 'absolute', top: '4px', left: '8px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 4px', backgroundColor: 'rgba(10, 13, 17, 0.8)' }}>
-        <div style={{ height: '2px', width: '12px', background: oscillator.color }} />
-        <span style={{ fontSize: '9px', fontFamily: 'Space Mono, monospace', textTransform: 'uppercase', color: '#94a3b8' }}>{oscillator.name}</span>
+    <div style={panelStyle}>
+      <div style={{ 
+        height: '32px', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        padding: '0 8px', 
+        backgroundColor: 'rgba(10, 13, 17, 0.95)',
+        borderBottom: mode !== "minimized" ? '1px solid #1a2332' : 'none',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ height: '2px', width: '12px', background: oscillator.color }} />
+          <span style={{ fontSize: '10px', fontFamily: 'Space Mono, monospace', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 'bold' }}>{oscillator.name}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button 
+            style={{ background: 'transparent', border: 'none', padding: '4px', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+            onClick={onSettings} title="Settings"
+          >
+            <Settings2 size={12} />
+          </button>
+          
+          <div style={{ width: "1px", height: "12px", backgroundColor: "#1a2332", margin: "0 4px" }} />
+          
+          {mode === "minimized" ? (
+            <button 
+              style={{ background: 'transparent', border: 'none', padding: '4px', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onClick={() => setMode("expanded")} title="Expand"
+            >
+              <ChevronUp size={14} />
+            </button>
+          ) : (
+            <button 
+              style={{ background: 'transparent', border: 'none', padding: '4px', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#94a3b8'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onClick={() => setMode(mode === "maximized" ? "expanded" : "minimized")} title={mode === "maximized" ? "Restore" : "Collapse"}
+            >
+              <ChevronDown size={14} />
+            </button>
+          )}
+
+          {mode !== "maximized" ? (
+            <button 
+              style={{ background: 'transparent', border: 'none', padding: '4px', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onClick={() => setMode("maximized")} title="Maximize"
+            >
+              <Maximize2 size={12} />
+            </button>
+          ) : (
+            <button 
+              style={{ background: 'transparent', border: 'none', padding: '4px', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onClick={() => setMode("expanded")} title="Restore"
+            >
+              <Minimize2 size={12} />
+            </button>
+          )}
+
+          {mode !== "minimized" && (
+            <button 
+              style={{ background: 'transparent', border: 'none', padding: '4px', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onClick={onRemove} title="Remove"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
       </div>
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div 
+        ref={containerRef} 
+        style={{ width: '100%', flex: 1, minHeight: 0, display: mode === "minimized" ? 'none' : 'block' }} 
+      />
     </div>
   );
 }
@@ -914,8 +997,10 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
       </div>
       <div 
         ref={chartContainerRef} 
-        className="w-full flex-1 min-h-0" 
         style={{ 
+          width: '100%',
+          flex: 1,
+          minHeight: 0,
           zIndex: 1, 
           position: 'relative',
           cursor: activeTool !== 'cursor' ? 'crosshair' : 'default'
@@ -967,39 +1052,19 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
       </div>
       <TradingGuideOverlay />
       {computed.filter(c => c.pane === "oscillator").map((osc, idx) => (
-        <div key={osc.id} style={{ position: 'relative' }}>
-          <OscillatorPanel
-            key={osc.id}
-            oscillator={osc}
-            validCandles={validCandles}
-            mainChart={chartRef.current}
-            isFirst={idx === 0}
-            configStr={JSON.stringify(activeIndicators.find(ind => ind.instanceId === osc.id)?.config || {})}
-          />
-          <div style={{ position: 'absolute', top: '4px', right: '8px', zIndex: 50, display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 4px', backgroundColor: 'rgba(10, 13, 17, 0.8)' }}>
-            <button 
-              style={{ background: 'transparent', border: 'none', padding: 0, color: '#94a3b8', cursor: 'pointer' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
-              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-              onClick={() => {
-                const ind = activeIndicators.find(i => i.instanceId === osc.id);
-                if (ind) setEditingIndicator(ind);
-              }}
-              title="Settings"
-            >
-              <Settings2 style={{ width: '12px', height: '12px' }} />
-            </button>
-            <button 
-              style={{ background: 'transparent', border: 'none', padding: 0, color: '#94a3b8', cursor: 'pointer' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-              onClick={() => handleRemoveIndicator(osc.id)}
-              title="Remove"
-            >
-              <X style={{ width: '12px', height: '12px' }} />
-            </button>
-          </div>
-        </div>
+        <OscillatorPanel
+          key={osc.id}
+          oscillator={osc}
+          validCandles={validCandles}
+          mainChart={chartRef.current}
+          isFirst={idx === 0}
+          configStr={JSON.stringify(activeIndicators.find(ind => ind.instanceId === osc.id)?.config || {})}
+          onSettings={() => {
+            const ind = activeIndicators.find(i => i.instanceId === osc.id);
+            if (ind) setEditingIndicator(ind);
+          }}
+          onRemove={() => handleRemoveIndicator(osc.id)}
+        />
       ))}
       </div>
     </div>
