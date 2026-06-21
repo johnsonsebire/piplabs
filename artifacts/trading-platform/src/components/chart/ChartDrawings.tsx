@@ -73,20 +73,58 @@ export function ChartDrawings({
     return () => window.removeEventListener("mousedown", handleCanvasMouseDown);
   }, [activeTool, isShiftDown]);
 
-  // Keyboard events (Delete & Shift)
+  const clipboardRef = useRef<Drawing[]>([]);
+  const selectedIdsRef = useRef(selectedIds);
+  const drawingsRef = useRef(drawings);
+  
+  useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
+  useEffect(() => { drawingsRef.current = drawings; }, [drawings]);
+
+  // Keyboard events (Delete, Shift, Copy, Paste, Duplicate)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Shift") {
         setIsShiftDown(true);
       }
-      if (e.key === "Delete" || e.key === "Backspace") {
-        // We only want to delete if we are not focused on an input
-        const target = e.target as HTMLElement;
-        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
 
-        if (selectedIds.length > 0) {
-          setDrawings((prev) => prev.filter((d) => !selectedIds.includes(d.id)));
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedIdsRef.current.length > 0) {
+          setDrawings((prev) => prev.filter((d) => !selectedIdsRef.current.includes(d.id)));
           setSelectedIds([]);
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        const selected = drawingsRef.current.filter((d) => selectedIdsRef.current.includes(d.id));
+        if (selected.length > 0) {
+          clipboardRef.current = JSON.parse(JSON.stringify(selected));
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        if (clipboardRef.current.length > 0) {
+          const newDrawings = clipboardRef.current.map((d) => ({
+            ...d,
+            id: Date.now().toString() + Math.random().toString(),
+          }));
+          setDrawings((prev) => [...prev, ...newDrawings]);
+          setSelectedIds(newDrawings.map((d) => d.id));
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault(); // Prevent browser bookmark
+        const selected = drawingsRef.current.filter((d) => selectedIdsRef.current.includes(d.id));
+        if (selected.length > 0) {
+          const newDrawings = JSON.parse(JSON.stringify(selected)).map((d: Drawing) => ({
+            ...d,
+            id: Date.now().toString() + Math.random().toString(),
+          }));
+          setDrawings((prev) => [...prev, ...newDrawings]);
+          setSelectedIds(newDrawings.map((d: Drawing) => d.id));
         }
       }
     };
@@ -103,7 +141,7 @@ export function ChartDrawings({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [selectedIds, setDrawings]);
+  }, [setDrawings]);
 
   // Sync SVG dimensions and redraw on chart interactions
   useEffect(() => {
