@@ -42,9 +42,12 @@ export function MarketScannerTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("ALL");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  const autoStartedRef = useRef(false);
+
   const scannerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoStartedRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const lastSignalTimeRef = useRef<Record<string, number>>({});
+  const dbAssetsRef = useRef<any[]>([]);
 
   const { data: searchResults = [], isFetching: isSearching } = useSearchDerivSymbols(
     debouncedSearchQuery ? { q: debouncedSearchQuery } : undefined,
@@ -52,6 +55,10 @@ export function MarketScannerTab() {
   );
 
   const { data: dbAssets = [] } = useListAssets({ activeOnly: true });
+
+  useEffect(() => {
+    dbAssetsRef.current = dbAssets;
+  }, [dbAssets]);
 
   const addWatchlist = useAddToWatchlist ? useAddToWatchlist() : { mutate: () => {}, isPending: false };
   const removeWatchlist = useRemoveFromWatchlist ? useRemoveFromWatchlist() : { mutate: () => {}, isPending: false };
@@ -145,8 +152,8 @@ export function MarketScannerTab() {
     }
     const stratName = (Array.isArray(strategiesRes) ? strategiesRes : []).find((s: any) => s.id.toString() === signalData.strategyId?.toString())?.name || "Strategy";
     const formattedPayload = {
-      text: `Strategy: ${stratName} ${signalData.direction}\nSYMBOL: ${signalData.symbol}\nDURATION: 30 MINUTES\nAnalysis: ${signalData.direction} Signal\nTime: ${signalData.timestamp}`,
-      fields: { Strategy: `${stratName} ${signalData.direction}`, SYMBOL: signalData.symbol, Time: signalData.timestamp }
+      text: `Strategy: ${stratName} ${signalData.direction}\nASSET: ${signalData.assetName}\nSYMBOL: ${signalData.symbol}\nDURATION: 30 MINUTES\nAnalysis: ${signalData.direction} Signal\nTime: ${signalData.timestamp}`,
+      fields: { Strategy: `${stratName} ${signalData.direction}`, Asset: signalData.assetName, SYMBOL: signalData.symbol, Time: signalData.timestamp }
     };
     try {
       const data = await customFetch<any>('/api/scanner/alert', {
@@ -165,7 +172,6 @@ export function MarketScannerTab() {
 
     // Log every N ticks per symbol to show real activity
     const tickCountRef: Record<string, number> = {};
-    const lastSignalRef: Record<string, number> = {};
 
     scannerIntervalRef.current = setInterval(() => {
       // Use live prices to simulate strategy evaluation
@@ -183,17 +189,18 @@ export function MarketScannerTab() {
 
           // Strategy evaluation: simple momentum signal (pctChange threshold)
           const now = Date.now();
-          const lastSignal = lastSignalRef[sym] || 0;
-          const cooldown = 60_000; // min 60s between signals per symbol
+          const lastSignal = lastSignalTimeRef.current[sym] || 0;
+          const cooldown = 300_000; // 5 minutes cooldown between signals per symbol
 
           if (now - lastSignal > cooldown) {
             const absPct = Math.abs(data.pctChange);
             if (absPct > 0.05) {
               const direction = data.pctChange > 0 ? "BUY" : "SELL";
               const strength = absPct > 0.2 ? "STRONG" : "MODERATE";
-              lastSignalRef[sym] = now;
-              addLog(`⚡ ${strength} ${direction} signal on ${sym} | Price: ${data.price.toFixed(4)} | Move: ${data.pctChange >= 0 ? '+' : ''}${data.pctChange.toFixed(3)}%`, "alert");
-              triggerAlert({ symbol: sym, direction, strategyId, timestamp: new Date().toISOString() });
+              lastSignalTimeRef.current[sym] = now;
+              const assetName = dbAssetsRef.current.find((a: any) => a.symbol === sym)?.displayName || sym;
+              addLog(`⚡ ${strength} ${direction} signal on ${assetName} (${sym}) | Price: ${data.price.toFixed(4)} | Move: ${data.pctChange >= 0 ? '+' : ''}${data.pctChange.toFixed(3)}%`, "alert");
+              triggerAlert({ symbol: sym, assetName, direction, strategyId, timestamp: new Date().toISOString() });
             }
           }
         });
