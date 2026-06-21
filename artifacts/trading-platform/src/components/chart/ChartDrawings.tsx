@@ -111,6 +111,56 @@ export function ChartDrawings({
     };
   }, [chart, containerRef]);
 
+  // Helper: given a stored time value (which may be a future-extrapolated timestamp),
+  // return its pixel X coordinate on the chart.
+  // For past candles this is a direct API lookup; for future timestamps we extrapolate
+  // using the same pixels-per-bar calculation as the renderer.
+  const timeToPixelX = (time: number): number | null => {
+    if (!chart) return null;
+    const x = chart.timeScale().timeToCoordinate(time as Time);
+    if (x !== null) return x;
+    // Future point — extrapolate
+    if (validCandles && validCandles.length >= 2) {
+      const lastCandle = validCandles[validCandles.length - 1];
+      const secondLast = validCandles[validCandles.length - 2];
+      const interval = (lastCandle.time as number) - (secondLast.time as number);
+      const lastX = chart.timeScale().timeToCoordinate(lastCandle.time as Time);
+      const secondLastX = chart.timeScale().timeToCoordinate(secondLast.time as Time);
+      if (lastX !== null && secondLastX !== null && interval > 0) {
+        const pixelsPerBar = Math.abs(lastX - secondLastX);
+        const barsAhead = (time - (lastCandle.time as number)) / interval;
+        return lastX + barsAhead * pixelsPerBar;
+      }
+    }
+    return null;
+  };
+
+  // Helper: given a pixel X coordinate, return the chart timestamp it represents.
+  // For coordinates inside the chart data range, use the chart API directly.
+  // For coordinates to the right of the last candle, extrapolate via pixels-per-bar
+  // so that future positions are always resolvable regardless of how far right the cursor goes.
+  const pixelXToTime = (pixelX: number): number | null => {
+    if (!chart) return null;
+    const t = chart.timeScale().coordinateToTime(pixelX);
+    if (t !== null) return t as number;
+    // Extrapolate into the future from pixel position
+    if (validCandles && validCandles.length >= 2) {
+      const lastCandle = validCandles[validCandles.length - 1];
+      const secondLast = validCandles[validCandles.length - 2];
+      const interval = (lastCandle.time as number) - (secondLast.time as number);
+      const lastX = chart.timeScale().timeToCoordinate(lastCandle.time as Time);
+      const secondLastX = chart.timeScale().timeToCoordinate(secondLast.time as Time);
+      if (lastX !== null && secondLastX !== null && interval > 0) {
+        const pixelsPerBar = Math.abs(lastX - secondLastX);
+        if (pixelsPerBar > 0 && pixelX >= lastX) {
+          const barsAhead = (pixelX - lastX) / pixelsPerBar;
+          return (lastCandle.time as number) + Math.round(barsAhead) * interval;
+        }
+      }
+    }
+    return null;
+  };
+
   // Handle Dragging
   useEffect(() => {
     if (!isDragging) return;
@@ -166,28 +216,13 @@ export function ChartDrawings({
           let newPrice = pt.price;
 
           if (applyDx) {
-            const currentX = chart.timeScale().timeToCoordinate(pt.time as Time);
+            // Use timeToPixelX which handles both past candles and future-extrapolated points
+            const currentX = timeToPixelX(pt.time);
             if (currentX !== null) {
               const targetX = currentX + dx;
-              const t = chart.timeScale().coordinateToTime(targetX);
-              if (t !== null) {
-                newTime = t as number;
-              } else {
-                // Extrapolate for dragging into future
-                const targetLogical = chart.timeScale().coordinateToLogical(targetX);
-                if (targetLogical !== null && validCandles && validCandles.length >= 2) {
-                  const lastCandle = validCandles[validCandles.length - 1];
-                  const secondLast = validCandles[validCandles.length - 2];
-                  const interval = (lastCandle.time as number) - (secondLast.time as number);
-                  const lastCoord = chart.timeScale().timeToCoordinate(lastCandle.time);
-                  if (lastCoord !== null) {
-                    const lastLogical = chart.timeScale().coordinateToLogical(lastCoord);
-                    if (lastLogical !== null && targetLogical > lastLogical) {
-                      const diff = targetLogical - lastLogical;
-                      newTime = (lastCandle.time as number) + Math.round(diff) * interval;
-                    }
-                  }
-                }
+              const newT = pixelXToTime(targetX);
+              if (newT !== null) {
+                newTime = newT;
               }
             }
           }
@@ -272,27 +307,12 @@ export function ChartDrawings({
     if (param.time) return param.time as number;
     
     if (param.point) {
-      const t = chart.timeScale().coordinateToTime(param.point.x);
-      if (t) return t as number;
-      
-      // Extrapolate into the future if clicked right of the data
-      if (param.logical !== undefined && param.logical !== null && validCandles && validCandles.length >= 2) {
-        const lastCandle = validCandles[validCandles.length - 1];
-        const secondLast = validCandles[validCandles.length - 2];
-        const interval = (lastCandle.time as number) - (secondLast.time as number);
-        
-        const lastCoord = chart.timeScale().timeToCoordinate(lastCandle.time);
-        if (lastCoord !== null) {
-          const lastLogical = chart.timeScale().coordinateToLogical(lastCoord);
-          if (lastLogical !== null && param.logical > lastLogical) {
-            const diff = param.logical - lastLogical;
-            return (lastCandle.time as number) + Math.round(diff) * interval;
-          }
-        }
-      }
+      // Use pixelXToTime which handles both in-data and future positions
+      return pixelXToTime(param.point.x);
     }
     return null;
   };
+
 
   // Handle Chart Clicks and Crosshair moves for creation
   useEffect(() => {
@@ -464,6 +484,17 @@ export function ChartDrawings({
     );
   };
 
+  // Determine right price-scale pixel width so the SVG overlay doesn't obscure it.
+  // IPriceScaleApi.width() is the public lightweight-charts v4+ API.
+  const rightAxisWidth = (() => {
+    if (!chart) return 60;
+    try {
+      const w = chart.priceScale('right').width();
+      if (typeof w === 'number' && w > 0) return w;
+    } catch { /* fall through */ }
+    return 60;
+  })();
+
   // Render SVG Elements
   return (
     <>
@@ -473,8 +504,10 @@ export function ChartDrawings({
         position: "absolute",
         top: 0,
         left: 0,
-        width: "100%",
+        // Clip right so drawings don't cover the price scale
+        width: `calc(100% - ${rightAxisWidth}px)`,
         height: "100%",
+        overflow: "hidden",
         pointerEvents: isShiftDown && activeTool === "cursor" ? "all" : "none",
         zIndex: 20,
       }}
@@ -495,29 +528,35 @@ export function ChartDrawings({
 
       {drawings.map((d) => {
         // Map points to SVG coordinates
+        // For points in the future (beyond the last candle), extrapolate pixel X
         const coords = d.points.map((pt) => {
-          let x = chart.timeScale().timeToCoordinate(pt.time as Time);
-          
-          if (x === null && validCandles && validCandles.length > 0) {
-            // Snapping to nearest available candle in this timeframe
-            const targetTime = pt.time as number;
-            let closest = validCandles[0].time;
-            let minDiff = Math.abs(closest - targetTime);
-            for (let i = 1; i < validCandles.length; i++) {
-              const diff = Math.abs(validCandles[i].time - targetTime);
-              if (diff < minDiff) {
-                minDiff = diff;
-                closest = validCandles[i].time;
+          let x: number | null = chart.timeScale().timeToCoordinate(pt.time as Time);
+
+          if (x === null && validCandles && validCandles.length >= 2) {
+            // The point is in the future — extrapolate pixel X from candle interval
+            const lastCandle = validCandles[validCandles.length - 1];
+            const secondLast = validCandles[validCandles.length - 2];
+            const interval = (lastCandle.time as number) - (secondLast.time as number);
+
+            const lastX = chart.timeScale().timeToCoordinate(lastCandle.time as Time);
+            if (lastX !== null && interval > 0) {
+              // How many intervals past the last candle?
+              const barsAhead = ((pt.time as number) - (lastCandle.time as number)) / interval;
+
+              // Determine pixels-per-bar from the timeScale
+              const secondLastX = chart.timeScale().timeToCoordinate(secondLast.time as Time);
+              if (secondLastX !== null) {
+                const pixelsPerBar = Math.abs(lastX - secondLastX);
+                x = lastX + barsAhead * pixelsPerBar;
               }
             }
-            x = chart.timeScale().timeToCoordinate(closest as Time);
           }
-          
+
           const y = series.priceToCoordinate(pt.price);
           return { x, y };
         });
 
-        // Filter out if coords are completely invalid
+        // Filter out if y-coordinate is invalid (price out of view is ok, x must resolve)
         if (coords.some((c) => c.x === null || c.y === null)) return null;
 
         if (d.type === "horizontal_line") {
