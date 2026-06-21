@@ -50,6 +50,7 @@ export function MarketScannerTab() {
   const autoStartedRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
   const lastSignalTimeRef = useRef<Record<string, number>>({});
+  const lastSignalDirectionRef = useRef<Record<string, string>>({});
   const dbAssetsRef = useRef<any[]>([]);
 
   const { data: searchResults = [], isFetching: isSearching } = useSearchDerivSymbols(
@@ -229,7 +230,16 @@ export function MarketScannerTab() {
             if (absPct > 0.05) {
               const direction = data.pctChange > 0 ? "BUY" : "SELL";
               const strength = absPct > 0.2 ? "STRONG" : "MODERATE";
+              const lastDirection = lastSignalDirectionRef.current[sym];
+              
               lastSignalTimeRef.current[sym] = now;
+              
+              if (lastDirection === direction) {
+                addLog(`⏭️ Skipping consecutive ${direction} signal for ${sym} (Waiting for opposite signal)`, "info");
+                return;
+              }
+              
+              lastSignalDirectionRef.current[sym] = direction;
               const assetName = getSymbolDisplayName(sym);
               
               if (aiEnabled) {
