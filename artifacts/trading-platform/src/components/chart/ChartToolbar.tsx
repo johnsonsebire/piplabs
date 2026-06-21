@@ -19,6 +19,20 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
+const LongPositionIcon = (props: any) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="3" y="3" width="18" height="18" rx="4" />
+    <text x="12" y="16" fontSize="12" fontWeight="bold" textAnchor="middle" fill="currentColor" stroke="none" style={{ fontFamily: "monospace" }}>L</text>
+  </svg>
+);
+
+const ShortPositionIcon = (props: any) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="3" y="3" width="18" height="18" rx="4" />
+    <text x="12" y="16" fontSize="12" fontWeight="bold" textAnchor="middle" fill="currentColor" stroke="none" style={{ fontFamily: "monospace" }}>S</text>
+  </svg>
+);
+
 export type DrawingTool = "cursor" | "horizontal_line" | "vertical_line" | "trend_line" | "ray" | "rectangle" | "fib_retracement" | "text" | "brush" | "long_position" | "short_position";
 
 interface ChartToolbarProps {
@@ -59,11 +73,11 @@ const TOOL_CATEGORIES = [
   },
   {
     id: "positions",
-    icon: ArrowUpRight,
+    icon: LongPositionIcon,
     label: "Positions",
     tools: [
-      { id: "long_position", icon: ArrowUpRight, label: "Long Position" },
-      { id: "short_position", icon: ArrowDownRight, label: "Short Position" },
+      { id: "long_position", icon: LongPositionIcon, label: "Long Position" },
+      { id: "short_position", icon: ShortPositionIcon, label: "Short Position" },
     ]
   },
   {
