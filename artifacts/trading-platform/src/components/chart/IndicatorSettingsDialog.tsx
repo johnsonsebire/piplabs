@@ -55,14 +55,17 @@ export function IndicatorSettingsDialog({ indicator, open, onOpenChange, onSave 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Type</Label>
               <Select value={config.subtype || (baseId === "EMA" ? "EMA" : "SMA")} onValueChange={(v) => updateConfig("subtype", v)}>
-                <SelectTrigger className="col-span-3 font-mono text-sm bg-[#151a21] border-border">
+                <SelectTrigger className="col-span-3 font-mono text-sm bg-[#151a21] border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f1318] border-border" style={{ zIndex: 9999 }}>
-                  <SelectItem value="SMA">Simple (SMA)</SelectItem>
-                  <SelectItem value="EMA">Exponential (EMA)</SelectItem>
-                  <SelectItem value="WMA">Weighted (WMA)</SelectItem>
-                  <SelectItem value="TMA">Triangular (TMA)</SelectItem>
+                <SelectContent
+                  className="border-border"
+                  style={{ background: '#1e2a3a', zIndex: 99999, color: '#e2e8f0' }}
+                >
+                  <SelectItem value="SMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Simple (SMA)</SelectItem>
+                  <SelectItem value="EMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Exponential (EMA)</SelectItem>
+                  <SelectItem value="WMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Weighted (WMA)</SelectItem>
+                  <SelectItem value="TMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Triangular (TMA)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
