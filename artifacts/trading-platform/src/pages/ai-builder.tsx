@@ -465,7 +465,7 @@ export default function AIBuilderPage() {
                               className={msg.role === "user" ? "text-right mt-1" : "text-left mt-1"}
                               style={{ fontSize: "9px", opacity: 0.6 }}
                             >
-                              {new Date(msg.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              {new Date(msg.createdAt).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </div>
                           )}
                         </div>
