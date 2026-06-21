@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Play, Square, Settings2, Bell, Globe, Search, Star, Activity, Zap, TrendingUp, TrendingDown, Radio, ChevronRight } from "lucide-react";
+import { Play, StopCircle, Settings2, Bell, Globe, Search, Star, Activity, Zap, TrendingUp, TrendingDown, Radio, ChevronRight } from "lucide-react";
 import { useGetMe, useUpdateMe, useGetWatchlist, useListStrategies, customFetch, useAddToWatchlist, useRemoveFromWatchlist, useSearchDerivSymbols, useListAssets } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { swalSuccess, swalError } from "@/lib/swal";
@@ -336,7 +336,7 @@ export function MarketScannerTab() {
               transition: 'all 0.2s ease'
             }}
           >
-            {isScanning ? <><Square size={11} /> STOP SCANNER</> : <><Play size={11} /> START SCANNER</>}
+            {isScanning ? <><StopCircle size={13} /> STOP SCANNER</> : <><Play size={11} /> START SCANNER</>}
           </button>
 
           {/* Auto-start toggle */}

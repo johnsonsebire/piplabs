@@ -54,20 +54,29 @@ export function IndicatorSettingsDialog({ indicator, open, onOpenChange, onSave 
           {(baseId === "MA" || baseId === "EMA") && (
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right font-mono text-xs text-muted-foreground uppercase">Type</Label>
-              <Select value={config.subtype || (baseId === "EMA" ? "EMA" : "SMA")} onValueChange={(v) => updateConfig("subtype", v)}>
-                <SelectTrigger className="col-span-3 font-mono text-sm bg-[#151a21] border-border text-foreground">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  className="border-border"
-                  style={{ background: '#1e2a3a', zIndex: 99999, color: '#e2e8f0' }}
-                >
-                  <SelectItem value="SMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Simple (SMA)</SelectItem>
-                  <SelectItem value="EMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Exponential (EMA)</SelectItem>
-                  <SelectItem value="WMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Weighted (WMA)</SelectItem>
-                  <SelectItem value="TMA" style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '12px' }}>Triangular (TMA)</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                value={config.subtype || (baseId === "EMA" ? "EMA" : "SMA")}
+                onChange={(e) => updateConfig("subtype", e.target.value)}
+                className="col-span-3"
+                style={{
+                  height: '36px',
+                  background: '#151a21',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '6px',
+                  color: '#e2e8f0',
+                  fontFamily: 'monospace',
+                  fontSize: '13px',
+                  padding: '0 10px',
+                  width: '100%',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                <option value="SMA" style={{ background: '#151a21', color: '#e2e8f0' }}>Simple (SMA)</option>
+                <option value="EMA" style={{ background: '#151a21', color: '#e2e8f0' }}>Exponential (EMA)</option>
+                <option value="WMA" style={{ background: '#151a21', color: '#e2e8f0' }}>Weighted (WMA)</option>
+                <option value="TMA" style={{ background: '#151a21', color: '#e2e8f0' }}>Triangular (TMA)</option>
+              </select>
             </div>
           )}
 
