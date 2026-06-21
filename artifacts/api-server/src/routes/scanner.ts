@@ -3,7 +3,14 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { usersTable } from "@workspace/db";
 import { db } from "@workspace/db";
 import { eq } from "drizzle-orm";
-// Assume using some fetch or axios for webhooks, and perhaps logging for emails
+import OpenAI from "openai";
+
+function getOpenAIClient(): OpenAI {
+  return new OpenAI({
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
+  });
+}
 
 const router = Router();
 
@@ -49,6 +56,37 @@ router.post("/scanner/alert", requireAuth, async (req: any, res: any) => {
   } catch (error: any) {
     console.error("Error in /scanner/alert:", error);
     res.status(500).json({ error: "Internal server error", details: error.message });
+  }
+});
+
+router.post("/scanner/evaluate", requireAuth, async (req: any, res: any) => {
+  try {
+    const { prompt, symbol, direction } = req.body;
+    if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+
+    const client = getOpenAIClient();
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 150,
+      temperature: 0.1, // Low temperature for consistent evaluation
+    });
+
+    const aiContent = completion.choices[0]?.message?.content || "";
+    const lines = aiContent.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+    const firstLine = lines[0]?.toUpperCase() || "";
+    
+    let result = "INVALID";
+    if (firstLine.includes("VALID") && !firstLine.includes("INVALID")) {
+      result = "VALID";
+    }
+
+    const reasoning = lines.slice(1).join(" ") || firstLine;
+
+    res.json({ result, reasoning });
+  } catch (error: any) {
+    console.error("Error in /scanner/evaluate:", error);
+    res.status(500).json({ error: "AI Evaluation failed" });
   }
 });
 

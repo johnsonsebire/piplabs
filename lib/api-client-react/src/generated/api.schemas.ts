@@ -65,6 +65,8 @@ export interface User {
   scannerWebhookUrl?: string | null;
   scannerEmailAlerts?: boolean;
   scannerSoundAlerts?: boolean;
+  scannerCooldown?: number;
+  scannerAiConfirmation?: boolean;
 }
 
 export interface UserList {
@@ -91,6 +93,8 @@ export interface UserProfileUpdate {
   scannerWebhookUrl?: string | null;
   scannerEmailAlerts?: boolean;
   scannerSoundAlerts?: boolean;
+  scannerCooldown?: number;
+  scannerAiConfirmation?: boolean;
 }
 
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];

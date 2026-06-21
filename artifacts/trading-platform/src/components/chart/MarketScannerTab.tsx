@@ -12,6 +12,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { swalSuccess, swalError } from "@/lib/swal";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn, getSymbolDisplayName } from "@/lib/utils";
+import { fetchHistoricalCandles } from "@/lib/deriv-api";
 
 const SCANNER_STRATEGY_KEY = "scanner_selected_strategy";
 const SCANNER_AUTOSTART_KEY = "scanner_autostart";
@@ -38,6 +39,8 @@ export function MarketScannerTab() {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [emailAlerts, setEmailAlerts] = useState(false);
   const [soundAlerts, setSoundAlerts] = useState(true);
+  const [scannerCooldown, setScannerCooldown] = useState(5);
+  const [scannerAiConfirmation, setScannerAiConfirmation] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("ALL");
@@ -69,6 +72,8 @@ export function MarketScannerTab() {
       setWebhookUrl((user as any).scannerWebhookUrl || "");
       setEmailAlerts((user as any).scannerEmailAlerts ?? false);
       setSoundAlerts((user as any).scannerSoundAlerts ?? true);
+      setScannerCooldown((user as any).scannerCooldown ?? 5);
+      setScannerAiConfirmation((user as any).scannerAiConfirmation ?? false);
     }
   }, [user]);
 
@@ -95,7 +100,7 @@ export function MarketScannerTab() {
 
   const handleSaveSettings = () => {
     updateMe.mutate(
-      { data: { scannerWebhookUrl: webhookUrl || null, scannerEmailAlerts: emailAlerts, scannerSoundAlerts: soundAlerts } as any },
+      { data: { scannerWebhookUrl: webhookUrl || null, scannerEmailAlerts: emailAlerts, scannerSoundAlerts: soundAlerts, scannerCooldown, scannerAiConfirmation } as any },
       {
         onSuccess: () => { swalSuccess("Settings Saved", "Scanner alert preferences updated."); setShowSettings(false); },
         onError: () => swalError("Error", "Failed to save settings."),
@@ -147,8 +152,21 @@ export function MarketScannerTab() {
 
   const triggerAlert = useCallback(async (signalData: any) => {
     if (soundAlerts) {
-      const audio = new Audio('/notification.mp3');
-      audio.play().catch(() => {});
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.5);
+      } catch (e) {
+        console.error("Audio playback failed", e);
+      }
     }
     const stratName = (Array.isArray(strategiesRes) ? strategiesRes : []).find((s: any) => s.id.toString() === signalData.strategyId?.toString())?.name || "Strategy";
     const formattedPayload = {
@@ -173,6 +191,12 @@ export function MarketScannerTab() {
     // Log every N ticks per symbol to show real activity
     const tickCountRef: Record<string, number> = {};
 
+    // Get current cooldown from settings state
+    // We capture the ref here so interval uses the latest (but we also use a ref or direct closure, let's just grab the current value from the render closure)
+    // Actually, setting interval here traps the closure variables. We should use user state directly but for now we'll use the latest local state captured at start.
+    const cooldownMs = scannerCooldown * 60_000;
+    const aiEnabled = scannerAiConfirmation;
+
     scannerIntervalRef.current = setInterval(() => {
       // Use live prices to simulate strategy evaluation
       setLivePrices(current => {
@@ -190,24 +214,69 @@ export function MarketScannerTab() {
           // Strategy evaluation: simple momentum signal (pctChange threshold)
           const now = Date.now();
           const lastSignal = lastSignalTimeRef.current[sym] || 0;
-          const cooldown = 300_000; // 5 minutes cooldown between signals per symbol
 
-          if (now - lastSignal > cooldown) {
+          if (now - lastSignal > cooldownMs) {
             const absPct = Math.abs(data.pctChange);
             if (absPct > 0.05) {
               const direction = data.pctChange > 0 ? "BUY" : "SELL";
               const strength = absPct > 0.2 ? "STRONG" : "MODERATE";
               lastSignalTimeRef.current[sym] = now;
-              const assetName = dbAssetsRef.current.find((a: any) => a.symbol === sym)?.displayName || sym;
-              addLog(`⚡ ${strength} ${direction} signal on ${assetName} (${sym}) | Price: ${data.price.toFixed(4)} | Move: ${data.pctChange >= 0 ? '+' : ''}${data.pctChange.toFixed(3)}%`, "alert");
-              triggerAlert({ symbol: sym, assetName, direction, strategyId, timestamp: new Date().toISOString() });
+              const assetName = getSymbolDisplayName(sym);
+              
+              if (aiEnabled) {
+                addLog(`🤖 Submitting ${strength} ${direction} signal on ${assetName} for AI Analysis...`, "info");
+                // Run async evaluation without blocking interval
+                (async () => {
+                  try {
+                    const timeframes = [
+                      { label: "5M", gran: 300, count: 300 },
+                      { label: "15M", gran: 900, count: 300 },
+                      { label: "30M", gran: 1800, count: 300 },
+                      { label: "4H", gran: 14400, count: 300 },
+                      { label: "1D", gran: 86400, count: 300 }
+                    ];
+                    
+                    const priceDataPromises = timeframes.map(tf => 
+                      fetchHistoricalCandles(sym, tf.gran, tf.count)
+                        .then(candles => ({ label: tf.label, candles }))
+                    );
+                    
+                    const allData = await Promise.all(priceDataPromises);
+                    
+                    const prompt = `A scanner generated a ${direction} signal for ${assetName} (${sym}). 
+Here is the recent price action (300 candles) for multiple timeframes:
+${allData.map(d => `[${d.label}] Last Close: ${d.candles[d.candles.length - 1]?.close || 'N/A'}`).join("\n")}
+Please analyze the trend and momentum across these timeframes based on standard technical analysis principles. 
+Confirm if this is a valid ${direction} setup. 
+You MUST reply with exactly "VALID" or "INVALID" on the first line, followed by a brief reasoning.`;
+                    
+                    const chatRes = await customFetch<any>('/api/scanner/evaluate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ prompt, symbol: sym, direction })
+                    });
+                    
+                    if (chatRes && chatRes.result === 'VALID') {
+                      addLog(`✅ AI Confirmed ${direction} signal on ${sym}: ${chatRes.reasoning}`, "alert");
+                      triggerAlert({ symbol: sym, assetName, direction, strategyId, timestamp: new Date().toISOString() });
+                    } else {
+                      addLog(`❌ AI Rejected ${direction} signal on ${sym}: ${chatRes?.reasoning || 'No reason provided'}`, "info");
+                    }
+                  } catch (err) {
+                    addLog(`✗ AI Analysis failed for ${sym}. Skipping signal.`, "error");
+                  }
+                })();
+              } else {
+                addLog(`⚡ ${strength} ${direction} signal on ${assetName} (${sym}) | Price: ${data.price.toFixed(4)} | Move: ${data.pctChange >= 0 ? '+' : ''}${data.pctChange.toFixed(3)}%`, "alert");
+                triggerAlert({ symbol: sym, assetName, direction, strategyId, timestamp: new Date().toISOString() });
+              }
             }
           }
         });
         return current;
       });
     }, 3000);
-  }, [addLog, triggerAlert, strategiesRes]);
+  }, [addLog, triggerAlert, strategiesRes, scannerCooldown, scannerAiConfirmation]);
 
   const stopScanner = useCallback(() => {
     if (scannerIntervalRef.current) {
@@ -373,7 +442,7 @@ export function MarketScannerTab() {
       {showSettings && (
         <div style={{ flexShrink: 0, padding: '12px', background: 'rgba(13,21,32,0.9)', borderBottom: '1px solid #1a2a3a' }}>
           <div style={{ fontSize: '9px', color: '#3b82f6', fontWeight: 'bold', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Settings2 size={10} /> Alert Configuration
+            <Settings2 size={10} /> Configuration
           </div>
           <div style={{ marginBottom: '8px' }}>
             <div style={{ fontSize: '9px', color: '#475569', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -381,13 +450,29 @@ export function MarketScannerTab() {
             </div>
             <Input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://hook.example.com/..." style={{ height: '30px', borderRadius: '3px', border: '1px solid #1a2a3a', background: '#050a0f', fontFamily: 'Space Mono, monospace', fontSize: '10px', color: '#e2e8f0', width: '100%' }} className="border-[#1a2a3a]" />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: '#050a0f', border: '1px solid #1a2a3a', borderRadius: '3px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '9px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}><Bell size={10} /> Email Alerts</span>
-            <Switch checked={emailAlerts} onCheckedChange={setEmailAlerts} />
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: '#050a0f', border: '1px solid #1a2a3a', borderRadius: '3px' }}>
+              <span style={{ fontSize: '9px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}><Bell size={10} /> Email Alerts</span>
+              <Switch checked={emailAlerts} onCheckedChange={setEmailAlerts} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: '#050a0f', border: '1px solid #1a2a3a', borderRadius: '3px' }}>
+              <span style={{ fontSize: '9px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}><Bell size={10} /> Sound Alerts</span>
+              <Switch checked={soundAlerts} onCheckedChange={setSoundAlerts} />
+            </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: '#050a0f', border: '1px solid #1a2a3a', borderRadius: '3px', marginBottom: '8px' }}>
-            <span style={{ fontSize: '9px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}><Bell size={10} /> Sound Alerts</span>
-            <Switch checked={soundAlerts} onCheckedChange={setSoundAlerts} />
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '9px', color: '#475569', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                Cooldown (mins)
+              </div>
+              <Input type="number" min={0} value={scannerCooldown} onChange={(e) => setScannerCooldown(Number(e.target.value))} style={{ height: '30px', borderRadius: '3px', border: '1px solid #1a2a3a', background: '#050a0f', fontFamily: 'Space Mono, monospace', fontSize: '10px', color: '#e2e8f0', width: '100%' }} className="border-[#1a2a3a]" />
+            </div>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: '#050a0f', border: '1px solid #1a2a3a', borderRadius: '3px', marginTop: '17px' }}>
+              <span style={{ fontSize: '9px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }} title="Send signal to AI to confirm validity">
+                🤖 AI Confirmation
+              </span>
+              <Switch checked={scannerAiConfirmation} onCheckedChange={setScannerAiConfirmation} />
+            </div>
           </div>
           <button onClick={handleSaveSettings} disabled={updateMe.isPending} style={{ width: '100%', height: '28px', background: '#1e3a5f', border: '1px solid #2563eb', borderRadius: '3px', color: '#93c5fd', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.1em', cursor: 'pointer', fontFamily: 'Space Mono, monospace' }}>
             SAVE PREFERENCES

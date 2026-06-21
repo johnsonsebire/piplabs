@@ -227,6 +227,9 @@ importers:
       ws:
         specifier: ^8.20.1
         version: 8.21.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10

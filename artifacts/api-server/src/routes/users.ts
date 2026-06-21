@@ -38,6 +38,11 @@ router.get("/users/me", requireAuth, async (req: AuthenticatedRequest, res): Pro
     permissions: perms ?? null,
     createdAt: user.createdAt,
     lastSeenAt: user.lastSeenAt,
+    scannerCooldown: user.scannerCooldown,
+    scannerAiConfirmation: user.scannerAiConfirmation,
+    scannerWebhookUrl: user.scannerWebhookUrl,
+    scannerEmailAlerts: user.scannerEmailAlerts,
+    scannerSoundAlerts: user.scannerSoundAlerts,
   }));
 });
 
@@ -54,6 +59,8 @@ router.patch("/users/me", requireAuth, async (req: AuthenticatedRequest, res): P
   if ("scannerWebhookUrl" in parsed.data) updateData.scannerWebhookUrl = parsed.data.scannerWebhookUrl ?? null;
   if (parsed.data.scannerEmailAlerts !== undefined) updateData.scannerEmailAlerts = parsed.data.scannerEmailAlerts;
   if (parsed.data.scannerSoundAlerts !== undefined) updateData.scannerSoundAlerts = parsed.data.scannerSoundAlerts;
+  if (parsed.data.scannerCooldown !== undefined) updateData.scannerCooldown = parsed.data.scannerCooldown;
+  if (parsed.data.scannerAiConfirmation !== undefined) updateData.scannerAiConfirmation = parsed.data.scannerAiConfirmation;
 
   const [user] = await db
     .update(usersTable)
@@ -77,6 +84,8 @@ router.patch("/users/me", requireAuth, async (req: AuthenticatedRequest, res): P
     scannerWebhookUrl: user.scannerWebhookUrl,
     scannerEmailAlerts: user.scannerEmailAlerts,
     scannerSoundAlerts: user.scannerSoundAlerts,
+    scannerCooldown: user.scannerCooldown,
+    scannerAiConfirmation: user.scannerAiConfirmation,
   }));
 });
 

@@ -34,7 +34,9 @@ export const GetMeResponse = zod.object({
   "openAiApiKey": zod.string().nullish(),
   "scannerWebhookUrl": zod.string().nullish(),
   "scannerEmailAlerts": zod.boolean().optional(),
-  "scannerSoundAlerts": zod.boolean().optional()
+  "scannerSoundAlerts": zod.boolean().optional(),
+  "scannerCooldown": zod.number().optional(),
+  "scannerAiConfirmation": zod.boolean().optional()
 })
 
 
@@ -47,7 +49,9 @@ export const UpdateMeBody = zod.object({
   "openAiApiKey": zod.string().nullish(),
   "scannerWebhookUrl": zod.string().nullish(),
   "scannerEmailAlerts": zod.boolean().optional(),
-  "scannerSoundAlerts": zod.boolean().optional()
+  "scannerSoundAlerts": zod.boolean().optional(),
+  "scannerCooldown": zod.number().optional(),
+  "scannerAiConfirmation": zod.boolean().optional()
 })
 
 export const UpdateMeResponse = zod.object({
@@ -65,7 +69,9 @@ export const UpdateMeResponse = zod.object({
   "openAiApiKey": zod.string().nullish(),
   "scannerWebhookUrl": zod.string().nullish(),
   "scannerEmailAlerts": zod.boolean().optional(),
-  "scannerSoundAlerts": zod.boolean().optional()
+  "scannerSoundAlerts": zod.boolean().optional(),
+  "scannerCooldown": zod.number().optional(),
+  "scannerAiConfirmation": zod.boolean().optional()
 })
 
 
@@ -94,7 +100,9 @@ export const ListUsersResponse = zod.object({
   "openAiApiKey": zod.string().nullish(),
   "scannerWebhookUrl": zod.string().nullish(),
   "scannerEmailAlerts": zod.boolean().optional(),
-  "scannerSoundAlerts": zod.boolean().optional()
+  "scannerSoundAlerts": zod.boolean().optional(),
+  "scannerCooldown": zod.number().optional(),
+  "scannerAiConfirmation": zod.boolean().optional()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -124,7 +132,9 @@ export const GetUserResponse = zod.object({
   "openAiApiKey": zod.string().nullish(),
   "scannerWebhookUrl": zod.string().nullish(),
   "scannerEmailAlerts": zod.boolean().optional(),
-  "scannerSoundAlerts": zod.boolean().optional()
+  "scannerSoundAlerts": zod.boolean().optional(),
+  "scannerCooldown": zod.number().optional(),
+  "scannerAiConfirmation": zod.boolean().optional()
 })
 
 
@@ -155,7 +165,9 @@ export const UpdateUserResponse = zod.object({
   "openAiApiKey": zod.string().nullish(),
   "scannerWebhookUrl": zod.string().nullish(),
   "scannerEmailAlerts": zod.boolean().optional(),
-  "scannerSoundAlerts": zod.boolean().optional()
+  "scannerSoundAlerts": zod.boolean().optional(),
+  "scannerCooldown": zod.number().optional(),
+  "scannerAiConfirmation": zod.boolean().optional()
 })
 
 

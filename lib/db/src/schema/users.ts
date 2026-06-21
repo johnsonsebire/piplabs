@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -23,6 +23,9 @@ export const usersTable = pgTable("users", {
   scannerWebhookUrl: text("scanner_webhook_url"),
   scannerEmailAlerts: boolean("scanner_email_alerts").notNull().default(false),
   scannerSoundAlerts: boolean("scanner_sound_alerts").notNull().default(true),
+  scannerCooldown: integer("scanner_cooldown").notNull().default(5),
+  scannerAiConfirmation: boolean("scanner_ai_confirmation").notNull().default(false),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 });

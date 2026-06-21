@@ -1573,6 +1573,10 @@ components:
           type: boolean
         scannerSoundAlerts:
           type: boolean
+        scannerCooldown:
+          type: integer
+        scannerAiConfirmation:
+          type: boolean
       required:
         - id
         - clerkId
@@ -1616,6 +1620,10 @@ components:
         scannerEmailAlerts:
           type: boolean
         scannerSoundAlerts:
+          type: boolean
+        scannerCooldown:
+          type: integer
+        scannerAiConfirmation:
           type: boolean
 
     UserRoleUpdate:

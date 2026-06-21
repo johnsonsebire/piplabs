@@ -16,4 +16,6 @@ export interface UserProfileUpdate {
   scannerWebhookUrl?: string | null;
   scannerEmailAlerts?: boolean;
   scannerSoundAlerts?: boolean;
+  scannerCooldown?: number;
+  scannerAiConfirmation?: boolean;
 }

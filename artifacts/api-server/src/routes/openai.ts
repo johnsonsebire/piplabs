@@ -135,8 +135,25 @@ router.post("/openai/conversations/:id/messages", requireAuth, async (req: Authe
   res.status(201).json(assistantMsg);
 });
 
+import { z } from "zod";
+
+const MultiTimeframeTrendInput = z.object({
+  symbol: z.string(),
+  candleDepth: z.number().default(50),
+  timeframesData: z.any()
+});
+
+const MultiTimeframeTrendOutput = z.object({
+  trends: z.record(z.string(), z.object({
+    direction: z.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+    strength: z.number().min(1).max(100)
+  })),
+  overallState: z.enum(["RANGING", "TRENDING"]),
+  volatility: z.enum(["Low", "Medium", "High"]),
+  reasoning: z.string()
+});
+
 router.post("/openai/analyze-trend", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { MultiTimeframeTrendInput, MultiTimeframeTrendOutput } = await import("@workspace/api-zod");
   const parsed = MultiTimeframeTrendInput.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
