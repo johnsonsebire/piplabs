@@ -59,6 +59,7 @@ export default function ChartPage() {
 
   const [activeChartId, setActiveChartId] = useState<string>(charts[0]?.id || "1");
   const [maximizedChartId, setMaximizedChartId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("trade");
 
   const [layout, setLayout] = useState<LayoutType>(() => {
     if (typeof window !== 'undefined') {
@@ -422,7 +423,7 @@ Number of charts on screen: ${charts.length}`);
               !isTradePanelOpen && !isMobile && "d-none"
             )}
           >
-            <Tabs defaultValue="trade" className="h-100 d-flex flex-column">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-100 d-flex flex-column">
               <div className="border-b border-border p-2 bg-[#0a0d11]">
                 <TabsList className="strategy-tabs-list">
                   <TabsTrigger 
@@ -772,9 +773,10 @@ Number of charts on screen: ${charts.length}`);
                 </div>
               </TabsContent>
 
-              <TabsContent value="scanner" className="flex-1 overflow-y-auto m-0 data-[state=active]:d-flex flex-column focus-visible:outline-none">
+              {/* Scanner is always mounted for background scanning, just hidden visually when not active */}
+              <div style={{ display: activeTab === 'scanner' ? 'flex' : 'none', flexDirection: 'column', flex: 1, overflow: 'auto' }}>
                 <MarketScannerTab />
-              </TabsContent>
+              </div>
             </Tabs>
           </Panel>
         </PanelGroup>

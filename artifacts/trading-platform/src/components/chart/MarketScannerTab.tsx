@@ -52,6 +52,8 @@ export function MarketScannerTab() {
   const lastSignalTimeRef = useRef<Record<string, number>>({});
   const lastSignalDirectionRef = useRef<Record<string, string>>({});
   const dbAssetsRef = useRef<any[]>([]);
+  const scannerCooldownRef = useRef(scannerCooldown);
+  useEffect(() => { scannerCooldownRef.current = scannerCooldown; }, [scannerCooldown]);
 
   const { data: searchResults = [], isFetching: isSearching } = useSearchDerivSymbols(
     debouncedSearchQuery ? { q: debouncedSearchQuery } : undefined,
@@ -201,10 +203,7 @@ export function MarketScannerTab() {
     // Log every N ticks per symbol to show real activity
     const tickCountRef: Record<string, number> = {};
 
-    // Get current cooldown from settings state
-    // We capture the ref here so interval uses the latest (but we also use a ref or direct closure, let's just grab the current value from the render closure)
-    // Actually, setting interval here traps the closure variables. We should use user state directly but for now we'll use the latest local state captured at start.
-    const cooldownMs = scannerCooldown * 60_000;
+    // We now use scannerCooldownRef.current inside the interval so it dynamically updates
     const aiEnabled = scannerAiConfirmation;
 
     scannerIntervalRef.current = setInterval(() => {
@@ -224,6 +223,7 @@ export function MarketScannerTab() {
           // Strategy evaluation: simple momentum signal (pctChange threshold)
           const now = Date.now();
           const lastSignal = lastSignalTimeRef.current[sym] || 0;
+          const cooldownMs = scannerCooldownRef.current * 60_000;
 
           if (now - lastSignal > cooldownMs) {
             const absPct = Math.abs(data.pctChange);
