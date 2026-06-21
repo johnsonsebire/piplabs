@@ -14,6 +14,7 @@ import { swalSuccess, swalError } from "@/lib/swal";
 interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  createdAt?: string;
 }
 
 export default function AIBuilderPage() {
@@ -54,7 +55,7 @@ export default function AIBuilderPage() {
       const res = await fetch(`/api/conversations/${activeChatId}/messages`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.map((m: any) => ({ role: m.role, content: m.content })));
+        setMessages(data.map((m: any) => ({ role: m.role, content: m.content, createdAt: m.createdAt })));
       }
     }
     loadMessages();
@@ -77,7 +78,7 @@ export default function AIBuilderPage() {
 
     const userMsg = input.trim();
     setInput("");
-    const newMessages: ChatMessage[] = [...messages, { role: "user", content: userMsg }];
+    const newMessages: ChatMessage[] = [...messages, { role: "user", content: userMsg, createdAt: new Date().toISOString() }];
     setMessages(newMessages);
     setIsGenerating(true);
     setFinalStrategy(null);
@@ -98,7 +99,7 @@ export default function AIBuilderPage() {
       const decoder = new TextDecoder();
       let assistantMsg = "";
       
-      setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "", createdAt: new Date().toISOString() }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -459,6 +460,14 @@ export default function AIBuilderPage() {
                           >
                             {msg.content}
                           </ReactMarkdown>
+                          {msg.createdAt && (
+                            <div 
+                              className={msg.role === "user" ? "text-right mt-1" : "text-left mt-1"}
+                              style={{ fontSize: "9px", opacity: 0.6 }}
+                            >
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

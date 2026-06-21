@@ -255,10 +255,8 @@ export function AiChatWidget() {
                   )}
                   {msg.createdAt && (
                     <div 
-                      className={cn(
-                        "text-[10px] mt-2 opacity-70", 
-                        msg.role === "user" ? "text-right" : "text-left"
-                      )}
+                      className={msg.role === "user" ? "text-right mt-1" : "text-left mt-1"}
+                      style={{ fontSize: "9px", opacity: 0.6 }}
                     >
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
