@@ -86,9 +86,10 @@ interface OscillatorPanelProps {
   validCandles: any[];
   mainChart: IChartApi | null;
   isFirst: boolean;
+  configStr: string;
 }
 
-function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: OscillatorPanelProps) {
+function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst, configStr }: OscillatorPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const linesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
@@ -162,7 +163,7 @@ function OscillatorPanel({ oscillator, validCandles, mainChart, isFirst }: Oscil
     const chart = chartRef.current;
     if (!chart) return;
 
-    const paramsStr = JSON.stringify({ color: oscillator.color, thickness: oscillator.thickness, additional: oscillator.additionalSeries?.map(a => a.color) });
+    const paramsStr = JSON.stringify({ color: oscillator.color, thickness: oscillator.thickness, additional: oscillator.additionalSeries?.map(a => a.color), cfg: configStr });
     const paramsChanged = paramsRef.current !== paramsStr;
     paramsRef.current = paramsStr;
 
@@ -665,7 +666,7 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
     const chart = chartRef.current;
     if (!chart) return;
 
-    const indsStr = JSON.stringify(indicators);
+    const indsStr = JSON.stringify(activeIndicators);
     const paramsChanged = prevIndsRef.current !== indsStr;
     prevIndsRef.current = indsStr;
 
@@ -965,13 +966,15 @@ Current Price Quote: ${latestTick ? latestTick.quote : 'N/A'}${htfContext}`;
         )}
       </div>
       <TradingGuideOverlay />
-      {computed.filter(c => c.pane === "oscillator").map((osc, index) => (
+      {computed.filter(c => c.pane === "oscillator").map((osc, idx) => (
         <div key={osc.id} style={{ position: 'relative' }}>
           <OscillatorPanel
+            key={osc.id}
             oscillator={osc}
             validCandles={validCandles}
             mainChart={chartRef.current}
-            isFirst={index === 0}
+            isFirst={idx === 0}
+            configStr={JSON.stringify(activeIndicators.find(ind => ind.instanceId === osc.id)?.config || {})}
           />
           <div style={{ position: 'absolute', top: '4px', right: '8px', zIndex: 50, display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 4px', backgroundColor: 'rgba(10, 13, 17, 0.8)' }}>
             <button 
