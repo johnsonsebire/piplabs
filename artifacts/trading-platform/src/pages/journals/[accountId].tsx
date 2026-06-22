@@ -3,11 +3,14 @@ import { useRoute, Link } from "wouter";
 import { useListJournals, useGetJournalStats, useDeleteJournal, JournalEntry, useListJournalWorkspaces } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, Settings, TrendingUp, TrendingDown, Target, Activity, MoreVertical, Edit, Trash2, BookOpen } from "lucide-react";
+import { ArrowLeft, Plus, Settings, TrendingUp, TrendingDown, Target, Activity, MoreVertical, Edit, Trash2, BookOpen, Calendar, List } from "lucide-react";
 import { JournalFormModal } from "@/components/journals/JournalFormModal";
 import { WorkspaceSettingsModal } from "@/components/journals/WorkspaceSettingsModal";
 import { useQueryClient } from "@tanstack/react-query";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { JournalCalendar } from "@/components/journals/JournalCalendar";
+import { isSameDay } from "date-fns";
 import { swalConfirm, swalSuccess, swalError } from "@/lib/swal";
 
 export default function JournalDashboard() {
@@ -17,6 +20,8 @@ export default function JournalDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const { data: workspaces } = useListJournalWorkspaces();
   const workspace = workspaces?.find(w => w.id === accountId);
@@ -24,6 +29,12 @@ export default function JournalDashboard() {
   const { data: statsData, isLoading: isLoadingStats } = useGetJournalStats({ accountName: accountId! });
   const { data: journalsData, isLoading: isLoadingJournals } = useListJournals({ accountName: accountId! });
   const deleteJournal = useDeleteJournal();
+
+  const filteredJournals = useMemo(() => {
+    if (!journalsData) return [];
+    if (!selectedDate) return journalsData;
+    return journalsData.filter(trade => isSameDay(new Date(trade.openTime), selectedDate));
+  }, [journalsData, selectedDate]);
 
   const handleEdit = (entry: JournalEntry) => {
     setEditingEntry(entry);
@@ -76,8 +87,39 @@ export default function JournalDashboard() {
           </div>
         </div>
 
-        {/* Metrics Row */}
-        <div className="row g-3 mb-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
+          <div className="border-b border-border p-2 bg-[#0a0d11] mb-4">
+            <TabsList className="strategy-tabs-list">
+              <TabsTrigger 
+                value="overview" 
+                className="strategy-tab-trigger flex gap-2 items-center"
+                data-tab="overview"
+              >
+                <Activity size={14} />
+                <span>Overview</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="calendar" 
+                className="strategy-tab-trigger flex gap-2 items-center"
+                data-tab="calendar"
+              >
+                <Calendar size={14} />
+                <span>Calendar</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="history" 
+                className="strategy-tab-trigger flex gap-2 items-center"
+                data-tab="history"
+              >
+                <List size={14} />
+                <span>History</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="m-0 focus-visible:outline-none">
+            {/* Metrics Row */}
+            <div className="row g-3 mb-4">
           <div className="col-12 col-sm-6 col-lg-3">
             <div className="card bg-dark border-secondary h-100">
               <div className="card-body">
@@ -138,13 +180,37 @@ export default function JournalDashboard() {
             </div>
           </div>
         </div>
+      </TabsContent>
 
-        {/* Trade History */}
-        <div className="card bg-dark border-secondary">
-          <div className="card-header border-secondary bg-transparent py-3">
-            <h5 className="mb-0 text-white fw-bold">Trade History</h5>
-          </div>
-          <div className="card-body p-0">
+      <TabsContent value="calendar" className="m-0 focus-visible:outline-none">
+            <div className="mb-4">
+              <JournalCalendar 
+                journals={journalsData || []} 
+                selectedDate={selectedDate} 
+                onSelectDate={(date) => {
+                  setSelectedDate(date);
+                  if (date) {
+                    setActiveTab("history");
+                  }
+                }} 
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history" className="m-0 focus-visible:outline-none">
+            {/* Trade History */}
+            <div className="card bg-dark border-secondary">
+              <div className="card-header border-secondary bg-transparent py-3 d-flex justify-content-between align-items-center">
+                <h5 className="mb-0 text-white fw-bold">
+                  Trade History {selectedDate && <span className="text-primary small ms-2">({selectedDate.toLocaleDateString()})</span>}
+                </h5>
+                {selectedDate && (
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedDate(null)} className="text-secondary hover:text-white">
+                    Clear Date Filter
+                  </Button>
+                )}
+              </div>
+              <div className="card-body p-0">
             <div className="table-responsive">
               <table className="table table-dark table-hover mb-0 align-middle">
                 <thead>
@@ -165,8 +231,8 @@ export default function JournalDashboard() {
                     <tr>
                       <td colSpan={9} className="text-center py-4 text-secondary">Loading trades...</td>
                     </tr>
-                  ) : journalsData && journalsData.length > 0 ? (
-                    journalsData.map((trade) => (
+                  ) : filteredJournals && filteredJournals.length > 0 ? (
+                    filteredJournals.map((trade) => (
                       <tr key={trade.id}>
                         <td className="text-light">{new Date(trade.openTime).toLocaleString()}</td>
                         <td className="fw-bold text-light">{trade.symbol}</td>
@@ -218,6 +284,8 @@ export default function JournalDashboard() {
             </div>
           </div>
         </div>
+      </TabsContent>
+    </Tabs>
       </div>
       
       {accountId && (
