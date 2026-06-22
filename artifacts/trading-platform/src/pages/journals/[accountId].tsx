@@ -3,15 +3,17 @@ import { useRoute, Link } from "wouter";
 import { useListJournals, useGetJournalStats, useDeleteJournal, JournalEntry, useListJournalWorkspaces } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, Settings, TrendingUp, TrendingDown, Target, Activity, MoreVertical, Edit, Trash2, BookOpen, Calendar, List } from "lucide-react";
+import { ArrowLeft, Plus, Settings, TrendingUp, TrendingDown, Target, Activity, MoreVertical, Edit, Trash2, BookOpen, Calendar, List, BarChart2, Download, Wallet, AlertCircle, Hash, Clock } from "lucide-react";
 import { JournalFormModal } from "@/components/journals/JournalFormModal";
 import { WorkspaceSettingsModal } from "@/components/journals/WorkspaceSettingsModal";
 import { useQueryClient } from "@tanstack/react-query";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { JournalCalendar } from "@/components/journals/JournalCalendar";
-import { isSameDay } from "date-fns";
+import { JournalAnalytics } from "@/components/journals/JournalAnalytics";
+import { isSameDay, format } from "date-fns";
 import { swalConfirm, swalSuccess, swalError } from "@/lib/swal";
+import { exportToCSV, exportToPDF } from "@/lib/exportUtils";
 
 export default function JournalDashboard() {
   const [, params] = useRoute("/journals/:accountId");
@@ -35,6 +37,86 @@ export default function JournalDashboard() {
     if (!selectedDate) return journalsData;
     return journalsData.filter(trade => isSameDay(new Date(trade.openTime), selectedDate));
   }, [journalsData, selectedDate]);
+
+  const advancedStats = useMemo(() => {
+    if (!journalsData || !workspace) return null;
+
+    const startingBalance = workspace.startingBalance || 0;
+    const totalPnL = statsData?.totalPnL || 0;
+    const currentBalance = startingBalance + totalPnL;
+
+    const sortedJournals = [...journalsData].sort((a, b) => new Date(a.openTime).getTime() - new Date(b.openTime).getTime());
+
+    let peakEquity = startingBalance;
+    let maxDrawdown = 0;
+    let runningEquity = startingBalance;
+
+    let todaysPnL = 0;
+    let dailyDrawdown = 0;
+    const today = new Date();
+
+    let totalLots = 0;
+    const tradingDaysSet = new Set<string>();
+    const symbolCounts: Record<string, number> = {};
+
+    sortedJournals.forEach(j => {
+      const pnl = j.profitLossRaw || 0;
+      runningEquity += pnl;
+
+      if (runningEquity > peakEquity) peakEquity = runningEquity;
+      const drawdown = peakEquity - runningEquity;
+      if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+
+      if (isSameDay(new Date(j.openTime), today)) {
+        todaysPnL += pnl;
+      }
+
+      totalLots += Number(j.volume) || 0;
+      tradingDaysSet.add(format(new Date(j.openTime), "yyyy-MM-dd"));
+      symbolCounts[j.symbol] = (symbolCounts[j.symbol] || 0) + 1;
+    });
+
+    const todaysStartingBalance = currentBalance - todaysPnL;
+
+    let todayRunningEq = todaysStartingBalance;
+    let todayPeak = todaysStartingBalance;
+    const todayTrades = sortedJournals.filter(j => isSameDay(new Date(j.openTime), today));
+    todayTrades.forEach(j => {
+       todayRunningEq += (j.profitLossRaw || 0);
+       if (todayRunningEq > todayPeak) todayPeak = todayRunningEq;
+       const dd = todayPeak - todayRunningEq;
+       if (dd > dailyDrawdown) dailyDrawdown = dd;
+    });
+
+    let mostTradedAsset = "-";
+    let maxCount = 0;
+    Object.entries(symbolCounts).forEach(([symbol, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostTradedAsset = symbol;
+      }
+    });
+
+    const averageWin = statsData?.averageWin || 0;
+    const averageLoss = Math.abs(statsData?.averageLoss || 0);
+    const averageRRR = averageLoss > 0 ? (averageWin / averageLoss) : (averageWin > 0 ? 999 : 0);
+
+    return {
+      startingBalance,
+      currentBalance,
+      currentEquity: currentBalance,
+      todaysStartingBalance,
+      dailyDrawdown,
+      maxDrawdown,
+      totalTrades: statsData?.totalTrades || 0,
+      totalLots: Number(totalLots.toFixed(2)),
+      averageRRR,
+      winRate: statsData?.winRate || 0,
+      tradingDays: tradingDaysSet.size,
+      mostTradedAsset,
+      averageLosingTrade: averageLoss
+    };
+  }, [journalsData, workspace, statsData]);
 
   const handleEdit = (entry: JournalEntry) => {
     setEditingEntry(entry);
@@ -76,6 +158,29 @@ export default function JournalDashboard() {
             </div>
           </div>
           <div className="d-flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="border-secondary text-light d-flex align-items-center gap-2">
+                  <Download size={16} />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-dark text-light border-secondary">
+                <DropdownMenuItem 
+                  className="cursor-pointer hover:bg-secondary/50" 
+                  onClick={() => exportToCSV(filteredJournals, `${workspace?.name || 'journal'}_export.csv`)}
+                >
+                  Export to CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="cursor-pointer hover:bg-secondary/50" 
+                  onClick={() => exportToPDF(filteredJournals, `${workspace?.name || 'journal'}_export.pdf`, `${workspace?.name || 'Journal'} Report`)}
+                >
+                  Export to PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button size="sm" variant="outline" className="border-secondary text-light d-flex align-items-center gap-2" onClick={() => setIsSettingsOpen(true)}>
               <Settings size={16} />
               Settings
@@ -107,6 +212,14 @@ export default function JournalDashboard() {
                 <span>Calendar</span>
               </TabsTrigger>
               <TabsTrigger 
+                value="analytics" 
+                className="strategy-tab-trigger flex gap-2 items-center"
+                data-tab="analytics"
+              >
+                <BarChart2 size={14} />
+                <span>Analytics</span>
+              </TabsTrigger>
+              <TabsTrigger 
                 value="history" 
                 className="strategy-tab-trigger flex gap-2 items-center"
                 data-tab="history"
@@ -118,69 +231,140 @@ export default function JournalDashboard() {
           </div>
 
           <TabsContent value="overview" className="m-0 focus-visible:outline-none">
-            {/* Metrics Row */}
-            <div className="row g-3 mb-4">
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card bg-dark border-secondary h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <h6 className="text-secondary mb-0 small text-uppercase tracking-wider">Net P&L</h6>
-                  <Target size={16} className="text-primary" />
-                </div>
-                <h3 className={`fw-bold mb-1 ${(statsData?.totalPnL || 0) >= 0 ? "text-success" : "text-danger"}`}>
-                  {formatMoney(statsData?.totalPnL)}
-                </h3>
-                {workspace && workspace.startingBalance > 0 && (
-                  <div className="mt-2 text-secondary small">
-                    Equity: <strong className="text-light">{formatMoney(workspace.startingBalance + (statsData?.totalPnL || 0))}</strong>
+            <div className="mb-4">
+              <h5 className="text-light fw-bold mb-3">Account Information</h5>
+              <div className="row g-3">
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="text-secondary small text-uppercase tracking-wider">Account Size</span>
+                        <Wallet size={14} className="text-secondary" />
+                      </div>
+                      <h5 className="fw-bold mb-0 text-white">{formatMoney(advancedStats?.startingBalance)}</h5>
+                    </div>
                   </div>
-                )}
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="text-secondary small text-uppercase tracking-wider">Current Balance</span>
+                        <Wallet size={14} className="text-primary" />
+                      </div>
+                      <h5 className="fw-bold mb-0 text-white">{formatMoney(advancedStats?.currentBalance)}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="text-secondary small text-uppercase tracking-wider">Current Equity</span>
+                        <Target size={14} className="text-success" />
+                      </div>
+                      <h5 className="fw-bold mb-0 text-white">{formatMoney(advancedStats?.currentEquity)}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="text-secondary small text-uppercase tracking-wider">Today's Start</span>
+                        <Calendar size={14} className="text-secondary" />
+                      </div>
+                      <h5 className="fw-bold mb-0 text-white">{formatMoney(advancedStats?.todaysStartingBalance)}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="text-secondary small text-uppercase tracking-wider">Daily DD</span>
+                        <TrendingDown size={14} className="text-danger" />
+                      </div>
+                      <h5 className="fw-bold mb-0 text-danger">{formatMoney(advancedStats?.dailyDrawdown)}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="text-secondary small text-uppercase tracking-wider">Max DD</span>
+                        <AlertCircle size={14} className="text-danger" />
+                      </div>
+                      <h5 className="fw-bold mb-0 text-danger">{formatMoney(advancedStats?.maxDrawdown)}</h5>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card bg-dark border-secondary h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between align-items-start mb-2">
-                  <h6 className="text-secondary mb-0 small text-uppercase tracking-wider">Win Rate</h6>
-                  <Activity size={16} className="text-success" />
+
+            <div className="mb-4">
+              <h5 className="text-light fw-bold mb-3">Trading Stats</h5>
+              <div className="row g-3">
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Trades</div>
+                      <h5 className="fw-bold mb-0 text-white">{advancedStats?.totalTrades || 0}</h5>
+                    </div>
+                  </div>
                 </div>
-                <h3 className="fw-bold mb-1 text-white">
-                  {statsData?.winRate?.toFixed(1) || 0}%
-                </h3>
-                <span className="small text-secondary">{statsData?.totalTrades || 0} Total Trades</span>
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Lots</div>
+                      <h5 className="fw-bold mb-0 text-white">{advancedStats?.totalLots || 0}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Avg RRR</div>
+                      <h5 className="fw-bold mb-0 text-info">{advancedStats?.averageRRR?.toFixed(2) || "0.00"}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Win Rate</div>
+                      <h5 className="fw-bold mb-0 text-success">{advancedStats?.winRate?.toFixed(1) || "0.0"}%</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Trading Days</div>
+                      <h5 className="fw-bold mb-0 text-white">{advancedStats?.tradingDays || 0}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Most Traded</div>
+                      <h5 className="fw-bold mb-0 text-primary">{advancedStats?.mostTradedAsset || "-"}</h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Avg Losing Trade</div>
+                      <h5 className="fw-bold mb-0 text-danger">{formatMoney(advancedStats?.averageLosingTrade)}</h5>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card bg-dark border-secondary h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between align-items-start mb-2">
-                  <h6 className="text-secondary mb-0 small text-uppercase tracking-wider">Profit Factor</h6>
-                  <TrendingUp size={16} className="text-warning" />
-                </div>
-                <h3 className="fw-bold mb-1 text-white">
-                  {statsData?.profitFactor?.toFixed(2) || "0.00"}
-                </h3>
-              </div>
-            </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card bg-dark border-secondary h-100">
-              <div className="card-body">
-                <div className="d-flex justify-content-between align-items-start mb-2">
-                  <h6 className="text-secondary mb-0 small text-uppercase tracking-wider">Avg Win / Loss</h6>
-                  <TrendingDown size={16} className="text-danger" />
-                </div>
-                <div className="d-flex flex-column gap-1">
-                  <span className="text-success fw-medium">{formatMoney(statsData?.averageWin)}</span>
-                  <span className="text-danger fw-medium">{formatMoney(statsData?.averageLoss)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </TabsContent>
+          </TabsContent>
 
       <TabsContent value="calendar" className="m-0 focus-visible:outline-none">
             <div className="mb-4">
@@ -194,6 +378,12 @@ export default function JournalDashboard() {
                   }
                 }} 
               />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="m-0 focus-visible:outline-none">
+            <div className="mb-4">
+              <JournalAnalytics journals={journalsData || []} />
             </div>
           </TabsContent>
 

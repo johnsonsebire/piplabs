@@ -169,6 +169,14 @@ router.patch("/journals/:id", requireAuth, async (req: Request, res: Response) =
     if (updateData.openTime) updateData.openTime = new Date(updateData.openTime);
     if (updateData.closeTime) updateData.closeTime = new Date(updateData.closeTime);
     
+    // Remove read-only/computed fields
+    delete updateData.id;
+    delete updateData.userId;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+    delete updateData.grossProfit;
+    delete updateData.durationMinutes;
+    
     const [entry] = await db.update(journalsTable)
       .set(updateData)
       .where(and(eq(journalsTable.id, id), eq(journalsTable.userId, (req as any).userId)))
