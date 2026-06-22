@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type BacktestInputTradeType = typeof BacktestInputTradeType[keyof typeof BacktestInputTradeType];
+export type JournalEntryTradeType = typeof JournalEntryTradeType[keyof typeof JournalEntryTradeType];
 
 
-export const BacktestInputTradeType = {
+export const JournalEntryTradeType = {
   vanilla_options: 'vanilla_options',
   forex: 'forex',
   multiplier: 'multiplier',

@@ -25,6 +25,8 @@ import AIBuilderPage from "@/pages/ai-builder";
 
 import MT5AccountsPage from "@/pages/mt5-accounts";
 import CopyTradingPage from "@/pages/copy-trading";
+import JournalsPage from "@/pages/journals";
+import JournalDashboard from "@/pages/journals/[accountId]";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -301,6 +303,12 @@ function ClerkProviderWithRoutes() {
               </Route>
               <Route path="/copy-trading">
                 <ProtectedRoute component={CopyTradingPage} />
+              </Route>
+              <Route path="/journals">
+                <ProtectedRoute component={JournalsPage} />
+              </Route>
+              <Route path="/journals/:accountId">
+                <ProtectedRoute component={JournalDashboard} />
               </Route>
               <Route path="/settings">
                 <ProtectedRoute component={SettingsPage} />

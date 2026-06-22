@@ -630,7 +630,7 @@ export const DeleteGuideResponse = zod.void()
  */
 export const ListTradesQueryParams = zod.object({
   "status": zod.enum(['open', 'closed', 'cancelled', 'pending']).optional(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']).optional(),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']).optional(),
   "symbol": zod.coerce.string().optional(),
   "page": zod.coerce.number().optional(),
   "limit": zod.coerce.number().optional()
@@ -642,7 +642,7 @@ export const ListTradesResponse = zod.object({
   "userId": zod.string(),
   "symbol": zod.string(),
   "displayName": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -672,7 +672,7 @@ export const ListTradesResponse = zod.object({
  */
 export const CreateTradeBody = zod.object({
   "symbol": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -692,7 +692,7 @@ export const CreateTradeResponse = zod.object({
   "userId": zod.string(),
   "symbol": zod.string(),
   "displayName": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -725,7 +725,7 @@ export const GetRecentTradesResponseItem = zod.object({
   "userId": zod.string(),
   "symbol": zod.string(),
   "displayName": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -792,7 +792,7 @@ export const GetTradeResponse = zod.object({
   "userId": zod.string(),
   "symbol": zod.string(),
   "displayName": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -831,7 +831,7 @@ export const UpdateTradeResponse = zod.object({
   "userId": zod.string(),
   "symbol": zod.string(),
   "displayName": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -864,7 +864,7 @@ export const CloseTradeResponse = zod.object({
   "userId": zod.string(),
   "symbol": zod.string(),
   "displayName": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -1258,7 +1258,7 @@ export const RunBacktestBody = zod.object({
   "symbol": zod.string(),
   "fromDate": zod.coerce.date(),
   "toDate": zod.coerce.date(),
-  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier']).optional(),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']).optional(),
   "mt5AccountId": zod.string().nullish(),
   "duration": zod.number().nullish(),
   "durationUnit": zod.union([zod.literal('t'),zod.literal('s'),zod.literal('m'),zod.literal('h'),zod.literal('d'),zod.literal(null)]).nullish(),
@@ -1350,7 +1350,7 @@ export const AnalyzeWithAIBody = zod.object({
   "symbol": zod.string(),
   "chartScreenshot": zod.string().nullish().describe('Base64 encoded chart screenshot'),
   "indicatorData": zod.string().nullish().describe('JSON string of current indicator values'),
-  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']).nullish(),
   "tradeId": zod.number().nullish(),
   "timeframe": zod.string().nullish(),
@@ -1593,7 +1593,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "userId": zod.string(),
   "symbol": zod.string(),
   "displayName": zod.string(),
-  "type": zod.enum(['vanilla_options', 'forex', 'multiplier']),
+  "type": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
   "direction": zod.enum(['buy', 'sell', 'call', 'put']),
   "stake": zod.number(),
   "targetProfit": zod.number().nullish(),
@@ -1751,5 +1751,244 @@ export const GenerateOpenaiImageBody = zod.object({
 export const GenerateOpenaiImageResponse = zod.object({
   "b64_json": zod.string()
 })
+
+
+/**
+ * @summary List all journal workspaces
+ */
+export const ListJournalWorkspacesResponseItem = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "name": zod.string(),
+  "startingBalance": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListJournalWorkspacesResponse = zod.array(ListJournalWorkspacesResponseItem)
+
+
+/**
+ * @summary Create a new journal workspace
+ */
+export const CreateJournalWorkspaceBody = zod.object({
+  "name": zod.string(),
+  "startingBalance": zod.number().optional()
+})
+
+export const CreateJournalWorkspaceResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "name": zod.string(),
+  "startingBalance": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a journal workspace
+ */
+export const UpdateJournalWorkspaceParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateJournalWorkspaceBody = zod.object({
+  "name": zod.string().optional(),
+  "startingBalance": zod.number().optional()
+})
+
+export const UpdateJournalWorkspaceResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "name": zod.string(),
+  "startingBalance": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a journal workspace
+ */
+export const DeleteJournalWorkspaceParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteJournalWorkspaceResponse = zod.void()
+
+
+/**
+ * @summary List all journal entries
+ */
+export const ListJournalsQueryParams = zod.object({
+  "accountName": zod.coerce.string().optional(),
+  "symbol": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListJournalsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "accountName": zod.string(),
+  "symbol": zod.string(),
+  "side": zod.enum(['buy', 'sell']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
+  "volume": zod.number(),
+  "openTime": zod.coerce.date(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListJournalsResponse = zod.array(ListJournalsResponseItem)
+
+
+/**
+ * @summary Create a new journal entry
+ */
+export const CreateJournalBody = zod.object({
+  "accountName": zod.string(),
+  "symbol": zod.string(),
+  "side": zod.enum(['buy', 'sell']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
+  "volume": zod.number(),
+  "openTime": zod.coerce.date(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateJournalResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "accountName": zod.string(),
+  "symbol": zod.string(),
+  "side": zod.enum(['buy', 'sell']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
+  "volume": zod.number(),
+  "openTime": zod.coerce.date(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get journal statistics and metrics
+ */
+export const GetJournalStatsQueryParams = zod.object({
+  "accountName": zod.coerce.string()
+})
+
+export const GetJournalStatsResponse = zod.object({
+  "totalTrades": zod.number(),
+  "winRate": zod.number(),
+  "profitFactor": zod.number(),
+  "totalPnL": zod.number(),
+  "averageWin": zod.number(),
+  "averageLoss": zod.number(),
+  "byDuration": zod.array(zod.object({
+  "duration": zod.string(),
+  "pnl": zod.number(),
+  "winRate": zod.number()
+}))
+})
+
+
+/**
+ * @summary Get a single journal entry
+ */
+export const GetJournalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJournalResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "accountName": zod.string(),
+  "symbol": zod.string(),
+  "side": zod.enum(['buy', 'sell']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
+  "volume": zod.number(),
+  "openTime": zod.coerce.date(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a journal entry
+ */
+export const UpdateJournalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateJournalBody = zod.object({
+  "accountName": zod.string().optional(),
+  "symbol": zod.string().optional(),
+  "side": zod.enum(['buy', 'sell']).optional(),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']).optional(),
+  "volume": zod.number().optional(),
+  "openTime": zod.coerce.date().optional(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number().optional(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateJournalResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "accountName": zod.string(),
+  "symbol": zod.string(),
+  "side": zod.enum(['buy', 'sell']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
+  "volume": zod.number(),
+  "openTime": zod.coerce.date(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a journal entry
+ */
+export const DeleteJournalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteJournalResponse = zod.void()
 
 

@@ -13,4 +13,5 @@ export const TradeInputType = {
   vanilla_options: 'vanilla_options',
   forex: 'forex',
   multiplier: 'multiplier',
+  futures: 'futures',
 } as const;

@@ -268,6 +268,7 @@ export const TradeType = {
   vanilla_options: 'vanilla_options',
   forex: 'forex',
   multiplier: 'multiplier',
+  futures: 'futures',
 } as const;
 
 export type TradeDirection = typeof TradeDirection[keyof typeof TradeDirection];
@@ -349,6 +350,7 @@ export const TradeInputType = {
   vanilla_options: 'vanilla_options',
   forex: 'forex',
   multiplier: 'multiplier',
+  futures: 'futures',
 } as const;
 
 export type TradeInputDirection = typeof TradeInputDirection[keyof typeof TradeInputDirection];
@@ -654,6 +656,7 @@ export const BacktestInputTradeType = {
   vanilla_options: 'vanilla_options',
   forex: 'forex',
   multiplier: 'multiplier',
+  futures: 'futures',
 } as const;
 
 /**
@@ -726,6 +729,7 @@ export const AIAnalysisInputTradeType = {
   vanilla_options: 'vanilla_options',
   forex: 'forex',
   multiplier: 'multiplier',
+  futures: 'futures',
 } as const;
 
 /**
@@ -1173,6 +1177,165 @@ export interface TradingGuideInput {
   sellRules: TradingRule[];
 }
 
+export interface JournalWorkspace {
+  id: string;
+  userId: string;
+  name: string;
+  startingBalance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JournalWorkspaceInput {
+  name: string;
+  startingBalance?: number;
+}
+
+export interface JournalWorkspaceUpdate {
+  name?: string;
+  startingBalance?: number;
+}
+
+export type JournalEntrySide = typeof JournalEntrySide[keyof typeof JournalEntrySide];
+
+
+export const JournalEntrySide = {
+  buy: 'buy',
+  sell: 'sell',
+} as const;
+
+export type JournalEntryTradeType = typeof JournalEntryTradeType[keyof typeof JournalEntryTradeType];
+
+
+export const JournalEntryTradeType = {
+  vanilla_options: 'vanilla_options',
+  forex: 'forex',
+  multiplier: 'multiplier',
+  futures: 'futures',
+} as const;
+
+export interface JournalEntry {
+  id: number;
+  userId: string;
+  accountName: string;
+  symbol: string;
+  side: JournalEntrySide;
+  tradeType: JournalEntryTradeType;
+  volume: number;
+  openTime: string;
+  /** @nullable */
+  closeTime?: string | null;
+  openPrice: number;
+  /** @nullable */
+  closePrice?: number | null;
+  /** @nullable */
+  profitLossRaw?: number | null;
+  /** @nullable */
+  grossProfit?: number | null;
+  /** @nullable */
+  durationMinutes?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type JournalEntryInputSide = typeof JournalEntryInputSide[keyof typeof JournalEntryInputSide];
+
+
+export const JournalEntryInputSide = {
+  buy: 'buy',
+  sell: 'sell',
+} as const;
+
+export type JournalEntryInputTradeType = typeof JournalEntryInputTradeType[keyof typeof JournalEntryInputTradeType];
+
+
+export const JournalEntryInputTradeType = {
+  vanilla_options: 'vanilla_options',
+  forex: 'forex',
+  multiplier: 'multiplier',
+  futures: 'futures',
+} as const;
+
+export interface JournalEntryInput {
+  accountName: string;
+  symbol: string;
+  side: JournalEntryInputSide;
+  tradeType: JournalEntryInputTradeType;
+  volume: number;
+  openTime: string;
+  /** @nullable */
+  closeTime?: string | null;
+  openPrice: number;
+  /** @nullable */
+  closePrice?: number | null;
+  /** @nullable */
+  profitLossRaw?: number | null;
+  /** @nullable */
+  grossProfit?: number | null;
+  /** @nullable */
+  durationMinutes?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type JournalEntryUpdateSide = typeof JournalEntryUpdateSide[keyof typeof JournalEntryUpdateSide];
+
+
+export const JournalEntryUpdateSide = {
+  buy: 'buy',
+  sell: 'sell',
+} as const;
+
+export type JournalEntryUpdateTradeType = typeof JournalEntryUpdateTradeType[keyof typeof JournalEntryUpdateTradeType];
+
+
+export const JournalEntryUpdateTradeType = {
+  vanilla_options: 'vanilla_options',
+  forex: 'forex',
+  multiplier: 'multiplier',
+  futures: 'futures',
+} as const;
+
+export interface JournalEntryUpdate {
+  accountName?: string;
+  symbol?: string;
+  side?: JournalEntryUpdateSide;
+  tradeType?: JournalEntryUpdateTradeType;
+  volume?: number;
+  openTime?: string;
+  /** @nullable */
+  closeTime?: string | null;
+  openPrice?: number;
+  /** @nullable */
+  closePrice?: number | null;
+  /** @nullable */
+  profitLossRaw?: number | null;
+  /** @nullable */
+  grossProfit?: number | null;
+  /** @nullable */
+  durationMinutes?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type JournalStatsByDurationItem = {
+  duration: string;
+  pnl: number;
+  winRate: number;
+};
+
+export interface JournalStats {
+  totalTrades: number;
+  winRate: number;
+  profitFactor: number;
+  totalPnL: number;
+  averageWin: number;
+  averageLoss: number;
+  byDuration: JournalStatsByDurationItem[];
+}
+
 export type ListUsersParams = {
 role?: ListUsersRole;
 page?: number;
@@ -1235,6 +1398,7 @@ export const ListTradesType = {
   vanilla_options: 'vanilla_options',
   forex: 'forex',
   multiplier: 'multiplier',
+  futures: 'futures',
 } as const;
 
 export type GetRecentTradesParams = {
@@ -1302,5 +1466,15 @@ export type SendScannerAlert200Results = { [key: string]: unknown };
 export type SendScannerAlert200 = {
   success?: boolean;
   results?: SendScannerAlert200Results;
+};
+
+export type ListJournalsParams = {
+accountName?: string;
+symbol?: string;
+limit?: number;
+};
+
+export type GetJournalStatsParams = {
+accountName: string;
 };
 

@@ -25,6 +25,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { label: "MT5 Accounts", href: "/mt5-accounts", icon: "bi-wallet2" },
     { label: "Copy Trading", href: "/copy-trading", icon: "bi-people" },
     { label: "News", href: "/news", icon: "bi-newspaper" },
+    { label: "Journals", href: "/journals", icon: "bi-journal-text" },
     { label: "AI Builder", href: "/ai-builder", icon: "bi-robot" },
     { label: "Settings", href: "/settings", icon: "bi-gear" },
   ];

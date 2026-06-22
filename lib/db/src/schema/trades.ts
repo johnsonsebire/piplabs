@@ -2,7 +2,7 @@ import { pgTable, text, boolean, integer, real, timestamp, pgEnum } from "drizzl
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const tradeTypeEnum = pgEnum("trade_type", ["vanilla_options", "forex", "multiplier"]);
+export const tradeTypeEnum = pgEnum("trade_type", ["vanilla_options", "forex", "multiplier", "futures"]);
 export const tradeDirectionEnum = pgEnum("trade_direction", ["buy", "sell", "call", "put"]);
 export const tradeStatusEnum = pgEnum("trade_status", ["open", "closed", "cancelled", "pending", "closing"]);
 export const tradeModeEnum = pgEnum("trade_mode", ["demo", "live"]);

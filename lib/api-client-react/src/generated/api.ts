@@ -33,6 +33,7 @@ import type {
   DerivActiveSymbol,
   DerivStatus,
   DerivTokenInput,
+  GetJournalStatsParams,
   GetMarketNewsParams,
   GetRecentTradesParams,
   GetTradeStatsParams,
@@ -40,9 +41,17 @@ import type {
   Indicator,
   IndicatorInput,
   IndicatorUpdate,
+  JournalEntry,
+  JournalEntryInput,
+  JournalEntryUpdate,
+  JournalStats,
+  JournalWorkspace,
+  JournalWorkspaceInput,
+  JournalWorkspaceUpdate,
   ListAIAnalysesParams,
   ListAssetsParams,
   ListBacktestsParams,
+  ListJournalsParams,
   ListTradesParams,
   ListUsersParams,
   Mt5Account,
@@ -5531,5 +5540,749 @@ export const useGenerateOpenaiImage = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getGenerateOpenaiImageMutationOptions(options));
+    }
+
+export const getListJournalWorkspacesUrl = () => {
+
+
+
+
+  return `/api/journals/workspaces`
+}
+
+/**
+ * @summary List all journal workspaces
+ */
+export const listJournalWorkspaces = async ( options?: RequestInit): Promise<JournalWorkspace[]> => {
+
+  return customFetch<JournalWorkspace[]>(getListJournalWorkspacesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListJournalWorkspacesQueryKey = () => {
+    return [
+    `/api/journals/workspaces`
+    ] as const;
+    }
+
+
+export const getListJournalWorkspacesQueryOptions = <TData = Awaited<ReturnType<typeof listJournalWorkspaces>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalWorkspaces>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListJournalWorkspacesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJournalWorkspaces>>> = ({ signal }) => listJournalWorkspaces({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJournalWorkspaces>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListJournalWorkspacesQueryResult = NonNullable<Awaited<ReturnType<typeof listJournalWorkspaces>>>
+export type ListJournalWorkspacesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all journal workspaces
+ */
+
+export function useListJournalWorkspaces<TData = Awaited<ReturnType<typeof listJournalWorkspaces>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalWorkspaces>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListJournalWorkspacesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateJournalWorkspaceUrl = () => {
+
+
+
+
+  return `/api/journals/workspaces`
+}
+
+/**
+ * @summary Create a new journal workspace
+ */
+export const createJournalWorkspace = async (journalWorkspaceInput: JournalWorkspaceInput, options?: RequestInit): Promise<JournalWorkspace> => {
+
+  return customFetch<JournalWorkspace>(getCreateJournalWorkspaceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(journalWorkspaceInput)
+  }
+);}
+
+
+
+
+export const getCreateJournalWorkspaceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJournalWorkspace>>, TError,{data: BodyType<JournalWorkspaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createJournalWorkspace>>, TError,{data: BodyType<JournalWorkspaceInput>}, TContext> => {
+
+const mutationKey = ['createJournalWorkspace'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createJournalWorkspace>>, {data: BodyType<JournalWorkspaceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createJournalWorkspace(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateJournalWorkspaceMutationResult = NonNullable<Awaited<ReturnType<typeof createJournalWorkspace>>>
+    export type CreateJournalWorkspaceMutationBody = BodyType<JournalWorkspaceInput>
+    export type CreateJournalWorkspaceMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new journal workspace
+ */
+export const useCreateJournalWorkspace = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJournalWorkspace>>, TError,{data: BodyType<JournalWorkspaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createJournalWorkspace>>,
+        TError,
+        {data: BodyType<JournalWorkspaceInput>},
+        TContext
+      > => {
+      return useMutation(getCreateJournalWorkspaceMutationOptions(options));
+    }
+
+export const getUpdateJournalWorkspaceUrl = (id: string,) => {
+
+
+
+
+  return `/api/journals/workspaces/${id}`
+}
+
+/**
+ * @summary Update a journal workspace
+ */
+export const updateJournalWorkspace = async (id: string,
+    journalWorkspaceUpdate: JournalWorkspaceUpdate, options?: RequestInit): Promise<JournalWorkspace> => {
+
+  return customFetch<JournalWorkspace>(getUpdateJournalWorkspaceUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(journalWorkspaceUpdate)
+  }
+);}
+
+
+
+
+export const getUpdateJournalWorkspaceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJournalWorkspace>>, TError,{id: string;data: BodyType<JournalWorkspaceUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateJournalWorkspace>>, TError,{id: string;data: BodyType<JournalWorkspaceUpdate>}, TContext> => {
+
+const mutationKey = ['updateJournalWorkspace'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateJournalWorkspace>>, {id: string;data: BodyType<JournalWorkspaceUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateJournalWorkspace(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateJournalWorkspaceMutationResult = NonNullable<Awaited<ReturnType<typeof updateJournalWorkspace>>>
+    export type UpdateJournalWorkspaceMutationBody = BodyType<JournalWorkspaceUpdate>
+    export type UpdateJournalWorkspaceMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a journal workspace
+ */
+export const useUpdateJournalWorkspace = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJournalWorkspace>>, TError,{id: string;data: BodyType<JournalWorkspaceUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateJournalWorkspace>>,
+        TError,
+        {id: string;data: BodyType<JournalWorkspaceUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateJournalWorkspaceMutationOptions(options));
+    }
+
+export const getDeleteJournalWorkspaceUrl = (id: string,) => {
+
+
+
+
+  return `/api/journals/workspaces/${id}`
+}
+
+/**
+ * @summary Delete a journal workspace
+ */
+export const deleteJournalWorkspace = async (id: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteJournalWorkspaceUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteJournalWorkspaceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJournalWorkspace>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteJournalWorkspace>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteJournalWorkspace'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteJournalWorkspace>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteJournalWorkspace(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteJournalWorkspaceMutationResult = NonNullable<Awaited<ReturnType<typeof deleteJournalWorkspace>>>
+
+    export type DeleteJournalWorkspaceMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a journal workspace
+ */
+export const useDeleteJournalWorkspace = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJournalWorkspace>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteJournalWorkspace>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteJournalWorkspaceMutationOptions(options));
+    }
+
+export const getListJournalsUrl = (params?: ListJournalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/journals?${stringifiedParams}` : `/api/journals`
+}
+
+/**
+ * @summary List all journal entries
+ */
+export const listJournals = async (params?: ListJournalsParams, options?: RequestInit): Promise<JournalEntry[]> => {
+
+  return customFetch<JournalEntry[]>(getListJournalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListJournalsQueryKey = (params?: ListJournalsParams,) => {
+    return [
+    `/api/journals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListJournalsQueryOptions = <TData = Awaited<ReturnType<typeof listJournals>>, TError = ErrorType<unknown>>(params?: ListJournalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListJournalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJournals>>> = ({ signal }) => listJournals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJournals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListJournalsQueryResult = NonNullable<Awaited<ReturnType<typeof listJournals>>>
+export type ListJournalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all journal entries
+ */
+
+export function useListJournals<TData = Awaited<ReturnType<typeof listJournals>>, TError = ErrorType<unknown>>(
+ params?: ListJournalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListJournalsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateJournalUrl = () => {
+
+
+
+
+  return `/api/journals`
+}
+
+/**
+ * @summary Create a new journal entry
+ */
+export const createJournal = async (journalEntryInput: JournalEntryInput, options?: RequestInit): Promise<JournalEntry> => {
+
+  return customFetch<JournalEntry>(getCreateJournalUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(journalEntryInput)
+  }
+);}
+
+
+
+
+export const getCreateJournalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJournal>>, TError,{data: BodyType<JournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createJournal>>, TError,{data: BodyType<JournalEntryInput>}, TContext> => {
+
+const mutationKey = ['createJournal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createJournal>>, {data: BodyType<JournalEntryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createJournal(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateJournalMutationResult = NonNullable<Awaited<ReturnType<typeof createJournal>>>
+    export type CreateJournalMutationBody = BodyType<JournalEntryInput>
+    export type CreateJournalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new journal entry
+ */
+export const useCreateJournal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJournal>>, TError,{data: BodyType<JournalEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createJournal>>,
+        TError,
+        {data: BodyType<JournalEntryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateJournalMutationOptions(options));
+    }
+
+export const getGetJournalStatsUrl = (params: GetJournalStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/journals/stats?${stringifiedParams}` : `/api/journals/stats`
+}
+
+/**
+ * @summary Get journal statistics and metrics
+ */
+export const getJournalStats = async (params: GetJournalStatsParams, options?: RequestInit): Promise<JournalStats> => {
+
+  return customFetch<JournalStats>(getGetJournalStatsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJournalStatsQueryKey = (params?: GetJournalStatsParams,) => {
+    return [
+    `/api/journals/stats`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetJournalStatsQueryOptions = <TData = Awaited<ReturnType<typeof getJournalStats>>, TError = ErrorType<unknown>>(params: GetJournalStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournalStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJournalStatsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJournalStats>>> = ({ signal }) => getJournalStats(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJournalStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJournalStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getJournalStats>>>
+export type GetJournalStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get journal statistics and metrics
+ */
+
+export function useGetJournalStats<TData = Awaited<ReturnType<typeof getJournalStats>>, TError = ErrorType<unknown>>(
+ params: GetJournalStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournalStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJournalStatsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetJournalUrl = (id: number,) => {
+
+
+
+
+  return `/api/journals/${id}`
+}
+
+/**
+ * @summary Get a single journal entry
+ */
+export const getJournal = async (id: number, options?: RequestInit): Promise<JournalEntry> => {
+
+  return customFetch<JournalEntry>(getGetJournalUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJournalQueryKey = (id: number,) => {
+    return [
+    `/api/journals/${id}`
+    ] as const;
+    }
+
+
+export const getGetJournalQueryOptions = <TData = Awaited<ReturnType<typeof getJournal>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournal>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJournalQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJournal>>> = ({ signal }) => getJournal(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJournal>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJournalQueryResult = NonNullable<Awaited<ReturnType<typeof getJournal>>>
+export type GetJournalQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a single journal entry
+ */
+
+export function useGetJournal<TData = Awaited<ReturnType<typeof getJournal>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJournal>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJournalQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateJournalUrl = (id: number,) => {
+
+
+
+
+  return `/api/journals/${id}`
+}
+
+/**
+ * @summary Update a journal entry
+ */
+export const updateJournal = async (id: number,
+    journalEntryUpdate: JournalEntryUpdate, options?: RequestInit): Promise<JournalEntry> => {
+
+  return customFetch<JournalEntry>(getUpdateJournalUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(journalEntryUpdate)
+  }
+);}
+
+
+
+
+export const getUpdateJournalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJournal>>, TError,{id: number;data: BodyType<JournalEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateJournal>>, TError,{id: number;data: BodyType<JournalEntryUpdate>}, TContext> => {
+
+const mutationKey = ['updateJournal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateJournal>>, {id: number;data: BodyType<JournalEntryUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateJournal(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateJournalMutationResult = NonNullable<Awaited<ReturnType<typeof updateJournal>>>
+    export type UpdateJournalMutationBody = BodyType<JournalEntryUpdate>
+    export type UpdateJournalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a journal entry
+ */
+export const useUpdateJournal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJournal>>, TError,{id: number;data: BodyType<JournalEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateJournal>>,
+        TError,
+        {id: number;data: BodyType<JournalEntryUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateJournalMutationOptions(options));
+    }
+
+export const getDeleteJournalUrl = (id: number,) => {
+
+
+
+
+  return `/api/journals/${id}`
+}
+
+/**
+ * @summary Delete a journal entry
+ */
+export const deleteJournal = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteJournalUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteJournalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJournal>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteJournal>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteJournal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteJournal>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteJournal(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteJournalMutationResult = NonNullable<Awaited<ReturnType<typeof deleteJournal>>>
+
+    export type DeleteJournalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a journal entry
+ */
+export const useDeleteJournal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJournal>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteJournal>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteJournalMutationOptions(options));
     }
 

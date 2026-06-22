@@ -17,6 +17,8 @@ import conversationsRouter from "./conversations";
 import mt5AccountsRouter from "./mt5Accounts";
 import copyTradingRouter from "./copyTrading";
 import guidesRouter from "./guides";
+import journalsRouter from "./journals";
+import journalWorkspacesRouter from "./journal-workspaces";
 
 const router: IRouter = Router();
 
@@ -37,5 +39,7 @@ router.use(conversationsRouter);
 router.use(mt5AccountsRouter);
 router.use(copyTradingRouter);
 router.use(guidesRouter);
+router.use(journalWorkspacesRouter);
+router.use(journalsRouter);
 
 export default router;

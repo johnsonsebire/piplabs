@@ -37,6 +37,8 @@ tags:
     description: Market news and data
   - name: openai
     description: OpenAI AI chat and analysis operations
+  - name: journals
+    description: Manual trade journaling workspace
 
 paths:
   /healthz:
@@ -587,7 +589,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [vanilla_options, forex, multiplier]
+            enum: [vanilla_options, forex, multiplier, futures]
         - name: symbol
           in: query
           schema:
@@ -1510,6 +1512,211 @@ paths:
               schema:
                 $ref: "#/components/schemas/OpenaiImageOutput"
 
+
+
+  /journals/workspaces:
+    get:
+      operationId: listJournalWorkspaces
+      tags: [journals]
+      summary: List all journal workspaces
+      responses:
+        "200":
+          description: A list of workspaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JournalWorkspace"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createJournalWorkspace
+      tags: [journals]
+      summary: Create a new journal workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalWorkspaceInput"
+      responses:
+        "201":
+          description: Workspace created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalWorkspace"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+
+  /journals/workspaces/{id}:
+    patch:
+      operationId: updateJournalWorkspace
+      tags: [journals]
+      summary: Update a journal workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalWorkspaceUpdate"
+      responses:
+        "200":
+          description: Workspace updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalWorkspace"
+        "404":
+          description: Not found
+        "401":
+          description: Unauthorized
+    delete:
+      operationId: deleteJournalWorkspace
+      tags: [journals]
+      summary: Delete a journal workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Workspace deleted
+        "404":
+          description: Not found
+        "401":
+          description: Unauthorized
+
+  /journals:
+    get:
+      operationId: listJournals
+      tags: [journals]
+      summary: List all journal entries
+      parameters:
+        - name: accountName
+          in: query
+          schema:
+            type: string
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of journal entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JournalEntry"
+    post:
+      operationId: createJournal
+      tags: [journals]
+      summary: Create a new journal entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalEntryInput"
+      responses:
+        "201":
+          description: Created journal entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+
+  /journals/stats:
+    get:
+      operationId: getJournalStats
+      tags: [journals]
+      summary: Get journal statistics and metrics
+      parameters:
+        - name: accountName
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Journal stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalStats"
+
+  /journals/{id}:
+    get:
+      operationId: getJournal
+      tags: [journals]
+      summary: Get a single journal entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The journal entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+    patch:
+      operationId: updateJournal
+      tags: [journals]
+      summary: Update a journal entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalEntryUpdate"
+      responses:
+        "200":
+          description: Updated journal entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+    delete:
+      operationId: deleteJournal
+      tags: [journals]
+      summary: Delete a journal entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
 components:
   schemas:
     ScannerAlertInput:
@@ -1884,7 +2091,7 @@ components:
           type: string
         type:
           type: string
-          enum: [vanilla_options, forex, multiplier]
+          enum: [vanilla_options, forex, multiplier, futures]
         direction:
           type: string
           enum: [buy, sell, call, put]
@@ -1963,7 +2170,7 @@ components:
           type: string
         type:
           type: string
-          enum: [vanilla_options, forex, multiplier]
+          enum: [vanilla_options, forex, multiplier, futures]
         direction:
           type: string
           enum: [buy, sell, call, put]
@@ -2395,7 +2602,7 @@ components:
           format: date-time
         tradeType:
           type: string
-          enum: [vanilla_options, forex, multiplier]
+          enum: [vanilla_options, forex, multiplier, futures]
         mt5AccountId:
           type: ["string", "null"]
         duration:
@@ -2452,7 +2659,7 @@ components:
           description: JSON string of current indicator values
         tradeType:
           type: string
-          enum: [vanilla_options, forex, multiplier]
+          enum: [vanilla_options, forex, multiplier, futures]
         direction:
           type: ["string", "null"]
           enum: [buy, sell, call, put]
@@ -3028,3 +3235,218 @@ components:
         - name
         - buyRules
         - sellRules
+
+
+    JournalWorkspace:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        startingBalance:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - name
+        - startingBalance
+        - createdAt
+        - updatedAt
+
+    JournalWorkspaceInput:
+      type: object
+      properties:
+        name:
+          type: string
+        startingBalance:
+          type: number
+      required:
+        - name
+
+    JournalWorkspaceUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        startingBalance:
+          type: number
+
+    JournalEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        accountName:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        tradeType:
+          type: string
+          enum: [vanilla_options, forex, multiplier, futures]
+        volume:
+          type: number
+        openTime:
+          type: string
+          format: date-time
+        closeTime:
+          type: ["string", "null"]
+          format: date-time
+        openPrice:
+          type: number
+        closePrice:
+          type: ["number", "null"]
+        profitLossRaw:
+          type: ["number", "null"]
+        grossProfit:
+          type: ["number", "null"]
+        durationMinutes:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - accountName
+        - symbol
+        - side
+        - tradeType
+        - volume
+        - openTime
+        - openPrice
+        - createdAt
+        - updatedAt
+
+    JournalEntryInput:
+      type: object
+      properties:
+        accountName:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        tradeType:
+          type: string
+          enum: [vanilla_options, forex, multiplier, futures]
+        volume:
+          type: number
+        openTime:
+          type: string
+          format: date-time
+        closeTime:
+          type: ["string", "null"]
+          format: date-time
+        openPrice:
+          type: number
+        closePrice:
+          type: ["number", "null"]
+        profitLossRaw:
+          type: ["number", "null"]
+        grossProfit:
+          type: ["number", "null"]
+        durationMinutes:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - accountName
+        - symbol
+        - side
+        - tradeType
+        - volume
+        - openTime
+        - openPrice
+
+    JournalEntryUpdate:
+      type: object
+      properties:
+        accountName:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        tradeType:
+          type: string
+          enum: [vanilla_options, forex, multiplier, futures]
+        volume:
+          type: number
+        openTime:
+          type: string
+          format: date-time
+        closeTime:
+          type: ["string", "null"]
+          format: date-time
+        openPrice:
+          type: number
+        closePrice:
+          type: ["number", "null"]
+        profitLossRaw:
+          type: ["number", "null"]
+        grossProfit:
+          type: ["number", "null"]
+        durationMinutes:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+
+    JournalStats:
+      type: object
+      properties:
+        totalTrades:
+          type: integer
+        winRate:
+          type: number
+        profitFactor:
+          type: number
+        totalPnL:
+          type: number
+        averageWin:
+          type: number
+        averageLoss:
+          type: number
+        byDuration:
+          type: array
+          items:
+            type: object
+            properties:
+              duration:
+                type: string
+              pnl:
+                type: number
+              winRate:
+                type: number
+            required:
+              - duration
+              - pnl
+              - winRate
+      required:
+        - totalTrades
+        - winRate
+        - profitFactor
+        - totalPnL
+        - averageWin
+        - averageLoss
+        - byDuration

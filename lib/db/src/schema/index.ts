@@ -8,3 +8,5 @@ export * from "./messages";
 export * from "./mt5_accounts";
 export * from "./copy_trading";
 export * from "./trading_guides";
+export * from "./journals";
+export * from "./journalWorkspaces";
