@@ -159,10 +159,19 @@ export function AiChatWidget() {
           contextPayload: payloadContext,
         }
       });
+      queryClient.invalidateQueries({ queryKey });
     } catch (err) {
       console.error("Failed to send message", err);
-    } finally {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.setQueryData(queryKey, (old: any) => {
+        const errorMsg = {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: "⚠️ The AI assistant is temporarily unavailable. Please check your API quota or try again later.",
+          isError: true,
+          createdAt: new Date().toISOString()
+        };
+        return old ? [...old, errorMsg] : [errorMsg];
+      });
     }
   };
 
@@ -227,7 +236,9 @@ export function AiChatWidget() {
                   "d-flex flex-column max-w-[85%] rounded-lg p-3 text-sm",
                   msg.role === "user" 
                     ? "bg-primary text-primary-foreground align-self-end rounded-tr-none" 
-                    : "bg-muted text-foreground align-self-start rounded-tl-none border border-secondary"
+                    : (msg as any).isError
+                      ? "bg-destructive/20 text-destructive align-self-start rounded-tl-none border border-destructive"
+                      : "bg-muted text-foreground align-self-start rounded-tl-none border border-secondary"
                 )}
               >
                 <div style={{ wordBreak: "break-word" }}>

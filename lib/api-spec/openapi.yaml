@@ -1643,6 +1643,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/JournalEntry"
 
+  /journals/bulk:
+    post:
+      operationId: importJournals
+      tags: [journals]
+      summary: Bulk import journal entries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/JournalEntryInput"
+      responses:
+        "201":
+          description: Imported journal entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JournalEntry"
+
   /journals/stats:
     get:
       operationId: getJournalStats

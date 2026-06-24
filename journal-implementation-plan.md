@@ -80,7 +80,7 @@ These sections should be designed as interactive charts or metric cards for visu
 ## ⚙️ III. Technical Implementation Plan (Milestones)
 
 ### Phase 1: Data Foundation & CRUD (Minimum Viable Product)
-*   Implement the `JournalEntry` schema in the database.
+*   Implement the `JournalEntry` schema in the database.  
 *   Build the API endpoints for **C**reate, **R**ead, **U**pdate, **D**elete journal entries.
 *   Develop a basic UI form allowing manual entry of all core fields (Symbol, Side, Prices, Dates, Notes).
 

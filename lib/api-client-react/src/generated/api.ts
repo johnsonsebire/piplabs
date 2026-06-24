@@ -5984,6 +5984,76 @@ export const useCreateJournal = <TError = ErrorType<unknown>,
       return useMutation(getCreateJournalMutationOptions(options));
     }
 
+export const getImportJournalsUrl = () => {
+
+
+
+
+  return `/api/journals/bulk`
+}
+
+/**
+ * @summary Bulk import journal entries
+ */
+export const importJournals = async (journalEntryInput: JournalEntryInput[], options?: RequestInit): Promise<JournalEntry[]> => {
+
+  return customFetch<JournalEntry[]>(getImportJournalsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(journalEntryInput)
+  }
+);}
+
+
+
+
+export const getImportJournalsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<JournalEntryInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<JournalEntryInput[]>}, TContext> => {
+
+const mutationKey = ['importJournals'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importJournals>>, {data: BodyType<JournalEntryInput[]>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importJournals(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportJournalsMutationResult = NonNullable<Awaited<ReturnType<typeof importJournals>>>
+    export type ImportJournalsMutationBody = BodyType<JournalEntryInput[]>
+    export type ImportJournalsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Bulk import journal entries
+ */
+export const useImportJournals = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<JournalEntryInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importJournals>>,
+        TError,
+        {data: BodyType<JournalEntryInput[]>},
+        TContext
+      > => {
+      return useMutation(getImportJournalsMutationOptions(options));
+    }
+
 export const getGetJournalStatsUrl = (params: GetJournalStatsParams,) => {
   const normalizedParams = new URLSearchParams();
 

@@ -47,7 +47,7 @@ export default function JournalsPage() {
       for (const trade of allJournals) {
         if (trade.accountName === ws.id) {
           tradesCount++;
-          if (trade.closeTime && trade.profitLossRaw !== null) {
+          if (trade.closeTime && trade.profitLossRaw !== null && trade.profitLossRaw !== undefined) {
             completedTrades++;
             if (trade.profitLossRaw > 0) {
               wins++;

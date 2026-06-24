@@ -1889,6 +1889,48 @@ export const CreateJournalResponse = zod.object({
 
 
 /**
+ * @summary Bulk import journal entries
+ */
+export const ImportJournalsBodyItem = zod.object({
+  "accountName": zod.string(),
+  "symbol": zod.string(),
+  "side": zod.enum(['buy', 'sell']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
+  "volume": zod.number(),
+  "openTime": zod.coerce.date(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+export const ImportJournalsBody = zod.array(ImportJournalsBodyItem)
+
+export const ImportJournalsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "accountName": zod.string(),
+  "symbol": zod.string(),
+  "side": zod.enum(['buy', 'sell']),
+  "tradeType": zod.enum(['vanilla_options', 'forex', 'multiplier', 'futures']),
+  "volume": zod.number(),
+  "openTime": zod.coerce.date(),
+  "closeTime": zod.coerce.date().nullish(),
+  "openPrice": zod.number(),
+  "closePrice": zod.number().nullish(),
+  "profitLossRaw": zod.number().nullish(),
+  "grossProfit": zod.number().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ImportJournalsResponse = zod.array(ImportJournalsResponseItem)
+
+
+/**
  * @summary Get journal statistics and metrics
  */
 export const GetJournalStatsQueryParams = zod.object({

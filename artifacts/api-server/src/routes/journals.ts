@@ -18,7 +18,7 @@ const statsQuerySchema = z.object({
   accountName: z.string(),
 });
 
-router.get("/journals", requireAuth, async (req: Request, res: Response) => {
+router.get("/journals", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
     const query = listQuerySchema.parse(req.query);
     let conditions = [eq(journalsTable.userId, (req as any).userId)];
@@ -51,7 +51,7 @@ router.get("/journals", requireAuth, async (req: Request, res: Response) => {
 });
 
 // Create
-router.post("/journals", requireAuth, async (req: Request, res: Response) => {
+router.post("/journals", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
     const data = req.body;
     const [entry] = await db.insert(journalsTable).values({
@@ -84,8 +84,91 @@ router.post("/journals", requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+// Bulk import
+router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): Promise<any> => {
+  try {
+    const dataArray = req.body;
+    if (!Array.isArray(dataArray)) {
+      return res.status(400).json({ error: "Expected an array of journal entries" });
+    }
+    
+    if (dataArray.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const accountName = dataArray[0]?.accountName;
+    if (!accountName) {
+      return res.status(400).json({ error: "Missing accountName" });
+    }
+
+    // Fetch existing entries for deduplication
+    const existingEntries = await db.select({
+      symbol: journalsTable.symbol,
+      openTime: journalsTable.openTime,
+      side: journalsTable.side,
+      volume: journalsTable.volume,
+    }).from(journalsTable)
+      .where(and(
+        eq(journalsTable.userId, (req as any).userId),
+        eq(journalsTable.accountName, accountName)
+      ));
+
+    // Create a set of existing entry signatures
+    const existingSet = new Set(
+      existingEntries.map(e => {
+        const timeStr = e.openTime instanceof Date ? e.openTime.getTime() : new Date(e.openTime).getTime();
+        return `${e.symbol}_${e.side}_${e.volume}_${timeStr}`;
+      })
+    );
+
+    const insertData: any[] = [];
+    
+    for (const data of dataArray) {
+      const openTimeDate = new Date(data.openTime);
+      const signature = `${data.symbol}_${data.side}_${data.volume}_${openTimeDate.getTime()}`;
+      
+      if (!existingSet.has(signature)) {
+        insertData.push({
+          userId: (req as any).userId,
+          accountName: data.accountName,
+          symbol: data.symbol,
+          side: data.side as any,
+          tradeType: data.tradeType as any,
+          volume: data.volume,
+          openTime: openTimeDate,
+          closeTime: data.closeTime ? new Date(data.closeTime) : null,
+          openPrice: data.openPrice,
+          closePrice: data.closePrice,
+          profitLossRaw: data.profitLossRaw,
+          grossProfit: data.grossProfit,
+          durationMinutes: data.durationMinutes,
+          notes: data.notes,
+        });
+        existingSet.add(signature); // Avoid duplicates within the same payload
+      }
+    }
+
+    if (insertData.length === 0) {
+      return res.status(201).json([]); // All imported trades were duplicates
+    }
+
+    const entries = await db.insert(journalsTable).values(insertData).returning();
+    
+    res.status(201).json(entries.map(entry => ({
+        ...entry,
+        openTime: entry.openTime.toISOString(),
+        closeTime: entry.closeTime?.toISOString() || null,
+        createdAt: entry.createdAt.toISOString(),
+        updatedAt: entry.updatedAt.toISOString(),
+    })));
+  } catch (error) {
+    logger.error({ error }, "Error bulk creating journals");
+    res.status(500).json({ error: "Failed to bulk create journal entries" });
+  }
+});
+
 // Stats
-router.get("/journals/stats", requireAuth, async (req: Request, res: Response) => {
+router.get("/journals/stats", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
     const query = statsQuerySchema.parse(req.query);
     const entries = await db.select().from(journalsTable).where(
@@ -137,9 +220,9 @@ router.get("/journals/stats", requireAuth, async (req: Request, res: Response) =
 });
 
 // Get
-router.get("/journals/:id", requireAuth, async (req: Request, res: Response) => {
+router.get("/journals/:id", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [entry] = await db.select().from(journalsTable).where(
       and(eq(journalsTable.id, id), eq(journalsTable.userId, (req as any).userId))
     );
@@ -160,9 +243,9 @@ router.get("/journals/:id", requireAuth, async (req: Request, res: Response) => 
 });
 
 // Update
-router.patch("/journals/:id", requireAuth, async (req: Request, res: Response) => {
+router.patch("/journals/:id", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const data = req.body;
     
     const updateData: any = { ...data };
@@ -199,9 +282,9 @@ router.patch("/journals/:id", requireAuth, async (req: Request, res: Response) =
 });
 
 // Delete
-router.delete("/journals/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/journals/:id", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [entry] = await db.delete(journalsTable)
       .where(and(eq(journalsTable.id, id), eq(journalsTable.userId, (req as any).userId)))
       .returning();

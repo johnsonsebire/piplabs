@@ -135,13 +135,13 @@ export function JournalAnalytics({ journals }: JournalAnalyticsProps) {
                 <Pie
                   data={volumeBySymbol}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={80}
                   paddingAngle={5}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
+                  labelLine={true}
                 >
                   {volumeBySymbol.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

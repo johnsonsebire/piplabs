@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Settings, TrendingUp, TrendingDown, Target, Activity, MoreVertical, Edit, Trash2, BookOpen, Calendar, List, BarChart2, Download, Wallet, AlertCircle, Hash, Clock } from "lucide-react";
 import { JournalFormModal } from "@/components/journals/JournalFormModal";
+import { ImportMT5Modal } from "@/components/journals/ImportMT5Modal";
 import { WorkspaceSettingsModal } from "@/components/journals/WorkspaceSettingsModal";
 import { useQueryClient } from "@tanstack/react-query";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -14,12 +15,14 @@ import { JournalAnalytics } from "@/components/journals/JournalAnalytics";
 import { isSameDay, format } from "date-fns";
 import { swalConfirm, swalSuccess, swalError } from "@/lib/swal";
 import { exportToCSV, exportToPDF } from "@/lib/exportUtils";
+import { exportTradeCardImage } from "@/components/journals/exportTradeCardImage";
 
 export default function JournalDashboard() {
   const [, params] = useRoute("/journals/:accountId");
   const accountId = params?.accountId;
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -184,6 +187,10 @@ export default function JournalDashboard() {
             <Button size="sm" variant="outline" className="border-secondary text-light d-flex align-items-center gap-2" onClick={() => setIsSettingsOpen(true)}>
               <Settings size={16} />
               Settings
+            </Button>
+            <Button size="sm" variant="outline" className="border-secondary text-light hover:text-primary d-flex align-items-center gap-2" onClick={() => setIsImportOpen(true)}>
+              <List size={16} />
+              Import MT5
             </Button>
             <Button size="sm" className="bg-success text-dark hover:bg-success/90 d-flex align-items-center gap-2" onClick={openNewModal}>
               <Plus size={16} />
@@ -447,6 +454,9 @@ export default function JournalDashboard() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-dark text-light border-secondary">
+                              <DropdownMenuItem className="cursor-pointer hover:bg-secondary/50" onClick={() => exportTradeCardImage(trade)}>
+                                <Download className="mr-2 h-4 w-4" /> Download Card
+                              </DropdownMenuItem>
                               <DropdownMenuItem className="cursor-pointer hover:bg-secondary/50" onClick={() => handleEdit(trade)}>
                                 <Edit className="mr-2 h-4 w-4" /> Edit
                               </DropdownMenuItem>
@@ -492,6 +502,14 @@ export default function JournalDashboard() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           workspace={workspace}
+        />
+      )}
+
+      {accountId && (
+        <ImportMT5Modal
+          isOpen={isImportOpen}
+          onClose={() => setIsImportOpen(false)}
+          accountName={accountId}
         />
       )}
     </AppLayout>

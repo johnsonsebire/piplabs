@@ -44,9 +44,9 @@ router.post("/journals/workspaces", requireAuth, async (req: Request, res: Respo
 });
 
 // Update
-router.patch("/journals/workspaces/:id", requireAuth, async (req: Request, res: Response) => {
+router.patch("/journals/workspaces/:id", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const data = req.body;
     
     const updateData: any = {};
@@ -62,17 +62,17 @@ router.patch("/journals/workspaces/:id", requireAuth, async (req: Request, res: 
       return res.status(404).json({ error: "Not found" });
     }
     
-    res.json(workspace);
+    return res.json(workspace);
   } catch (error) {
     logger.error({ error }, "Error updating journal workspace");
-    res.status(500).json({ error: "Failed to update workspace" });
+    return res.status(500).json({ error: "Failed to update workspace" });
   }
 });
 
 // Delete
-router.delete("/journals/workspaces/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/journals/workspaces/:id", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     
     // First delete all journals associated with this workspace
     await db.delete(journalsTable)
@@ -87,7 +87,7 @@ router.delete("/journals/workspaces/:id", requireAuth, async (req: Request, res:
       return res.status(404).json({ error: "Not found" });
     }
     
-    res.status(204).end();
+    return res.status(204).end();
   } catch (error) {
     logger.error({ error }, "Error deleting journal workspace");
     res.status(500).json({ error: "Failed to delete workspace" });
