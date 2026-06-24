@@ -87,9 +87,12 @@ router.post("/journals", requireAuth, async (req: Request, res: Response): Promi
 // Bulk import
 router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
-    const dataArray = req.body;
+    const payload = req.body;
+    let dataArray = Array.isArray(payload) ? payload : payload.data;
+    const replaceExisting = payload.replaceExisting === true;
+
     if (!Array.isArray(dataArray)) {
-      return res.status(400).json({ error: "Expected an array of journal entries" });
+      return res.status(400).json({ error: "Expected an array of journal entries in data property" });
     }
     
     if (dataArray.length === 0) {
@@ -101,8 +104,17 @@ router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): 
       return res.status(400).json({ error: "Missing accountName" });
     }
 
-    // Fetch existing entries for deduplication
-    const existingEntries = await db.select({
+    // If replacing existing, delete all entries for this account and user
+    if (replaceExisting) {
+      await db.delete(journalsTable)
+        .where(and(
+          eq(journalsTable.userId, (req as any).userId),
+          eq(journalsTable.accountName, accountName)
+        ));
+    }
+
+    // Fetch existing entries for deduplication (only relevant if not replacing)
+    const existingEntries = replaceExisting ? [] : await db.select({
       symbol: journalsTable.symbol,
       openTime: journalsTable.openTime,
       side: journalsTable.side,

@@ -1468,3 +1468,13 @@ a[href*="tradingview.com"],
 .icon-btn-reset:active {
   transform: scale(0.95);
 }
+
+.strategy-tab-trigger[data-tab="overview"][data-state="active"],
+.strategy-tab-trigger[data-tab="calendar"][data-state="active"],
+.strategy-tab-trigger[data-tab="analytics"][data-state="active"],
+.strategy-tab-trigger[data-tab="history"][data-state="active"] {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+  border-bottom: 2px solid #10b981;
+}

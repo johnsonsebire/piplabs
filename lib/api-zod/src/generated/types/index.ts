@@ -32,6 +32,7 @@ export * from './backtestInputDurationUnit';
 export * from './backtestInputSessionsItem';
 export * from './backtestInputTradeType';
 export * from './backtestStatus';
+export * from './bulkImportJournalsInput';
 export * from './dailyPnl';
 export * from './dashboardSummary';
 export * from './dashboardSummaryAccountMode';

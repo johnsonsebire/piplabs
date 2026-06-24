@@ -1653,9 +1653,7 @@ paths:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                $ref: "#/components/schemas/JournalEntryInput"
+              $ref: "#/components/schemas/BulkImportJournalsInput"
       responses:
         "201":
           description: Imported journal entries
@@ -3400,6 +3398,18 @@ components:
         - volume
         - openTime
         - openPrice
+
+    BulkImportJournalsInput:
+      type: object
+      properties:
+        replaceExisting:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/JournalEntryInput"
+      required:
+        - data
 
     JournalEntryUpdate:
       type: object

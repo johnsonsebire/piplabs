@@ -16,6 +16,7 @@ interface ImportMT5ModalProps {
 export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [replaceExisting, setReplaceExisting] = useState(false);
   const importJournals = useImportJournals();
   const queryClient = useQueryClient();
 
@@ -111,9 +112,9 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
             throw new Error("No positions found in the Excel file.");
           }
 
-          await importJournals.mutateAsync({ data: extractedTrades });
-          queryClient.invalidateQueries({ queryKey: ["listJournals"] });
-          queryClient.invalidateQueries({ queryKey: ["getJournalStats"] });
+          await importJournals.mutateAsync({ data: { replaceExisting, data: extractedTrades } });
+          queryClient.invalidateQueries({ queryKey: ["/api/journals"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/journals/stats"] });
           swalSuccess("Success", `Imported ${extractedTrades.length} trades!`);
           onClose();
         } catch (err: any) {
@@ -145,6 +146,18 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
             className="bg-[#0a0d11] border-secondary cursor-pointer"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
+          <div className="flex items-center mt-4 gap-3">
+            <input
+              type="checkbox"
+              id="replaceExisting"
+              className="w-4 h-4 cursor-pointer"
+              checked={replaceExisting}
+              onChange={(e) => setReplaceExisting(e.target.checked)}
+            />
+            <label htmlFor="replaceExisting" className="text-sm text-secondary cursor-pointer select-none">
+              Replace Existing Data
+            </label>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isProcessing} className="border-secondary text-light hover:bg-secondary/20">

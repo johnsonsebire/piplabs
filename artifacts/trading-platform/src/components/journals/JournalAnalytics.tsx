@@ -37,13 +37,30 @@ export function JournalAnalytics({ journals }: JournalAnalyticsProps) {
   // 2. Volume by Symbol
   const volumeBySymbol = useMemo(() => {
     const map = new Map<string, number>();
+    let totalVol = 0;
     journals.forEach(j => {
       const vol = Number(j.volume) || 0;
       map.set(j.symbol, (map.get(j.symbol) || 0) + vol);
+      totalVol += vol;
     });
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+    
+    const threshold = totalVol * 0.02; // Group <2% into Other
+    let otherVol = 0;
+    const finalData: {name: string, value: number}[] = [];
+    
+    Array.from(map.entries()).forEach(([name, value]) => {
+      if (value < threshold) {
+        otherVol += value;
+      } else {
+        finalData.push({ name, value });
+      }
+    });
+
+    if (otherVol > 0) {
+      finalData.push({ name: 'Other', value: otherVol });
+    }
+
+    return finalData.sort((a, b) => b.value - a.value);
   }, [journals]);
 
   // 3. P&L by Duration Bucket
@@ -135,13 +152,14 @@ export function JournalAnalytics({ journals }: JournalAnalyticsProps) {
                 <Pie
                   data={volumeBySymbol}
                   cx="50%"
-                  cy="45%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={5}
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={70}
+                  paddingAngle={3}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={true}
+                  labelLine={{ stroke: 'rgba(255,255,255,0.2)', strokeWidth: 1 }}
+                  stroke="none"
                 >
                   {volumeBySymbol.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

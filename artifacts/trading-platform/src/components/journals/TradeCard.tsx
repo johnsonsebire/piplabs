@@ -66,7 +66,7 @@ export function TradeCard({ trade }: TradeCardProps) {
         </div>
         <div style={{
           fontSize: "85px", fontWeight: "800", lineHeight: "1", color: "white",
-          fontFamily: "'Courier New', Courier, monospace", letterSpacing: "-2px", marginBottom: "24px"
+          letterSpacing: "-2px", marginBottom: "24px"
         }}>
           {isProfit ? "" : "-"}${Math.abs(trade.profitLossRaw || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>

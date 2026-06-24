@@ -29,6 +29,7 @@ import type {
   AutoTradeSessionUpdate,
   Backtest,
   BacktestInput,
+  BulkImportJournalsInput,
   DashboardSummary,
   DerivActiveSymbol,
   DerivStatus,
@@ -5995,14 +5996,14 @@ export const getImportJournalsUrl = () => {
 /**
  * @summary Bulk import journal entries
  */
-export const importJournals = async (journalEntryInput: JournalEntryInput[], options?: RequestInit): Promise<JournalEntry[]> => {
+export const importJournals = async (bulkImportJournalsInput: BulkImportJournalsInput, options?: RequestInit): Promise<JournalEntry[]> => {
 
   return customFetch<JournalEntry[]>(getImportJournalsUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(journalEntryInput)
+    body: JSON.stringify(bulkImportJournalsInput)
   }
 );}
 
@@ -6010,8 +6011,8 @@ export const importJournals = async (journalEntryInput: JournalEntryInput[], opt
 
 
 export const getImportJournalsMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<JournalEntryInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<JournalEntryInput[]>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<BulkImportJournalsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<BulkImportJournalsInput>}, TContext> => {
 
 const mutationKey = ['importJournals'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -6023,7 +6024,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importJournals>>, {data: BodyType<JournalEntryInput[]>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importJournals>>, {data: BodyType<BulkImportJournalsInput>}> = (props) => {
           const {data} = props ?? {};
 
           return  importJournals(data,requestOptions)
@@ -6037,18 +6038,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ImportJournalsMutationResult = NonNullable<Awaited<ReturnType<typeof importJournals>>>
-    export type ImportJournalsMutationBody = BodyType<JournalEntryInput[]>
+    export type ImportJournalsMutationBody = BodyType<BulkImportJournalsInput>
     export type ImportJournalsMutationError = ErrorType<unknown>
 
     /**
  * @summary Bulk import journal entries
  */
 export const useImportJournals = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<JournalEntryInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importJournals>>, TError,{data: BodyType<BulkImportJournalsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof importJournals>>,
         TError,
-        {data: BodyType<JournalEntryInput[]>},
+        {data: BodyType<BulkImportJournalsInput>},
         TContext
       > => {
       return useMutation(getImportJournalsMutationOptions(options));

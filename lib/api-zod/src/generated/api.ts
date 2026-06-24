@@ -1891,7 +1891,9 @@ export const CreateJournalResponse = zod.object({
 /**
  * @summary Bulk import journal entries
  */
-export const ImportJournalsBodyItem = zod.object({
+export const ImportJournalsBody = zod.object({
+  "replaceExisting": zod.boolean().optional(),
+  "data": zod.array(zod.object({
   "accountName": zod.string(),
   "symbol": zod.string(),
   "side": zod.enum(['buy', 'sell']),
@@ -1905,8 +1907,8 @@ export const ImportJournalsBodyItem = zod.object({
   "grossProfit": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish()
+}))
 })
-export const ImportJournalsBody = zod.array(ImportJournalsBodyItem)
 
 export const ImportJournalsResponseItem = zod.object({
   "id": zod.number(),

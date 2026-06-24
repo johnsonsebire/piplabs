@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { JournalCalendar } from "@/components/journals/JournalCalendar";
 import { JournalAnalytics } from "@/components/journals/JournalAnalytics";
+import { EquityCurve } from "@/components/journals/EquityCurve";
 import { isSameDay, format } from "date-fns";
 import { swalConfirm, swalSuccess, swalError } from "@/lib/swal";
 import { exportToCSV, exportToPDF } from "@/lib/exportUtils";
@@ -204,7 +205,7 @@ export default function JournalDashboard() {
             <TabsList className="strategy-tabs-list">
               <TabsTrigger 
                 value="overview" 
-                className="strategy-tab-trigger flex gap-2 items-center"
+                className="strategy-tab-trigger flex gap-2 items-center data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
                 data-tab="overview"
               >
                 <Activity size={14} />
@@ -212,7 +213,7 @@ export default function JournalDashboard() {
               </TabsTrigger>
               <TabsTrigger 
                 value="calendar" 
-                className="strategy-tab-trigger flex gap-2 items-center"
+                className="strategy-tab-trigger flex gap-2 items-center data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
                 data-tab="calendar"
               >
                 <Calendar size={14} />
@@ -220,7 +221,7 @@ export default function JournalDashboard() {
               </TabsTrigger>
               <TabsTrigger 
                 value="analytics" 
-                className="strategy-tab-trigger flex gap-2 items-center"
+                className="strategy-tab-trigger flex gap-2 items-center data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
                 data-tab="analytics"
               >
                 <BarChart2 size={14} />
@@ -228,7 +229,7 @@ export default function JournalDashboard() {
               </TabsTrigger>
               <TabsTrigger 
                 value="history" 
-                className="strategy-tab-trigger flex gap-2 items-center"
+                className="strategy-tab-trigger flex gap-2 items-center data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
                 data-tab="history"
               >
                 <List size={14} />
@@ -370,6 +371,10 @@ export default function JournalDashboard() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="mb-4">
+              <EquityCurve journals={journalsData || []} startingBalance={advancedStats?.startingBalance || 0} />
             </div>
           </TabsContent>
 

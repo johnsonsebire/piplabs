@@ -1280,6 +1280,11 @@ export interface JournalEntryInput {
   notes?: string | null;
 }
 
+export interface BulkImportJournalsInput {
+  replaceExisting?: boolean;
+  data: JournalEntryInput[];
+}
+
 export type JournalEntryUpdateSide = typeof JournalEntryUpdateSide[keyof typeof JournalEntryUpdateSide];
 
 
