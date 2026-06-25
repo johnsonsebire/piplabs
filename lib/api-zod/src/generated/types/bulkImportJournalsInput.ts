@@ -5,9 +5,11 @@
  * PipLabs Universal Trading Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { AccountTransactionInput } from './accountTransactionInput';
 import type { JournalEntryInput } from './journalEntryInput';
 
 export interface BulkImportJournalsInput {
   replaceExisting?: boolean;
   data: JournalEntryInput[];
+  transactions?: AccountTransactionInput[];
 }

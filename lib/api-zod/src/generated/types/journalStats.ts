@@ -12,6 +12,12 @@ export interface JournalStats {
   winRate: number;
   profitFactor: number;
   totalPnL: number;
+  netProfit: number;
+  totalCommissions: number;
+  totalSwaps: number;
+  totalDeposits: number;
+  totalWithdrawals: number;
+  netBalanceGrowth: number;
   averageWin: number;
   averageLoss: number;
   byDuration: JournalStatsByDurationItem[];

@@ -1233,6 +1233,10 @@ export interface JournalEntry {
   /** @nullable */
   grossProfit?: number | null;
   /** @nullable */
+  commission?: number | null;
+  /** @nullable */
+  swap?: number | null;
+  /** @nullable */
   durationMinutes?: number | null;
   /** @nullable */
   notes?: string | null;
@@ -1275,7 +1279,30 @@ export interface JournalEntryInput {
   /** @nullable */
   grossProfit?: number | null;
   /** @nullable */
+  commission?: number | null;
+  /** @nullable */
+  swap?: number | null;
+  /** @nullable */
   durationMinutes?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type AccountTransactionInputType = typeof AccountTransactionInputType[keyof typeof AccountTransactionInputType];
+
+
+export const AccountTransactionInputType = {
+  deposit: 'deposit',
+  withdrawal: 'withdrawal',
+  bonus: 'bonus',
+  credit: 'credit',
+} as const;
+
+export interface AccountTransactionInput {
+  accountName: string;
+  type: AccountTransactionInputType;
+  amount: number;
+  timestamp: string;
   /** @nullable */
   notes?: string | null;
 }
@@ -1283,6 +1310,7 @@ export interface JournalEntryInput {
 export interface BulkImportJournalsInput {
   replaceExisting?: boolean;
   data: JournalEntryInput[];
+  transactions?: AccountTransactionInput[];
 }
 
 export type JournalEntryUpdateSide = typeof JournalEntryUpdateSide[keyof typeof JournalEntryUpdateSide];
@@ -1320,6 +1348,10 @@ export interface JournalEntryUpdate {
   /** @nullable */
   grossProfit?: number | null;
   /** @nullable */
+  commission?: number | null;
+  /** @nullable */
+  swap?: number | null;
+  /** @nullable */
   durationMinutes?: number | null;
   /** @nullable */
   notes?: string | null;
@@ -1336,9 +1368,37 @@ export interface JournalStats {
   winRate: number;
   profitFactor: number;
   totalPnL: number;
+  netProfit: number;
+  totalCommissions: number;
+  totalSwaps: number;
+  totalDeposits: number;
+  totalWithdrawals: number;
+  netBalanceGrowth: number;
   averageWin: number;
   averageLoss: number;
   byDuration: JournalStatsByDurationItem[];
+}
+
+export type AccountTransactionType = typeof AccountTransactionType[keyof typeof AccountTransactionType];
+
+
+export const AccountTransactionType = {
+  deposit: 'deposit',
+  withdrawal: 'withdrawal',
+  bonus: 'bonus',
+  credit: 'credit',
+} as const;
+
+export interface AccountTransaction {
+  id: number;
+  userId: string;
+  accountName: string;
+  type: AccountTransactionType;
+  amount: number;
+  timestamp: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
 }
 
 export type ListUsersParams = {
@@ -1477,6 +1537,10 @@ export type ListJournalsParams = {
 accountName?: string;
 symbol?: string;
 limit?: number;
+};
+
+export type GetAccountTransactionsParams = {
+accountName: string;
 };
 
 export type GetJournalStatsParams = {

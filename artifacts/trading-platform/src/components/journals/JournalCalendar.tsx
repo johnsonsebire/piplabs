@@ -11,18 +11,23 @@ import {
   isSameDay, 
   addDays 
 } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JournalEntry } from "@workspace/api-client-react";
+import { exportCalendarImage } from "./exportCalendarImage.tsx";
 
 interface JournalCalendarProps {
   journals: JournalEntry[];
   selectedDate: Date | null;
   onSelectDate: (date: Date | null) => void;
+  initialMonth?: Date;
+  isExport?: boolean;
+  workspaceName?: string;
 }
 
-export function JournalCalendar({ journals, selectedDate, onSelectDate }: JournalCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+export function JournalCalendar({ journals, selectedDate, onSelectDate, initialMonth, isExport, workspaceName }: JournalCalendarProps) {
+  const [currentMonth, setCurrentMonth] = useState(initialMonth || new Date());
+  const [isExporting, setIsExporting] = useState(false);
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
@@ -49,13 +54,32 @@ export function JournalCalendar({ journals, selectedDate, onSelectDate }: Journa
       <div className="card-header border-secondary bg-transparent py-3 d-flex justify-content-between align-items-center">
         <h5 className="mb-0 text-white fw-bold">Trading Calendar</h5>
         <div className="d-flex align-items-center gap-3">
-          <Button variant="outline" size="icon" className="border-secondary text-light h-8 w-8" onClick={prevMonth}>
+          {!isExport && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-secondary hover:text-light" 
+              onClick={async () => {
+                if (isExporting) return;
+                setIsExporting(true);
+                try {
+                  await exportCalendarImage(journals, currentMonth, workspaceName || "Trading");
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+              disabled={isExporting}
+            >
+              <Download size={18} />
+            </Button>
+          )}
+          <Button variant="outline" size="icon" className="border-secondary text-light h-8 w-8" onClick={prevMonth} style={{ visibility: isExport ? 'hidden' : 'visible' }}>
             <ChevronLeft size={16} />
           </Button>
-          <span className="text-light fw-medium" style={{ minWidth: "120px", textAlign: "center" }}>
+          <span className="text-light fw-medium" style={{ minWidth: "120px", textAlign: "center", fontSize: isExport ? '1.2rem' : 'inherit' }}>
             {format(currentMonth, "MMMM yyyy")}
           </span>
-          <Button variant="outline" size="icon" className="border-secondary text-light h-8 w-8" onClick={nextMonth}>
+          <Button variant="outline" size="icon" className="border-secondary text-light h-8 w-8" onClick={nextMonth} style={{ visibility: isExport ? 'hidden' : 'visible' }}>
             <ChevronRight size={16} />
           </Button>
         </div>
@@ -86,12 +110,13 @@ export function JournalCalendar({ journals, selectedDate, onSelectDate }: Journa
                 key={idx} 
                 onClick={() => onSelectDate(isSelected ? null : date)}
                 className={`
-                  p-2 border-bottom border-end border-secondary position-relative cursor-pointer transition-colors
+                  p-2 border-bottom border-end border-secondary position-relative transition-colors
+                  ${!isExport && "cursor-pointer"}
                   ${!isCurrentMonth ? "opacity-50 bg-darker" : "bg-dark"}
-                  ${isSelected ? "ring-2 ring-primary ring-inset" : "hover:bg-secondary/10"}
+                  ${isSelected && !isExport ? "ring-2 ring-primary ring-inset" : !isExport ? "hover:bg-secondary/10" : ""}
                   ${hasTrades ? (isPositive ? "bg-success/5" : isNegative ? "bg-danger/5" : "") : ""}
                 `}
-                style={{ minHeight: "100px" }}
+                style={{ minHeight: isExport ? "130px" : "100px" }}
               >
                 <div className="d-flex justify-content-between align-items-start mb-2">
                   <span className={`small fw-bold ${isSelected ? "text-primary" : "text-light"}`}>

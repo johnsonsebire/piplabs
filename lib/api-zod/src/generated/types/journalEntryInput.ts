@@ -25,6 +25,10 @@ export interface JournalEntryInput {
   /** @nullable */
   grossProfit?: number | null;
   /** @nullable */
+  commission?: number | null;
+  /** @nullable */
+  swap?: number | null;
+  /** @nullable */
   durationMinutes?: number | null;
   /** @nullable */
   notes?: string | null;

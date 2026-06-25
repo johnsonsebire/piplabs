@@ -18,6 +18,8 @@ export const journalsTable = pgTable("journal_entries", {
   closePrice: real("close_price"),
   profitLossRaw: real("profit_loss_raw"),
   grossProfit: real("gross_profit"),
+  commission: real("commission"),
+  swap: real("swap"),
   durationMinutes: integer("duration_minutes"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

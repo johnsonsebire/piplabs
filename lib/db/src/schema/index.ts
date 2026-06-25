@@ -10,3 +10,4 @@ export * from "./copy_trading";
 export * from "./trading_guides";
 export * from "./journals";
 export * from "./journalWorkspaces";
+export * from "./accountTransactions";

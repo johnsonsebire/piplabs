@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accountTransaction';
+export * from './accountTransactionInput';
+export * from './accountTransactionInputType';
+export * from './accountTransactionType';
 export * from './aIAnalysis';
 export * from './aIAnalysisInput';
 export * from './aIAnalysisInputDirection';
@@ -39,6 +43,7 @@ export * from './dashboardSummaryAccountMode';
 export * from './derivActiveSymbol';
 export * from './derivStatus';
 export * from './derivTokenInput';
+export * from './getAccountTransactionsParams';
 export * from './getJournalStatsParams';
 export * from './getMarketNewsCategory';
 export * from './getMarketNewsParams';

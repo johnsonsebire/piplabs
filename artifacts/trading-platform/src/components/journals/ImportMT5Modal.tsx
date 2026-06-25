@@ -43,8 +43,11 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
           const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
 
           let isPositionsSection = false;
+          let isDealsSection = false;
           let headers: string[] = [];
+          let dealsHeaders: string[] = [];
           const extractedTrades: any[] = [];
+          const extractedTransactions: any[] = [];
 
           for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
@@ -54,6 +57,12 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
 
             if (firstCell === "Positions") {
               isPositionsSection = true;
+              isDealsSection = false;
+              continue;
+            }
+            if (firstCell === "Deals") {
+              isDealsSection = true;
+              isPositionsSection = false;
               continue;
             }
 
@@ -63,8 +72,10 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
             }
 
             if (isPositionsSection && headers.length > 0) {
-              if (firstCell === "Orders" || firstCell === "Deals" || String(row[1]) === "Balance") {
-                break; // End of positions
+              if (firstCell === "Orders" || firstCell === "Deals" || String(row[1]) === "Balance" || firstCell === "Results") {
+                isPositionsSection = false;
+                if (firstCell === "Deals") isDealsSection = true;
+                continue; // End of positions
               }
 
               const openTime = parseExcelDate(row[0]);
@@ -78,6 +89,8 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
               const openPrice = parseNumberStr(row[5]);
               const closeTime = parseExcelDate(row[8]);
               const closePrice = parseNumberStr(row[9]);
+              const commission = parseNumberStr(row[10]);
+              const swap = parseNumberStr(row[11]);
               const profitLossRaw = parseNumberStr(row[12]);
 
               if (!openTime || !symbol || isNaN(volume)) continue;
@@ -102,9 +115,49 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
                 closePrice: isNaN(closePrice) ? null : closePrice,
                 profitLossRaw: isNaN(profitLossRaw) ? null : profitLossRaw,
                 grossProfit: null,
+                commission: isNaN(commission) ? null : commission,
+                swap: isNaN(swap) ? null : swap,
                 durationMinutes,
                 notes: `MT5 Position ${row[1]}`,
               });
+            }
+
+            if (isDealsSection && dealsHeaders.length === 0 && firstCell === "Time") {
+              dealsHeaders = row.map((h) => String(h || "").trim());
+              continue;
+            }
+
+            if (isDealsSection && dealsHeaders.length > 0) {
+              if (firstCell === "Results" || String(row[1]) === "Balance") {
+                isDealsSection = false;
+                continue;
+              }
+
+              const time = parseExcelDate(row[0]);
+              if (!time) continue;
+
+              // Row format in Deals: Time, Deal, Order, Symbol, Type, Direction, Volume, Price, Commission, Swap, Profit, Balance, Comment
+              // Finding deposits/withdrawals based on Type or Comment
+              // In MT5 Deal 'Type' is usually 'Balance' or 'Credit'
+              const typeCol = String(row[2] || "").toLowerCase() === "balance" || String(row[3] || "").toLowerCase() === "balance" ? "balance" 
+                           : String(row[4] || "").toLowerCase() === "balance" || String(row[4] || "").toLowerCase() === "credit" ? String(row[4]).toLowerCase() 
+                           : "";
+                           
+              if (typeCol === "balance" || typeCol === "credit") {
+                  const profitStr = row[dealsHeaders.indexOf("Profit")] || row[10] || row[11] || row[12];
+                  const amount = parseFloat(String(profitStr || "").replace(/ /g, ""));
+                  if (!isNaN(amount) && amount !== 0) {
+                      let txType = amount > 0 ? "deposit" : "withdrawal";
+                      if (typeCol === "credit") txType = "bonus";
+                      extractedTransactions.push({
+                          accountName,
+                          type: txType,
+                          amount: amount,
+                          timestamp: time.toISOString(),
+                          notes: `MT5 ${typeCol}`
+                      });
+                  }
+              }
             }
           }
 
@@ -112,7 +165,7 @@ export function ImportMT5Modal({ isOpen, onClose, accountName }: ImportMT5ModalP
             throw new Error("No positions found in the Excel file.");
           }
 
-          await importJournals.mutateAsync({ data: { replaceExisting, data: extractedTrades } });
+          await importJournals.mutateAsync({ data: { replaceExisting, data: extractedTrades, transactions: extractedTransactions } });
           queryClient.invalidateQueries({ queryKey: ["/api/journals"] });
           queryClient.invalidateQueries({ queryKey: ["/api/journals/stats"] });
           swalSuccess("Success", `Imported ${extractedTrades.length} trades!`);

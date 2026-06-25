@@ -1840,6 +1840,8 @@ export const ListJournalsResponseItem = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
@@ -1863,6 +1865,8 @@ export const CreateJournalBody = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish()
 })
@@ -1881,6 +1885,8 @@ export const CreateJournalResponse = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
@@ -1905,9 +1911,18 @@ export const ImportJournalsBody = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish()
-}))
+})),
+  "transactions": zod.array(zod.object({
+  "accountName": zod.string(),
+  "type": zod.enum(['deposit', 'withdrawal', 'bonus', 'credit']),
+  "amount": zod.number(),
+  "timestamp": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})).optional()
 })
 
 export const ImportJournalsResponseItem = zod.object({
@@ -1924,12 +1939,34 @@ export const ImportJournalsResponseItem = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
 export const ImportJournalsResponse = zod.array(ImportJournalsResponseItem)
+
+
+/**
+ * @summary Get account transactions
+ */
+export const GetAccountTransactionsQueryParams = zod.object({
+  "accountName": zod.coerce.string()
+})
+
+export const GetAccountTransactionsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "accountName": zod.string(),
+  "type": zod.enum(['deposit', 'withdrawal', 'bonus', 'credit']),
+  "amount": zod.number(),
+  "timestamp": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const GetAccountTransactionsResponse = zod.array(GetAccountTransactionsResponseItem)
 
 
 /**
@@ -1944,6 +1981,12 @@ export const GetJournalStatsResponse = zod.object({
   "winRate": zod.number(),
   "profitFactor": zod.number(),
   "totalPnL": zod.number(),
+  "netProfit": zod.number(),
+  "totalCommissions": zod.number(),
+  "totalSwaps": zod.number(),
+  "totalDeposits": zod.number(),
+  "totalWithdrawals": zod.number(),
+  "netBalanceGrowth": zod.number(),
   "averageWin": zod.number(),
   "averageLoss": zod.number(),
   "byDuration": zod.array(zod.object({
@@ -1975,6 +2018,8 @@ export const GetJournalResponse = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
@@ -2001,6 +2046,8 @@ export const UpdateJournalBody = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish()
 })
@@ -2019,6 +2066,8 @@ export const UpdateJournalResponse = zod.object({
   "closePrice": zod.number().nullish(),
   "profitLossRaw": zod.number().nullish(),
   "grossProfit": zod.number().nullish(),
+  "commission": zod.number().nullish(),
+  "swap": zod.number().nullish(),
   "durationMinutes": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useRoute, Link } from "wouter";
-import { useListJournals, useGetJournalStats, useDeleteJournal, JournalEntry, useListJournalWorkspaces } from "@workspace/api-client-react";
+import { useListJournals, useGetJournalStats, useGetAccountTransactions, useDeleteJournal, JournalEntry, useListJournalWorkspaces } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Settings, TrendingUp, TrendingDown, Target, Activity, MoreVertical, Edit, Trash2, BookOpen, Calendar, List, BarChart2, Download, Wallet, AlertCircle, Hash, Clock } from "lucide-react";
@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { JournalCalendar } from "@/components/journals/JournalCalendar";
 import { JournalAnalytics } from "@/components/journals/JournalAnalytics";
 import { EquityCurve } from "@/components/journals/EquityCurve";
+import { GrowthGraph } from "@/components/journals/GrowthGraph";
 import { isSameDay, format } from "date-fns";
 import { swalConfirm, swalSuccess, swalError } from "@/lib/swal";
 import { exportToCSV, exportToPDF } from "@/lib/exportUtils";
@@ -34,6 +35,7 @@ export default function JournalDashboard() {
 
   const { data: statsData, isLoading: isLoadingStats } = useGetJournalStats({ accountName: accountId! });
   const { data: journalsData, isLoading: isLoadingJournals } = useListJournals({ accountName: accountId! });
+  const { data: transactionsData } = useGetAccountTransactions({ accountName: accountId! });
   const deleteJournal = useDeleteJournal();
 
   const filteredJournals = useMemo(() => {
@@ -46,14 +48,24 @@ export default function JournalDashboard() {
     if (!journalsData || !workspace) return null;
 
     const startingBalance = workspace.startingBalance || 0;
-    const totalPnL = statsData?.totalPnL || 0;
-    const currentBalance = startingBalance + totalPnL;
+    const netProfit = statsData?.netProfit || statsData?.totalPnL || 0;
+    
+    let totalDeposits = statsData?.totalDeposits || 0;
+    let totalWithdrawals = statsData?.totalWithdrawals || 0;
 
-    const sortedJournals = [...journalsData].sort((a, b) => new Date(a.openTime).getTime() - new Date(b.openTime).getTime());
+    // If we have imported transactions, they contain the initial deposit, so don't double count the workspace.startingBalance
+    const effectiveStartingBalance = (statsData?.totalDeposits || 0) > 0 ? 0 : startingBalance;
+    const currentBalance = effectiveStartingBalance + netProfit + totalDeposits - totalWithdrawals;
 
-    let peakEquity = startingBalance;
+    const sortedJournals = [...journalsData].sort((a, b) => {
+      const aTime = a.closeTime ? new Date(a.closeTime).getTime() : new Date(a.openTime).getTime();
+      const bTime = b.closeTime ? new Date(b.closeTime).getTime() : new Date(b.openTime).getTime();
+      return aTime - bTime;
+    });
+
+    let peakEquity = effectiveStartingBalance;
     let maxDrawdown = 0;
-    let runningEquity = startingBalance;
+    let runningEquity = effectiveStartingBalance;
 
     let todaysPnL = 0;
     let dailyDrawdown = 0;
@@ -64,19 +76,20 @@ export default function JournalDashboard() {
     const symbolCounts: Record<string, number> = {};
 
     sortedJournals.forEach(j => {
-      const pnl = j.profitLossRaw || 0;
+      const pnl = (j.profitLossRaw || 0) + (j.commission || 0) + (j.swap || 0);
       runningEquity += pnl;
 
       if (runningEquity > peakEquity) peakEquity = runningEquity;
       const drawdown = peakEquity - runningEquity;
       if (drawdown > maxDrawdown) maxDrawdown = drawdown;
 
-      if (isSameDay(new Date(j.openTime), today)) {
+      const tradeDate = j.closeTime ? new Date(j.closeTime) : new Date(j.openTime);
+      if (isSameDay(tradeDate, today)) {
         todaysPnL += pnl;
       }
 
       totalLots += Number(j.volume) || 0;
-      tradingDaysSet.add(format(new Date(j.openTime), "yyyy-MM-dd"));
+      tradingDaysSet.add(format(tradeDate, "yyyy-MM-dd"));
       symbolCounts[j.symbol] = (symbolCounts[j.symbol] || 0) + 1;
     });
 
@@ -84,9 +97,10 @@ export default function JournalDashboard() {
 
     let todayRunningEq = todaysStartingBalance;
     let todayPeak = todaysStartingBalance;
-    const todayTrades = sortedJournals.filter(j => isSameDay(new Date(j.openTime), today));
+    const todayTrades = sortedJournals.filter(j => isSameDay(j.closeTime ? new Date(j.closeTime) : new Date(j.openTime), today));
     todayTrades.forEach(j => {
-       todayRunningEq += (j.profitLossRaw || 0);
+       const pnl = (j.profitLossRaw || 0) + (j.commission || 0) + (j.swap || 0);
+       todayRunningEq += pnl;
        if (todayRunningEq > todayPeak) todayPeak = todayRunningEq;
        const dd = todayPeak - todayRunningEq;
        if (dd > dailyDrawdown) dailyDrawdown = dd;
@@ -107,6 +121,7 @@ export default function JournalDashboard() {
 
     return {
       startingBalance,
+      effectiveStartingBalance,
       currentBalance,
       currentEquity: currentBalance,
       todaysStartingBalance,
@@ -317,6 +332,16 @@ export default function JournalDashboard() {
                 <div className="col-4 col-sm-3 col-lg-2">
                   <div className="card bg-dark border-secondary h-100">
                     <div className="card-body p-3 text-center">
+                      <div className="text-secondary small text-uppercase tracking-wider mb-1">Net Profit</div>
+                      <h5 className={`fw-bold mb-0 ${statsData?.netProfit && statsData.netProfit >= 0 ? 'text-success' : 'text-danger'}`}>
+                        {formatMoney(statsData?.netProfit || 0)}
+                      </h5>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-4 col-sm-3 col-lg-2">
+                  <div className="card bg-dark border-secondary h-100">
+                    <div className="card-body p-3 text-center">
                       <div className="text-secondary small text-uppercase tracking-wider mb-1">Trades</div>
                       <h5 className="fw-bold mb-0 text-white">{advancedStats?.totalTrades || 0}</h5>
                     </div>
@@ -373,8 +398,17 @@ export default function JournalDashboard() {
               </div>
             </div>
 
-            <div className="mb-4">
-              <EquityCurve journals={journalsData || []} startingBalance={advancedStats?.startingBalance || 0} />
+            <div className="row g-4 mb-4">
+              <div className="col-lg-6">
+                <EquityCurve journals={journalsData || []} startingBalance={advancedStats?.effectiveStartingBalance || 0} />
+              </div>
+              <div className="col-lg-6">
+                <GrowthGraph 
+                  journals={journalsData || []} 
+                  transactions={transactionsData || []}
+                  startingBalance={advancedStats?.effectiveStartingBalance || 0} 
+                />
+              </div>
             </div>
           </TabsContent>
 
@@ -383,6 +417,7 @@ export default function JournalDashboard() {
               <JournalCalendar 
                 journals={journalsData || []} 
                 selectedDate={selectedDate} 
+                workspaceName={workspace?.name || "Trading"}
                 onSelectDate={(date) => {
                   setSelectedDate(date);
                   if (date) {

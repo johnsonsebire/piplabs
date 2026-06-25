@@ -22,6 +22,7 @@ import type {
 import type {
   AIAnalysis,
   AIAnalysisInput,
+  AccountTransaction,
   Asset,
   AssetInput,
   AutoTradeSession,
@@ -34,6 +35,7 @@ import type {
   DerivActiveSymbol,
   DerivStatus,
   DerivTokenInput,
+  GetAccountTransactionsParams,
   GetJournalStatsParams,
   GetMarketNewsParams,
   GetRecentTradesParams,
@@ -6054,6 +6056,90 @@ export const useImportJournals = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getImportJournalsMutationOptions(options));
     }
+
+export const getGetAccountTransactionsUrl = (params: GetAccountTransactionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/journals/transactions?${stringifiedParams}` : `/api/journals/transactions`
+}
+
+/**
+ * @summary Get account transactions
+ */
+export const getAccountTransactions = async (params: GetAccountTransactionsParams, options?: RequestInit): Promise<AccountTransaction[]> => {
+
+  return customFetch<AccountTransaction[]>(getGetAccountTransactionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAccountTransactionsQueryKey = (params?: GetAccountTransactionsParams,) => {
+    return [
+    `/api/journals/transactions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAccountTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof getAccountTransactions>>, TError = ErrorType<unknown>>(params: GetAccountTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAccountTransactionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccountTransactions>>> = ({ signal }) => getAccountTransactions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAccountTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAccountTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof getAccountTransactions>>>
+export type GetAccountTransactionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get account transactions
+ */
+
+export function useGetAccountTransactions<TData = Awaited<ReturnType<typeof getAccountTransactions>>, TError = ErrorType<unknown>>(
+ params: GetAccountTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAccountTransactionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetJournalStatsUrl = (params: GetJournalStatsParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -1664,6 +1664,28 @@ paths:
                 items:
                   $ref: "#/components/schemas/JournalEntry"
 
+  /journals/transactions:
+    get:
+      operationId: getAccountTransactions
+      summary: Get account transactions
+      tags:
+        - Journals
+      parameters:
+        - name: accountName
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of account transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountTransaction'
+
   /journals/stats:
     get:
       operationId: getJournalStats
@@ -3334,6 +3356,10 @@ components:
           type: ["number", "null"]
         grossProfit:
           type: ["number", "null"]
+        commission:
+          type: ["number", "null"]
+        swap:
+          type: ["number", "null"]
         durationMinutes:
           type: ["integer", "null"]
         notes:
@@ -3386,6 +3412,10 @@ components:
           type: ["number", "null"]
         grossProfit:
           type: ["number", "null"]
+        commission:
+          type: ["number", "null"]
+        swap:
+          type: ["number", "null"]
         durationMinutes:
           type: ["integer", "null"]
         notes:
@@ -3408,6 +3438,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/JournalEntryInput"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountTransactionInput"
       required:
         - data
 
@@ -3440,6 +3474,10 @@ components:
           type: ["number", "null"]
         grossProfit:
           type: ["number", "null"]
+        commission:
+          type: ["number", "null"]
+        swap:
+          type: ["number", "null"]
         durationMinutes:
           type: ["integer", "null"]
         notes:
@@ -3455,6 +3493,18 @@ components:
         profitFactor:
           type: number
         totalPnL:
+          type: number
+        netProfit:
+          type: number
+        totalCommissions:
+          type: number
+        totalSwaps:
+          type: number
+        totalDeposits:
+          type: number
+        totalWithdrawals:
+          type: number
+        netBalanceGrowth:
           type: number
         averageWin:
           type: number
@@ -3480,6 +3530,64 @@ components:
         - winRate
         - profitFactor
         - totalPnL
+        - netProfit
+        - totalCommissions
+        - totalSwaps
+        - totalDeposits
+        - totalWithdrawals
+        - netBalanceGrowth
         - averageWin
         - averageLoss
         - byDuration
+
+    AccountTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        accountName:
+          type: string
+        type:
+          type: string
+          enum: [deposit, withdrawal, bonus, credit]
+        amount:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - accountName
+        - type
+        - amount
+        - timestamp
+        - createdAt
+
+    AccountTransactionInput:
+      type: object
+      properties:
+        accountName:
+          type: string
+        type:
+          type: string
+          enum: [deposit, withdrawal, bonus, credit]
+        amount:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+        notes:
+          type: ["string", "null"]
+      required:
+        - accountName
+        - type
+        - amount
+        - timestamp

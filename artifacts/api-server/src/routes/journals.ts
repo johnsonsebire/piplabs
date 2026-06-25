@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
-import { db, journalsTable } from "@workspace/db";
+import { db, journalsTable, accountTransactionsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { logger } from "../lib/logger";
@@ -68,6 +68,8 @@ router.post("/journals", requireAuth, async (req: Request, res: Response): Promi
       profitLossRaw: data.profitLossRaw,
       grossProfit: data.grossProfit,
       durationMinutes: data.durationMinutes,
+      commission: data.commission,
+      swap: data.swap,
       notes: data.notes,
     }).returning();
     
@@ -89,6 +91,7 @@ router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): 
   try {
     const payload = req.body;
     let dataArray = Array.isArray(payload) ? payload : payload.data;
+    const transactionsArray = payload.transactions || [];
     const replaceExisting = payload.replaceExisting === true;
 
     if (!Array.isArray(dataArray)) {
@@ -110,6 +113,11 @@ router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): 
         .where(and(
           eq(journalsTable.userId, (req as any).userId),
           eq(journalsTable.accountName, accountName)
+        ));
+      await db.delete(accountTransactionsTable)
+        .where(and(
+          eq(accountTransactionsTable.userId, (req as any).userId),
+          eq(accountTransactionsTable.accountName, accountName)
         ));
     }
 
@@ -154,9 +162,12 @@ router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): 
           profitLossRaw: data.profitLossRaw,
           grossProfit: data.grossProfit,
           durationMinutes: data.durationMinutes,
+          commission: data.commission,
+          swap: data.swap,
           notes: data.notes,
         });
-        existingSet.add(signature); // Avoid duplicates within the same payload
+        // We do NOT add to existingSet here because MT5 allows multiple legitimate 
+        // separate trades to be opened at the exact same second with the same side and volume.
       }
     }
 
@@ -164,7 +175,19 @@ router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): 
       return res.status(201).json([]); // All imported trades were duplicates
     }
 
-    const entries = await db.insert(journalsTable).values(insertData).returning();
+    const entries = insertData.length > 0 ? await db.insert(journalsTable).values(insertData).returning() : [];
+
+    if (transactionsArray.length > 0) {
+      const insertTransactions = transactionsArray.map((t: any) => ({
+        userId: (req as any).userId,
+        accountName: t.accountName,
+        type: t.type,
+        amount: t.amount,
+        timestamp: new Date(t.timestamp),
+        notes: t.notes
+      }));
+      await db.insert(accountTransactionsTable).values(insertTransactions);
+    }
     
     res.status(201).json(entries.map(entry => ({
         ...entry,
@@ -179,6 +202,30 @@ router.post("/journals/bulk", requireAuth, async (req: Request, res: Response): 
   }
 });
 
+router.get("/journals/transactions", requireAuth, async (req: Request, res: Response): Promise<any> => {
+  try {
+    const accountName = String(req.query.accountName);
+    if (!accountName) {
+      return res.status(400).json({ error: "accountName is required" });
+    }
+    const transactions = await db.select().from(accountTransactionsTable).where(
+      and(
+        eq(accountTransactionsTable.userId, (req as any).userId),
+        eq(accountTransactionsTable.accountName, accountName)
+      )
+    ).orderBy(desc(accountTransactionsTable.timestamp));
+    
+    res.json(transactions.map(t => ({
+      ...t,
+      timestamp: t.timestamp.toISOString(),
+      createdAt: t.createdAt.toISOString()
+    })));
+  } catch (error) {
+    logger.error({ error }, "Error getting account transactions");
+    res.status(500).json({ error: "Failed to get account transactions" });
+  }
+});
+
 // Stats
 router.get("/journals/stats", requireAuth, async (req: Request, res: Response): Promise<any> => {
   try {
@@ -190,6 +237,13 @@ router.get("/journals/stats", requireAuth, async (req: Request, res: Response): 
       )
     );
 
+    const transactions = await db.select().from(accountTransactionsTable).where(
+      and(
+        eq(accountTransactionsTable.userId, (req as any).userId),
+        eq(accountTransactionsTable.accountName, query.accountName)
+      )
+    );
+
     const totalTrades = entries.length;
     const completedTrades = entries.filter(e => e.closeTime && e.profitLossRaw !== null);
     
@@ -198,10 +252,15 @@ router.get("/journals/stats", requireAuth, async (req: Request, res: Response): 
     let totalWinAmount = 0;
     let totalLossAmount = 0;
     let totalPnL = 0;
+    let totalCommissions = 0;
+    let totalSwaps = 0;
 
     for (const t of completedTrades) {
         const pnl = t.profitLossRaw || 0;
         totalPnL += pnl;
+        totalCommissions += t.commission || 0;
+        totalSwaps += t.swap || 0;
+        
         if (pnl > 0) {
             wins++;
             totalWinAmount += pnl;
@@ -210,6 +269,21 @@ router.get("/journals/stats", requireAuth, async (req: Request, res: Response): 
             totalLossAmount += Math.abs(pnl);
         }
     }
+
+    const netProfit = totalPnL + totalCommissions + totalSwaps;
+
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    
+    for (const t of transactions) {
+        if (t.type === 'deposit' || t.type === 'credit' || t.type === 'bonus') {
+            totalDeposits += Number(t.amount);
+        } else if (t.type === 'withdrawal') {
+            totalWithdrawals += Math.abs(Number(t.amount));
+        }
+    }
+
+    const netBalanceGrowth = totalDeposits > 0 ? (netProfit / totalDeposits) * 100 : 0;
 
     const winRate = completedTrades.length > 0 ? (wins / completedTrades.length) * 100 : 0;
     const averageWin = wins > 0 ? totalWinAmount / wins : 0;
@@ -221,6 +295,12 @@ router.get("/journals/stats", requireAuth, async (req: Request, res: Response): 
         winRate,
         profitFactor,
         totalPnL,
+        netProfit,
+        totalCommissions,
+        totalSwaps,
+        totalDeposits,
+        totalWithdrawals,
+        netBalanceGrowth,
         averageWin,
         averageLoss,
         byDuration: []
