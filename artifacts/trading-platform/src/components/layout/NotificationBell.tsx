@@ -181,6 +181,7 @@ export function NotificationBell() {
         top: "3.1rem",
         right: "8px",
         width: 430,
+        maxWidth: "calc(100vw - 16px)",
         maxHeight: "calc(100vh - 4rem)",
         backgroundColor: "#0a0d11",
         border: "1px solid rgba(255,255,255,0.08)",

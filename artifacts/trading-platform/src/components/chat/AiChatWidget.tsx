@@ -198,8 +198,9 @@ export function AiChatWidget() {
           className="position-fixed shadow-2xl border border-secondary rounded-lg d-flex flex-column bg-background overflow-hidden"
           style={{ 
             bottom: "90px", 
-            right: "24px", 
-            width: "380px", 
+            right: "16px",
+            width: "calc(100vw - 32px)",
+            maxWidth: "380px",
             height: "600px",
             maxHeight: "calc(100vh - 120px)",
             zIndex: 9999

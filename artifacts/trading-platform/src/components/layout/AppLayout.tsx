@@ -1,7 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Menu } from "lucide-react";
 import { AiChatWidget } from "@/components/chat/AiChatWidget";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 
@@ -13,6 +15,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: "bi-grid" },
@@ -55,7 +58,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Divider */}
           <div className="d-none d-md-block flex-shrink-0" style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--bs-border-color)' }}></div>
 
-          {/* Navigation */}
+          {/* Desktop Navigation */}
           <nav className="d-none d-md-flex align-items-center gap-0 overflow-auto" style={{ scrollbarWidth: 'none' }}>
             {navItems.map((item) => {
               const isActive = location === item.href || location.startsWith(`${item.href}/`);
@@ -96,13 +99,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Right: Status + User */}
-        <div className="d-flex align-items-center gap-2 flex-shrink-0">
+        <div className="d-flex align-items-center gap-1 gap-sm-2 flex-shrink-0">
           {/* Connection status */}
           <div className="d-none d-sm-flex align-items-center gap-2 pe-2 me-1" style={{ borderRight: '1px solid var(--bs-border-color)' }}>
             <div className="rounded-circle" style={{ width: '0.375rem', height: '0.375rem', backgroundColor: '#10b981', animation: 'pulse 2s infinite' }}></div>
             <span className="font-mono text-secondary" style={{ fontSize: '0.5625rem' }}>CONNECTED</span>
           </div>
-          
+
           {/* Notification bell */}
           <NotificationBell />
 
@@ -133,6 +136,58 @@ export function AppLayout({ children }: AppLayoutProps) {
           >
             Exit
           </Button>
+
+          {/* Mobile Navigation Toggle (moved to right side) */}
+          <div className="d-md-none flex-shrink-0 ms-1">
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 text-secondary border border-secondary bg-dark/50" 
+                  style={{ borderRadius: '4px' }}
+                >
+                  <Menu size={16} />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="bg-dark border-secondary p-0" style={{ width: '280px', zIndex: 100000 }}>
+                <SheetHeader className="p-4 border-bottom border-secondary text-start">
+                  <SheetTitle className="text-success fw-bold text-uppercase d-flex align-items-center gap-2" style={{ fontSize: '0.875rem', letterSpacing: '0.1em' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 13L10 6L14 10L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter"/>
+                      <path d="M21 3V10M21 3H14" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter"/>
+                    </svg>
+                    Terminal
+                  </SheetTitle>
+                  <SheetDescription className="d-none">Mobile navigation menu</SheetDescription>
+                </SheetHeader>
+                <div className="py-2 overflow-auto" style={{ maxHeight: 'calc(100vh - 70px)' }}>
+                  <nav className="d-flex flex-column">
+                    {navItems.map((item) => {
+                      const isActive = location === item.href || location.startsWith(`${item.href}/`);
+                      return (
+                        <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }} onClick={() => setIsMobileMenuOpen(false)}>
+                          <div 
+                            className={`px-4 py-3 font-mono text-uppercase d-flex align-items-center gap-3 transition-colors`}
+                            style={{ 
+                              fontSize: '0.75rem',
+                              letterSpacing: '0.05em',
+                              color: isActive ? '#10b981' : '#e2e8f0',
+                              backgroundColor: isActive ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
+                              borderLeft: isActive ? '3px solid #10b981' : '3px solid transparent',
+                            }}
+                          >
+                            <i className={`bi ${item.icon}`} style={{ fontSize: '1rem' }}></i>
+                            {item.label}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </header>
 
