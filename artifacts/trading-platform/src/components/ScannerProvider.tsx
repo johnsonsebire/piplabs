@@ -15,6 +15,7 @@ import { useEffect, useRef, useCallback } from "react";
 import {
   useGetWatchlist,
   useListStrategies,
+  useGetMe,
   customFetch,
 } from "@workspace/api-client-react";
 import { useScannerStore, SCANNER_AUTOSTART_KEY } from "@/hooks/useScannerStore";
@@ -23,7 +24,7 @@ import { getSymbolDisplayName } from "@/lib/utils";
 import { fetchHistoricalCandles } from "@/lib/deriv-api";
 
 const DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
-const SIGNAL_EVAL_INTERVAL_MS = 3000;
+const SIGNAL_EVAL_INTERVAL_MS = 30000; // 30 seconds
 const MAX_WS_SYMBOLS = 50;
 
 export function ScannerProvider({ children }: { children: React.ReactNode }) {
@@ -52,6 +53,8 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
     ? strategiesRes
     : ((strategiesRes as any)?.strategies ?? []);
 
+  const { data: user } = useGetMe ? useGetMe() : { data: null };
+
   // ── Refs (stable across renders without triggering effects) ───────────────
   const wsRef = useRef<WebSocket | null>(null);
   const scannerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -70,6 +73,12 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { isScanningRef.current = isScanning; }, [isScanning]);
   useEffect(() => { strategiesRef.current = strategies; }, [strategies]);
   useEffect(() => { selectedStrategyIdRef.current = selectedStrategyId; }, [selectedStrategyId]);
+  useEffect(() => {
+    if (user) {
+      scannerCooldownRef.current = (user as any).scannerCooldown ?? 5;
+      aiConfirmationRef.current = (user as any).scannerAiConfirmation ?? false;
+    }
+  }, [user]);
 
   // ── WebSocket management ──────────────────────────────────────────────────
   const watchlistSymbols = (watchlist as any[]).map((w: any) => w.symbol);
@@ -194,61 +203,79 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
       const prices = livePricesRef.current;
       const stratId = selectedStrategyIdRef.current;
 
+      if (!stratId) return;
+
       Object.entries(prices).forEach(([sym, data]) => {
         const now = Date.now();
         const lastSignal = lastSignalTimeRef.current[sym] ?? 0;
         const cooldownMs = scannerCooldownRef.current * 60_000;
         if (now - lastSignal <= cooldownMs) return;
 
-        const absPct = Math.abs(data.pctChange);
-        if (absPct <= 0.05) return;
-
-        const direction = data.pctChange > 0 ? "BUY" : "SELL";
-        const strength = absPct > 0.2 ? "STRONG" : "MODERATE";
-        const lastDirection = lastSignalDirectionRef.current[sym];
-        if (lastDirection === direction) return; // skip consecutive same direction
-
-        lastSignalTimeRef.current[sym] = now;
-        lastSignalDirectionRef.current[sym] = direction;
         const assetName = getSymbolDisplayName(sym);
 
-        if (aiConfirmationRef.current) {
-          addLog(`🤖 Submitting ${strength} ${direction} signal on ${assetName} for AI Analysis...`, "info");
-          (async () => {
-            try {
-              const timeframes = [
-                { label: "5M", gran: 300, count: 300 },
-                { label: "15M", gran: 900, count: 300 },
-                { label: "4H", gran: 14400, count: 300 },
-              ];
-              const allData = await Promise.all(
-                timeframes.map((tf) =>
-                  fetchHistoricalCandles(sym, tf.gran, tf.count).then((c) => ({
-                    label: tf.label,
-                    candles: c,
-                  }))
-                )
-              );
-              const prompt = `A scanner generated a ${direction} signal for ${assetName} (${sym}). Recent price action:\n${allData.map((d) => `[${d.label}] Last Close: ${d.candles[d.candles.length - 1]?.close ?? "N/A"}`).join("\n")}\nConfirm if this is a valid ${direction} setup. Reply with exactly "VALID" or "INVALID" on the first line, then brief reasoning.`;
-              const chatRes = await customFetch<any>("/api/scanner/evaluate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt, symbol: sym, direction }),
-              });
-              if (chatRes?.result === "VALID") {
-                addLog(`✅ AI Confirmed ${direction} signal on ${assetName}: ${chatRes.reasoning}`, "alert");
-                triggerAlert({ symbol: sym, assetName, direction, strategyId: stratId, timestamp: new Date().toISOString() });
-              } else {
-                addLog(`❌ AI Rejected ${direction} on ${assetName}: ${chatRes?.reasoning ?? "No reason"}`, "info");
-              }
-            } catch {
-              addLog(`✗ AI analysis failed for ${sym}. Skipping.`, "error");
+        (async () => {
+          try {
+            // 1. Evaluate Strategy
+            const evalRes = await customFetch<any>("/api/scanner/evaluate-strategy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ strategyId: stratId, symbol: sym, timeframe: 60 }),
+            });
+
+            if (!evalRes || evalRes.result === "NONE" || evalRes.result === "none") {
+              return; // No conditions met
             }
-          })();
-        } else {
-          addLog(`⚡ ${strength} ${direction} signal on ${assetName} (${sym}) | ${data.pctChange >= 0 ? "+" : ""}${data.pctChange.toFixed(3)}%`, "alert");
-          triggerAlert({ symbol: sym, assetName, direction, strategyId: stratId, timestamp: new Date().toISOString() });
-        }
+
+            const direction = evalRes.result;
+            const strength = evalRes.strength || "MODERATE";
+
+            const lastDirection = lastSignalDirectionRef.current[sym];
+            if (lastDirection === direction) return; // skip consecutive same direction
+
+            lastSignalTimeRef.current[sym] = now;
+            lastSignalDirectionRef.current[sym] = direction;
+
+            // 2. AI Confirmation (if enabled)
+            if (aiConfirmationRef.current) {
+              addLog(`🤖 Submitting ${strength} ${direction} signal on ${assetName} for AI Analysis...`, "info");
+              try {
+                const timeframes = [
+                  { label: "5M", gran: 300, count: 300 },
+                  { label: "15M", gran: 900, count: 300 },
+                  { label: "4H", gran: 14400, count: 300 },
+                ];
+                const allData = await Promise.all(
+                  timeframes.map((tf) =>
+                    fetchHistoricalCandles(sym, tf.gran, tf.count).then((c) => ({
+                      label: tf.label,
+                      candles: c,
+                    }))
+                  )
+                );
+                const prompt = `A scanner generated a ${direction} signal for ${assetName} (${sym}) based on technical strategy conditions: ${evalRes.reasoning}. Recent price action:\n${allData.map((d) => `[${d.label}] Last Close: ${d.candles[d.candles.length - 1]?.close ?? "N/A"}`).join("\n")}\nConfirm if this is a valid ${direction} setup. Reply with exactly "VALID" or "INVALID" on the first line, then brief reasoning.`;
+                const chatRes = await customFetch<any>("/api/scanner/evaluate", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ prompt, symbol: sym, direction }),
+                });
+                if (chatRes?.result === "VALID") {
+                  addLog(`✅ AI Confirmed ${direction} signal on ${assetName}: ${chatRes.reasoning}`, "alert");
+                  triggerAlert({ symbol: sym, assetName, direction, strategyId: stratId, timestamp: new Date().toISOString() });
+                } else {
+                  addLog(`❌ AI Rejected ${direction} on ${assetName}: ${chatRes?.reasoning ?? "No reason"}`, "info");
+                }
+              } catch {
+                addLog(`✗ AI analysis failed for ${sym}. Skipping.`, "error");
+              }
+            } else {
+              // 3. Direct Alert (if AI not enabled)
+              addLog(`⚡ ${strength} ${direction} signal on ${assetName} (${sym}) | Strategy eval: ${evalRes.reasoning}`, "alert");
+              triggerAlert({ symbol: sym, assetName, direction, strategyId: stratId, timestamp: new Date().toISOString() });
+            }
+          } catch (error) {
+            // Silently fail evaluation (could be missing candles, etc.)
+          }
+        })();
       });
     }, SIGNAL_EVAL_INTERVAL_MS);
   }, [addLog, triggerAlert]);
