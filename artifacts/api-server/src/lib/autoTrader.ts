@@ -253,6 +253,7 @@ async function processAutoTradingSessions() {
     try {
       if (!user.derivApiToken) {
         logger.warn({ sessionId: session.id }, "AutoTrader: No Deriv token, skipping");
+        await logAutoTradeEvent(session.id, "system", "error", "No Deriv API token configured for this account. Please connect your Deriv account in Settings.");
         continue;
       }
 
@@ -334,10 +335,18 @@ async function processAutoTradingSessions() {
           }
 
           const candles = await fetchDerivCandles(sym, fromSec, nowSec, 60);
-          if (candles.length < 2) { signals[sym] = null; continue; }
+          if (candles.length < 2) {
+            await logAutoTradeEvent(session.id, sym, "evaluate", `Insufficient candle data for ${sym} (got ${candles.length} candles, need at least 2). Market may be closed or symbol invalid.`);
+            signals[sym] = null;
+            continue;
+          }
           const evalIndex = candles.length - 2;
           const directions = enabledDirections(legs);
-          if (directions.length === 0) { signals[sym] = null; continue; }
+          if (directions.length === 0) {
+            await logAutoTradeEvent(session.id, sym, "evaluate", `Strategy has no enabled trade directions (neither BUY nor SELL is configured). Please check strategy settings.`);
+            signals[sym] = null;
+            continue;
+          }
 
           const map = buildSeries(candles, legs, userIndicators);
           const closes = candles.map(c => c.close);
@@ -386,6 +395,8 @@ async function processAutoTradingSessions() {
             side = "buy";
           } else if (isSell) {
             side = "sell";
+          } else {
+            await logAutoTradeEvent(session.id, sym, "evaluate", `Evaluated ${candles.length} candles for ${sym} — no entry conditions met this cycle.`);
           }
 
           if (side) {
@@ -448,8 +459,9 @@ async function processAutoTradingSessions() {
           }
           
           signals[sym] = side;
-        } catch (err) {
+        } catch (err: any) {
           logger.warn({ err, sym, sessionId: session.id }, "AutoTrader: Candle fetch failed for symbol");
+          await logAutoTradeEvent(session.id, sym, "error", `Failed to fetch market data for ${sym}: ${err?.message || "Unknown error"}. Will retry next cycle.`);
           signals[sym] = null;
         }
       }

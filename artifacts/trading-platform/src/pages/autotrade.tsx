@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useListAutoTradeSessions, useCreateAutoTradeSession, useUpdateAutoTradeSession, useDeleteAutoTradeSession, useListStrategies, AutoTradeSessionInputMode, getListAutoTradeSessionsQueryKey, useListMt5Accounts } from "@workspace/api-client-react";
+import { useListAutoTradeSessions, useCreateAutoTradeSession, useUpdateAutoTradeSession, useDeleteAutoTradeSession, useListStrategies, AutoTradeSessionInputMode, getListAutoTradeSessionsQueryKey, useListMt5Accounts, useGetWatchlist, useSearchDerivSymbols, customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,9 +14,10 @@ import { format } from "date-fns";
 import { Link } from "wouter";
 import { getSymbolDisplayName } from "@/lib/utils";
 import { SessionLiveChart } from "@/components/SessionLiveChart";
-import { Bot, Terminal, Activity, List, ChevronDown } from "lucide-react";
+import { Bot, Terminal, Activity, List, ChevronDown, Star, Search, X, Loader2 } from "lucide-react";
 import { ContractTypeSelector } from "@/components/chart/ContractTypeSelector";
 import { type ContractSubtype } from "@/lib/deriv-contract-types";
+import { useDebounce } from "@/hooks/use-debounce";
 
 function SessionTrades({ sessionId }: { sessionId: number }) {
   const { data: trades, isLoading } = useQuery({
@@ -271,6 +272,43 @@ export default function AutoTradePage() {
     mt5AccountId: "",
   });
 
+  // --- Asset picker state ---
+  const [assetSearch, setAssetSearch] = useState("");
+  const [showFavorites, setShowFavorites] = useState(false);
+  const debouncedAssetSearch = useDebounce(assetSearch, 350);
+
+  const { data: watchlist = [] } = useGetWatchlist ? useGetWatchlist() : { data: [] };
+  const { data: searchResults = [], isFetching: isSearching } = useSearchDerivSymbols(
+    debouncedAssetSearch ? { q: debouncedAssetSearch } : undefined,
+    { query: { enabled: !!debouncedAssetSearch } as any }
+  );
+
+  const addSymbolToForm = useCallback(async (symbol: string, displayName?: string, type?: string) => {
+    if (formData.symbols.includes(symbol)) return;
+    // Auto-register in assets table so the engine has display info
+    try {
+      let assetType = type || 'multiplier';
+      const rawType = (type || "").toLowerCase();
+      if (rawType.includes('crypto')) assetType = 'crypto';
+      else if (rawType.includes('ind') || rawType.includes('stock')) assetType = 'indices';
+      else if (rawType.includes('commodit')) assetType = 'commodities';
+      else if (rawType.includes('forex') || rawType.includes('frx')) assetType = 'forex';
+      await customFetch('/api/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol,
+          displayName: displayName || getSymbolDisplayName(symbol),
+          shortName: displayName || getSymbolDisplayName(symbol),
+          type: assetType,
+        }),
+      });
+    } catch { /* asset may already exist */ }
+    setFormData(prev => ({ ...prev, symbols: [...prev.symbols, symbol] }));
+    setAssetSearch("");
+  }, [formData.symbols]);
+
+
   const [filter, setFilter] = useState<"all" | "active" | "past">("all");
 
   const filteredSessions = useMemo(() => {
@@ -286,7 +324,7 @@ export default function AutoTradePage() {
     setEditingId(null);
     setFormData({
       strategyId: "",
-      symbols: ["R_100"],
+      symbols: [],
       pairMode: "single",
       mode: AutoTradeSessionInputMode.demo,
       stakeAmount: "10",
@@ -301,6 +339,8 @@ export default function AutoTradePage() {
       tradeType: "RISE_FALL" as ContractSubtype,
       mt5AccountId: mt5Accounts?.[0]?.id || "",
     });
+    setAssetSearch("");
+    setShowFavorites(false);
     setShowForm(true);
   };
 
@@ -568,44 +608,138 @@ export default function AutoTradePage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs uppercase font-mono text-muted-foreground">Pairs</Label>
+                  <Label className="text-xs uppercase font-mono text-muted-foreground">Pairs / Assets</Label>
                   <div className="d-flex flex-column gap-2">
-                    <div className="d-flex flex-wrap gap-1 mb-1">
-                      {formData.symbols.map((sym, idx) => (
-                        <div key={idx} className="d-flex align-items-center gap-1 border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-wider font-mono" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
-                          {getSymbolDisplayName(sym)}
-                          <button type="button" onClick={() => setFormData({...formData, symbols: formData.symbols.filter((_, i) => i !== idx)})} className="text-primary hover:text-danger px-1 ms-1 transition-colors bg-transparent border-0">&times;</button>
+                    {/* Selected symbols chips */}
+                    {formData.symbols.length > 0 && (
+                      <div className="d-flex flex-wrap gap-1 mb-1">
+                        {formData.symbols.map((sym, idx) => (
+                          <div key={idx} className="d-flex align-items-center gap-1 border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-wider font-mono" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
+                            <span>{getSymbolDisplayName(sym)}</span>
+                            <span className="text-muted-foreground text-[9px] ms-1">({sym})</span>
+                            <button type="button" onClick={() => setFormData(prev => ({...prev, symbols: prev.symbols.filter((_, i) => i !== idx)}))} className="text-primary hover:text-danger px-1 ms-1 transition-colors bg-transparent border-0">×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Search bar */}
+                    <div className="position-relative">
+                      <div className="d-flex align-items-center gap-2 border border-border bg-background px-2" style={{ height: '40px' }}>
+                        <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={assetSearch}
+                          onChange={e => setAssetSearch(e.target.value)}
+                          placeholder="Search assets (e.g. Bitcoin, EUR/USD, Volatility)..."
+                          className="bg-transparent border-0 outline-none text-xs font-mono text-foreground placeholder:text-muted-foreground w-100"
+                          style={{ minWidth: 0 }}
+                        />
+                        {isSearching && <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin flex-shrink-0" />}
+                        {assetSearch && !isSearching && (
+                          <button type="button" onClick={() => setAssetSearch("")} className="text-muted-foreground hover:text-foreground bg-transparent border-0 p-0">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Search results dropdown */}
+                      {debouncedAssetSearch && (
+                        <div className="position-absolute w-100 border border-border bg-card shadow-lg" style={{ top: '100%', left: 0, zIndex: 600, maxHeight: '200px', overflowY: 'auto' }}>
+                          {isSearching ? (
+                            <div className="p-3 text-xs font-mono text-muted-foreground text-center">Searching Deriv API...</div>
+                          ) : (searchResults as any[]).length === 0 ? (
+                            <div className="p-3 text-xs font-mono text-muted-foreground text-center">No assets found for "{debouncedAssetSearch}"</div>
+                          ) : (
+                            (searchResults as any[]).slice(0, 15).map((r: any) => {
+                              const sym = r.symbol;
+                              const name = r.displayName || r.name || getSymbolDisplayName(sym);
+                              const alreadyAdded = formData.symbols.includes(sym);
+                              return (
+                                <button
+                                  key={sym}
+                                  type="button"
+                                  disabled={alreadyAdded}
+                                  onClick={() => addSymbolToForm(sym, name, r.instrumentType || r.type)}
+                                  className="w-100 d-flex align-items-center justify-content-between px-3 py-2 text-left border-0 border-bottom border-border bg-transparent hover:bg-muted/20 transition-colors"
+                                  style={{ opacity: alreadyAdded ? 0.5 : 1, cursor: alreadyAdded ? 'default' : 'pointer' }}
+                                >
+                                  <div className="d-flex flex-column gap-0">
+                                    <span className="text-xs font-mono font-bold text-foreground">{name}</span>
+                                    <span className="text-[10px] font-mono text-muted-foreground">{sym}</span>
+                                  </div>
+                                  {alreadyAdded ? (
+                                    <span className="text-[10px] text-primary font-mono">Added</span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground font-mono">+ Add</span>
+                                  )}
+                                </button>
+                              );
+                            })
+                          )}
                         </div>
-                      ))}
+                      )}
                     </div>
-                    <Input 
-                      placeholder="Type symbol and press Enter..."
-                      className="w-100 rounded-none font-mono border-border bg-background uppercase text-xs"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ',') {
-                          e.preventDefault();
-                          const val = e.currentTarget.value.trim().toUpperCase();
-                          if (val && !formData.symbols.includes(val)) {
-                            setFormData({...formData, symbols: [...formData.symbols, val]});
-                          }
-                          e.currentTarget.value = '';
-                        }
-                      }}
-                    />
-                    <div className="d-flex flex-wrap gap-2 mt-2">
-                      {['R_100', 'R_75', 'R_50', 'R_25', 'R_10', 'BTCUSD', 'ETHUSD'].map(sym => (
-                        <button 
-                          key={sym} type="button" 
-                          onClick={() => !formData.symbols.includes(sym) && setFormData({...formData, symbols: [...formData.symbols, sym]})}
-                          className="text-[10px] border border-secondary bg-card text-secondary px-2 py-1 font-mono uppercase tracking-wider transition-colors"
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bs-secondary-bg-subtle)'; e.currentTarget.style.color = '#fff'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--bs-card-bg)'; e.currentTarget.style.color = 'var(--bs-secondary)'; }}
-                        >
-                          +{getSymbolDisplayName(sym)}
-                        </button>
-                      ))}
+
+                    {/* Favorites / Watchlist section */}
+                    <div className="border border-border">
+                      <button
+                        type="button"
+                        onClick={() => setShowFavorites(p => !p)}
+                        className="w-100 d-flex align-items-center justify-content-between px-3 py-2 bg-transparent border-0 text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted/10 transition-colors"
+                      >
+                        <span className="d-flex align-items-center gap-2">
+                          <Star className="w-3.5 h-3.5 text-yellow-500" />
+                          Favorites ({(watchlist as any[]).length})
+                        </span>
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFavorites ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {showFavorites && (
+                        <div className="border-top border-border" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                          {(watchlist as any[]).length === 0 ? (
+                            <div className="p-3 text-xs font-mono text-muted-foreground text-center">
+                              No favorites yet. Add assets in the Realtime Scanner.
+                            </div>
+                          ) : (
+                            <div className="d-flex flex-wrap gap-1 p-2">
+                              {(watchlist as any[]).map((item: any) => {
+                                const sym = item.symbol;
+                                const name = item.displayName || getSymbolDisplayName(sym);
+                                const alreadyAdded = formData.symbols.includes(sym);
+                                return (
+                                  <button
+                                    key={sym}
+                                    type="button"
+                                    disabled={alreadyAdded}
+                                    onClick={() => addSymbolToForm(sym, name, item.type)}
+                                    title={sym}
+                                    className="d-flex align-items-center gap-1 border px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors bg-transparent"
+                                    style={{
+                                      borderColor: alreadyAdded ? 'var(--bs-primary)' : 'var(--bs-secondary)',
+                                      color: alreadyAdded ? 'var(--bs-primary)' : 'var(--bs-secondary)',
+                                      backgroundColor: alreadyAdded ? 'rgba(16,185,129,0.1)' : 'var(--bs-card-bg)',
+                                      cursor: alreadyAdded ? 'default' : 'pointer',
+                                      opacity: alreadyAdded ? 0.7 : 1,
+                                    }}
+                                  >
+                                    <Star className="w-3 h-3" style={{ fill: alreadyAdded ? 'currentColor' : 'none' }} />
+                                    {name}
+                                    {alreadyAdded && <span className="ms-1 text-[9px]">✓</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
+
+                    {formData.symbols.length === 0 && (
+                      <p className="text-[10px] font-mono text-muted-foreground m-0">
+                        Search for an asset above or pick from your Scanner Favorites.
+                      </p>
+                    )}
                   </div>
                 </div>
 

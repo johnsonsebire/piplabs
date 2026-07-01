@@ -139,6 +139,7 @@ function ClerkQueryClientCacheInvalidator() {
 
 import { useAuth } from "@clerk/react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { ScannerProvider } from "@/components/ScannerProvider";
 
 function AuthConfigurator({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded, userId } = useAuth();
@@ -252,8 +253,9 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
         <AuthConfigurator>
-          <TooltipProvider>
-            <Switch>
+          <ScannerProvider>
+            <TooltipProvider>
+              <Switch>
               <Route path="/" component={HomeRedirect} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />
@@ -316,8 +318,9 @@ function ClerkProviderWithRoutes() {
               
               <Route component={NotFound} />
             </Switch>
-            <Toaster />
-          </TooltipProvider>
+              <Toaster />
+            </TooltipProvider>
+          </ScannerProvider>
         </AuthConfigurator>
       </QueryClientProvider>
     </ClerkProvider>
